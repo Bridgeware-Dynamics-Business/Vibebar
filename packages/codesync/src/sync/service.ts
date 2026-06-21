@@ -39,6 +39,11 @@ export class SyncService {
   private mirroring = false
   private mirrorQueued = false
   private paths: { sourceRoot: string; destRoot: string } | null = null
+  /**
+   * Cancellation flag handed to the running mirror. `stop()` flips `cancelled`, which aborts an
+   * in-flight pass; `start()` installs a fresh token so a restart is not pre-cancelled.
+   */
+  private cancel: { cancelled: boolean } = { cancelled: false }
 
   constructor(instanceId: string, logger: SyncLogger) {
     this.instanceId = instanceId
@@ -60,7 +65,10 @@ export class SyncService {
   }
 
   private async runMirrorFull(): Promise<void> {
-    if (!this.mirrorOpts) return
+    // Capture the options (and their cancel signal) locally: stop() nulls this.mirrorOpts, and a
+    // restart installs a new one — reading the field mid-pass would race with both.
+    const opts = this.mirrorOpts
+    if (!opts) return
     if (this.mirroring) {
       this.mirrorQueued = true
       return
@@ -69,9 +77,10 @@ export class SyncService {
     try {
       do {
         this.mirrorQueued = false
-        const r = await mirrorFull(this.mirrorOpts)
+        if (opts.signal?.cancelled) break
+        const r = await mirrorFull(opts)
         this.log(`Mirror: ${r.copied} updated, ${r.skipped} unchanged, ${r.deleted} removed`)
-      } while (this.mirrorQueued)
+      } while (this.mirrorQueued && !opts.signal?.cancelled)
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       this.log(`Mirror error: ${msg}`)
@@ -90,6 +99,8 @@ export class SyncService {
 
   async start(payload: SyncStartPayload): Promise<void> {
     this.stop()
+    // Fresh token: stop() above marked the previous one cancelled, so a restart must not inherit it.
+    this.cancel = { cancelled: false }
     const { sourceRoot, destRoot, ignoreText, maxFileBytes } = payload
     this.debounceMs =
       Number.isFinite(payload.debounceMs) && payload.debounceMs >= 50
@@ -117,6 +128,7 @@ export class SyncService {
       matchIgnore,
       fgIgnore,
       maxFileBytes,
+      signal: this.cancel,
       onSkip: (reason, rel) => {
         this.log(`Skip (${reason}): ${rel}`)
       }
@@ -145,6 +157,9 @@ export class SyncService {
   }
 
   stop(): void {
+    // Flip the token first so any in-flight mirror pass aborts at its next checkpoint instead
+    // of running to completion (the delete phase would otherwise keep mutating the destination).
+    this.cancel.cancelled = true
     if (this.debounceTimer) {
       clearTimeout(this.debounceTimer)
       this.debounceTimer = null
@@ -154,6 +169,8 @@ export class SyncService {
     this.mirrorOpts = null
     this.paths = null
     this.mirrorQueued = false
+    // Reset so a subsequent start() is not blocked by the guard in runMirrorFull; the cancelled
+    // pass (if any) will abort at its next checkpoint and its own finally is now a no-op.
     this.mirroring = false
   }
 }

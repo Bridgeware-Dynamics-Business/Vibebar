@@ -25,6 +25,13 @@ app-builds/
 packages/*/lib/
 packages/*/dist/
 
+# Track the VibeBar app icon: apps/vibebar/build holds electron-builder's buildResources
+# (the packaging icon), which is source input — NOT build output — and must be version
+# controlled so it can never be lost again. The broad `build/` rule above would otherwise
+# ignore it.
+!apps/vibebar/build/
+!apps/vibebar/build/**
+
 # electron-builder packaging artifacts (installers, unpacked apps, blockmaps)
 *.exe
 *.msi

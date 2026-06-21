@@ -8,6 +8,16 @@ import { shouldCopyFile } from './copyLogic.js'
 
 const limit = pLimit(12)
 
+/**
+ * A cooperative cancellation flag. `mirrorFull` checks it before and during its copy/delete
+ * phases and bails out promptly, so hitting Stop (or closing Code Sync) halts an in-progress
+ * pass instead of letting it run to completion — critical because the delete phase mutates the
+ * destination tree.
+ */
+export interface CancelSignal {
+  readonly cancelled: boolean
+}
+
 export interface MirrorOptions {
   sourceRoot: string
   destRoot: string
@@ -15,6 +25,8 @@ export interface MirrorOptions {
   fgIgnore: string[]
   maxFileBytes: number | null
   onSkip?: (reason: string, rel: string) => void
+  /** When set and flipped to `cancelled`, the mirror stops as soon as it next checks. */
+  signal?: CancelSignal
 }
 
 /** Collect parent directory paths for a file path (posix segments). */
@@ -34,7 +46,7 @@ export async function mirrorFull(opts: MirrorOptions): Promise<{
   skipped: number
   deleted: number
 }> {
-  const { sourceRoot, destRoot, matchIgnore, fgIgnore, maxFileBytes } = opts
+  const { sourceRoot, destRoot, matchIgnore, fgIgnore, maxFileBytes, signal } = opts
 
   const srcFiles = await fg('**/*', {
     cwd: sourceRoot,
@@ -61,11 +73,14 @@ export async function mirrorFull(opts: MirrorOptions): Promise<{
   let skipped = 0
   const tasks: Promise<void>[] = []
 
+  if (signal?.cancelled) return { copied, skipped, deleted: 0 }
+
   for (const rel of sourceFileSet) {
     const srcAbs = join(sourceRoot, rel)
     const destAbs = join(destRoot, rel)
     tasks.push(
       limit(async () => {
+        if (signal?.cancelled) return
         let st
         try {
           st = await stat(srcAbs)
@@ -97,6 +112,11 @@ export async function mirrorFull(opts: MirrorOptions): Promise<{
 
   await Promise.all(tasks)
 
+  let deleted = 0
+
+  // The delete phase is the destructive one: never start (or continue) it once cancelled.
+  if (signal?.cancelled) return { copied, skipped, deleted }
+
   const destFiles = await fg('**/*', {
     cwd: destRoot,
     dot: true,
@@ -106,8 +126,8 @@ export async function mirrorFull(opts: MirrorOptions): Promise<{
     ignore: fgIgnore
   })
 
-  let deleted = 0
   for (const rel of destFiles) {
+    if (signal?.cancelled) return { copied, skipped, deleted }
     const n = rel.replace(/\\/g, '/')
     if (isIgnoredRel(n, matchIgnore)) continue
     if (sourceFileSet.has(n)) continue
@@ -115,6 +135,8 @@ export async function mirrorFull(opts: MirrorOptions): Promise<{
     await rm(destAbs, { force: true })
     deleted++
   }
+
+  if (signal?.cancelled) return { copied, skipped, deleted }
 
   const destDirs = await fg('**/', {
     cwd: destRoot,
@@ -130,6 +152,7 @@ export async function mirrorFull(opts: MirrorOptions): Promise<{
     .sort((a, b) => b.split('/').length - a.split('/').length)
 
   for (const d of sortedDirs) {
+    if (signal?.cancelled) return { copied, skipped, deleted }
     if (isIgnoredRel(d, matchIgnore)) continue
     if (sourceDirSet.has(d)) continue
     const destAbs = join(destRoot, d)

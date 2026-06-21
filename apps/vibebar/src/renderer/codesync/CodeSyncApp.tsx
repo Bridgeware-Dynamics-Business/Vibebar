@@ -86,7 +86,17 @@ export function CodeSyncApp(): JSX.Element {
     })
     void refreshStatus()
     const off = window.codesync.onLog((entry) => appendLog(entry.instanceId, entry.line))
-    return off
+    // The window is hidden (not destroyed) when closed, and the controller stops every sync on
+    // hide/close. Re-query on focus/visibility so the toggles reflect that stopped state instead
+    // of a stale "running" from before it was closed.
+    const onFocus = (): void => void refreshStatus()
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onFocus)
+    return () => {
+      off()
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onFocus)
+    }
   }, [appendLog, refreshStatus])
 
   useEffect(() => {

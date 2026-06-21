@@ -49,7 +49,7 @@ export class CodeSyncController {
 
   toggle(): { visible: boolean } {
     if (this.win && !this.win.isDestroyed() && this.win.isVisible()) {
-      this.win.hide()
+      this.hide()
       return { visible: false }
     }
     this.ensureWindow()
@@ -61,6 +61,10 @@ export class CodeSyncController {
   }
 
   hide(): void {
+    // Closing/hiding Code Sync must fully stop syncing: the user treats the window being gone as
+    // "off", and a watcher silently mirroring (and deleting) in the background is exactly the
+    // surprise we must avoid. Re-opening shows the saved instances, stopped, ready to start again.
+    this.stopAllSyncs()
     if (this.win && !this.win.isDestroyed()) this.win.hide()
   }
 
@@ -70,10 +74,17 @@ export class CodeSyncController {
     this.win = null
   }
 
+  /** Halts every running sync instance (no-op before register()). */
+  private stopAllSyncs(): void {
+    this.handle?.manager.stopAll()
+  }
+
   private ensureWindow(): void {
     if (this.win && !this.win.isDestroyed()) return
     this.win = createCodeSyncWindow(this.computeBounds())
     this.win.on('closed', () => {
+      // A destroyed window can never surface sync activity, so never leave watchers running.
+      this.stopAllSyncs()
       this.win = null
     })
   }

@@ -56,3 +56,73 @@ describe('mirrorFull with a sync folder nested inside the source', () => {
     }
   })
 })
+
+describe('mirrorFull cancellation', () => {
+  it('never runs the destructive delete phase when already cancelled', async () => {
+    const base = await mkdtemp(join(tmpdir(), 'cs-cancel-'))
+    try {
+      const sourceRoot = join(base, 'src')
+      const destRoot = join(base, 'dest')
+      await mkdir(sourceRoot, { recursive: true })
+      await mkdir(destRoot, { recursive: true })
+      await writeFile(join(sourceRoot, 'keep.txt'), 'a')
+      // A stray file the mirror would normally delete (not present in the source).
+      await writeFile(join(destRoot, 'stray.txt'), 'old')
+
+      const { matchIgnore, fgIgnore } = buildIgnores(sourceRoot, destRoot)
+      const result = await mirrorFull({
+        sourceRoot,
+        destRoot,
+        matchIgnore,
+        fgIgnore,
+        maxFileBytes: null,
+        signal: { cancelled: true }
+      })
+
+      expect(result.copied).toBe(0)
+      expect(result.deleted).toBe(0)
+      // The stray file must survive: a cancelled pass must not delete anything.
+      expect(existsSync(join(destRoot, 'stray.txt'))).toBe(true)
+    } finally {
+      await rm(base, { recursive: true, force: true })
+    }
+  })
+
+  it('stops deleting as soon as the signal flips mid-pass', async () => {
+    const base = await mkdtemp(join(tmpdir(), 'cs-cancel-mid-'))
+    try {
+      const sourceRoot = join(base, 'src')
+      const destRoot = join(base, 'dest')
+      await mkdir(sourceRoot, { recursive: true }) // empty source → every dest file is "stray"
+      await mkdir(destRoot, { recursive: true })
+      await writeFile(join(destRoot, 'a.txt'), '1')
+      await writeFile(join(destRoot, 'b.txt'), '2')
+
+      // Reports "not cancelled" for the two pre-delete checks, then flips true at the first
+      // delete-loop check — so the destructive loop aborts before removing anything.
+      let reads = 0
+      const signal = {
+        get cancelled(): boolean {
+          reads += 1
+          return reads > 2
+        }
+      }
+
+      const { matchIgnore, fgIgnore } = buildIgnores(sourceRoot, destRoot)
+      const result = await mirrorFull({
+        sourceRoot,
+        destRoot,
+        matchIgnore,
+        fgIgnore,
+        maxFileBytes: null,
+        signal
+      })
+
+      expect(result.deleted).toBe(0)
+      expect(existsSync(join(destRoot, 'a.txt'))).toBe(true)
+      expect(existsSync(join(destRoot, 'b.txt'))).toBe(true)
+    } finally {
+      await rm(base, { recursive: true, force: true })
+    }
+  })
+})
