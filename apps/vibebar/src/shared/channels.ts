@@ -1,3 +1,5 @@
+import { CODESYNC_CHANNELS } from '@vibebar/codesync/api'
+
 /**
  * Single source of truth for every IPC channel. The main process registers handlers only
  * for channels in this map and rejects anything else (see security/validateIpc.ts), so the
@@ -128,7 +130,18 @@ export const INVOKABLE_CHANNELS: readonly string[] = [
   CH.auditRunInTerminal,
   CH.githubOpen,
   CH.gitStatus,
-  CH.appQuit
+  CH.appQuit,
+  // Code Sync runs its own IPC registry (packages/codesync) with its own payload validation
+  // (validateSyncStart / validateConfigSave). Its invokable channels are mirrored here so this
+  // allowlist remains the single, complete record of every channel the renderer can invoke.
+  CODESYNC_CHANNELS.pickFolder,
+  CODESYNC_CHANNELS.configLoad,
+  CODESYNC_CHANNELS.configSave,
+  CODESYNC_CHANNELS.syncStart,
+  CODESYNC_CHANNELS.syncStop,
+  CODESYNC_CHANNELS.syncStatus,
+  // The detached Code Sync window hides itself via this dedicated channel (see preload/codesync).
+  'codesync:hide'
 ]
 
 /** Channels the main process pushes to the renderer via webContents.send. */
@@ -142,5 +155,6 @@ export const PUSH_CHANNELS: readonly string[] = [
   CH.shellData,
   CH.shellReady,
   CH.shellClosed,
-  CH.gitStatusChanged
+  CH.gitStatusChanged,
+  CODESYNC_CHANNELS.log
 ]

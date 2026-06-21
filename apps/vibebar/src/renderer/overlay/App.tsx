@@ -131,9 +131,20 @@ export function App(): JSX.Element {
     [activePanel, closePanel, showNotice]
   )
 
-  const onCopyOutcome = useCallback((copied: boolean, text: string) => {
-    if (!copied) setFallback({ open: true, text })
-  }, [])
+  const onCopyOutcome = useCallback(
+    (copied: boolean, text: string, redactedCount = 0) => {
+      if (!copied) {
+        setFallback({ open: true, text })
+        return
+      }
+      if (redactedCount > 0) {
+        showNotice(
+          `Copied with ${redactedCount} secret${redactedCount === 1 ? '' : 's'} redacted.`
+        )
+      }
+    },
+    [showNotice]
+  )
 
   // Pop a panel out into its own floating window (like Code Sync) and collapse the inline panel
   // so the two presentations don't overlap. The detached window is keyed by panel id, so this

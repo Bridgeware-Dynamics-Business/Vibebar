@@ -36,22 +36,41 @@ const GLOB_IGNORE = [
  */
 export class AuditService {
   private readonly projects: ProjectService
+  /** Coalesces overlapping scans: the panel and the terminal can both trigger a run at once. */
+  private inFlight: Promise<AuditReport> | null = null
 
   constructor(projects: ProjectService) {
     this.projects = projects
   }
 
-  async run(): Promise<AuditReport> {
+  run(): Promise<AuditReport> {
+    if (this.inFlight) return this.inFlight
+    const pending = this.execute().finally(() => {
+      this.inFlight = null
+    })
+    this.inFlight = pending
+    return pending
+  }
+
+  private async execute(): Promise<AuditReport> {
     const profile = this.projects.getProfile()
     if (!profile?.rootPath) {
-      return { ranAt: Date.now(), projectName: null, scannedFiles: 0, findings: [], noProject: true }
+      return {
+        ranAt: Date.now(),
+        projectName: null,
+        scannedFiles: 0,
+        totalCandidates: 0,
+        truncated: false,
+        findings: [],
+        noProject: true
+      }
     }
 
     const root = profile.rootPath
     const packageJson = await this.readPackageJson(root)
     const hasLockfile = LOCKFILES.some((f) => existsSync(join(root, f)))
     const gitignore = await this.readGitignore(root)
-    const files = await this.readSourceFiles(root)
+    const { files, total } = await this.readSourceFiles(root)
 
     const c = buildContext(profile)
     const ctx: AuditContext = {
@@ -67,6 +86,8 @@ export class AuditService {
       ranAt: Date.now(),
       projectName: profile.folderName,
       scannedFiles: files.length,
+      totalCandidates: total,
+      truncated: total > files.length,
       findings,
       noProject: false
     }
@@ -92,7 +113,7 @@ export class AuditService {
     }
   }
 
-  private async readSourceFiles(root: string): Promise<ScanFile[]> {
+  private async readSourceFiles(root: string): Promise<{ files: ScanFile[]; total: number }> {
     let paths: string[]
     try {
       paths = await fg('**/*.{ts,tsx,js,jsx,mjs,cjs,vue,svelte,py,astro}', {
@@ -104,9 +125,10 @@ export class AuditService {
         suppressErrors: true
       })
     } catch {
-      return []
+      return { files: [], total: 0 }
     }
 
+    const total = paths.length
     const limited = paths.slice(0, MAX_FILES)
     const limit = pLimit(16)
     const results = await Promise.all(
@@ -122,6 +144,6 @@ export class AuditService {
         })
       )
     )
-    return results.filter((f): f is ScanFile => f !== null)
+    return { files: results.filter((f): f is ScanFile => f !== null), total }
   }
 }

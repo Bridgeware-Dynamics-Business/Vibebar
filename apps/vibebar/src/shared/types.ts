@@ -230,6 +230,10 @@ export interface AuditReport {
   ranAt: number
   projectName: string | null
   scannedFiles: number
+  /** Total source files that matched before the per-run scan cap was applied. */
+  totalCandidates: number
+  /** True when more files matched than were scanned, so the panel can warn about partial coverage. */
+  truncated: boolean
   findings: AuditFinding[]
   /** True when no project is selected, so the panel can prompt the user to pick one. */
   noProject: boolean

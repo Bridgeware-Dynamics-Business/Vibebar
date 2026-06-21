@@ -24,6 +24,11 @@ const RED = '\u001b[31m'
 const DIM = '\u001b[2m'
 const CLEAR = '\u001b[2J\u001b[3J\u001b[H'
 
+// Cap the in-memory analysis buffer so a chatty build (e.g. a webpack/test run emitting tens of
+// MB) cannot grow it without bound. Only the tail is kept — the issue analyzer already looks at
+// the most recent output — and the live xterm display is unaffected (it has its own scrollback).
+const MAX_ANALYSIS_BUFFER_BYTES = 2 * 1024 * 1024
+
 /**
  * A cwd-aware command runner backing the Smart Terminal. Each command is spawned in its own
  * child process (no long-lived shell to wedge), while `cd`/`clear` are handled in-process so
@@ -141,6 +146,9 @@ export class TerminalSession {
     const onChunk = (data: Buffer): void => {
       const text = data.toString('utf8')
       this.buffer += text
+      if (this.buffer.length > MAX_ANALYSIS_BUFFER_BYTES) {
+        this.buffer = this.buffer.slice(this.buffer.length - MAX_ANALYSIS_BUFFER_BYTES)
+      }
       // xterm expects CRLF; normalize lone LFs so lines don't stair-step.
       this.onData(text.replace(/\r?\n/g, '\r\n'))
     }

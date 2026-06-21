@@ -12,7 +12,8 @@
     "preview": "electron-vite preview",
     "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit",
     "dist": "npm run build && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win --config electron-builder.yml",
-    "dist:dir": "npm run build && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win dir --config electron-builder.yml"
+    "dist:dir": "npm run build && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win dir --config electron-builder.yml",
+    "dist:signed": "npm run build && electron-builder --win --config electron-builder.yml"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.11.0",
@@ -36,7 +37,7 @@
     "@types/react-dom": "^19.0.2",
     "@vitejs/plugin-react": "^4.3.4",
     "cross-env": "^10.1.0",
-    "electron": "^33.2.1",
+    "electron": "^38.8.6",
     "electron-builder": "^26.0.12",
     "electron-vite": "^2.3.0",
     "tailwindcss": "^4.0.0",

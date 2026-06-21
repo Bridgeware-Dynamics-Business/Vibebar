@@ -12,6 +12,19 @@ function resolvePreload(name: string): string {
   return join(moduleDir, `../preload/${name}.cjs`)
 }
 
+/**
+ * Locks a window down to its own document. VibeBar is a set of self-contained SPAs that never
+ * navigate or spawn child windows, so we deny both: an attempt to `window.open` or to navigate
+ * the frame elsewhere (e.g. via injected content) is refused rather than silently followed.
+ * HMR in dev uses a websocket, not a top-level navigation, so this does not interfere with it.
+ */
+function hardenWindow(win: BrowserWindow): void {
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  win.webContents.on('will-navigate', (event) => {
+    event.preventDefault()
+  })
+}
+
 function loadEntry(win: BrowserWindow, entry: string, query?: Record<string, string>): void {
   const search = query
     ? `?${new URLSearchParams(query).toString()}`
@@ -54,6 +67,7 @@ export function createOverlayWindow(bounds: Rect): BrowserWindow {
   win.setAlwaysOnTop(true, 'screen-saver')
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
 
+  hardenWindow(win)
   loadEntry(win, 'overlay')
   win.once('ready-to-show', () => win.show())
   return win
@@ -89,6 +103,7 @@ export function createTerminalWindow(bounds: Rect): BrowserWindow {
   })
   win.setAlwaysOnTop(true, 'screen-saver')
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+  hardenWindow(win)
   loadEntry(win, 'terminal')
   return win
 }
@@ -125,6 +140,7 @@ export function createCodeSyncWindow(bounds: Rect): BrowserWindow {
   })
   win.setAlwaysOnTop(true, 'screen-saver')
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+  hardenWindow(win)
   loadEntry(win, 'codesync')
   return win
 }
@@ -164,6 +180,7 @@ export function createDetachedPanelWindow(panelId: string, bounds: Rect): Browse
   })
   win.setAlwaysOnTop(true, 'screen-saver')
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+  hardenWindow(win)
   loadEntry(win, 'panel', { panel: panelId })
   return win
 }

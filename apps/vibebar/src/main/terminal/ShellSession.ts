@@ -15,6 +15,11 @@ export interface ShellSessionOptions {
 const RESET = '\u001b[0m'
 const RED = '\u001b[31m'
 
+// Flush the pending-line buffer if a process streams an extremely long line with no newline, so
+// it cannot grow without bound. The completion sentinel is always emitted on its own fresh line,
+// so flushing an oversized fragment never splits a sentinel match.
+const MAX_PENDING_LINE_BYTES = 1024 * 1024
+
 /**
  * A persistent, line-oriented interactive shell (cmd.exe or PowerShell) rooted at the active
  * project. Unlike the one-shot {@link TerminalSession} command runner, this keeps a single
@@ -125,6 +130,10 @@ export class ShellSession {
     this.buffer += d.toString('utf8')
     const parts = this.buffer.split(/\r?\n/)
     this.buffer = parts.pop() ?? ''
+    if (this.buffer.length > MAX_PENDING_LINE_BYTES) {
+      this.onData(this.buffer)
+      this.buffer = ''
+    }
     for (const line of parts) {
       const m = this.markerRe.exec(line)
       if (m) {

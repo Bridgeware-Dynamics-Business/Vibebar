@@ -69,11 +69,13 @@ export class PromptStore {
     }
     const guardrails = this.store.getSettings().guardrailsEnabled
     const result = sculptPrompt(template, buildContext(this.profile()), { guardrails })
+    // Redact before the text leaves the machine: a sculpted prompt can pull a hard-coded secret
+    // in from a resolved variable, and the clipboard is the exact moment it heads to an LLM.
     const scan = scanText(result.sculptedText)
 
     let copied = false
     try {
-      clipboard.writeText(result.sculptedText)
+      clipboard.writeText(scan.redactedText)
       copied = true
     } catch {
       copied = false
@@ -82,7 +84,7 @@ export class PromptStore {
     this.store.addHistory({ promptId, title: template.title, at: Date.now() })
     return {
       copied,
-      text: result.sculptedText,
+      text: scan.redactedText,
       resolvedVariables: result.resolvedVariables,
       findings: scan.findings
     }

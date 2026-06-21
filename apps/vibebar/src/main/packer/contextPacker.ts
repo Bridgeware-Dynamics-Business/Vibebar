@@ -1,5 +1,5 @@
 import { readFile, stat } from 'node:fs/promises'
-import { join, relative } from 'node:path'
+import { isAbsolute, join, relative } from 'node:path'
 import fg from 'fast-glob'
 import { compileIgnoreMatchers, getIgnoreGlobList, isIgnoredRel } from '@vibebar/codesync'
 import type { PackNode, ScanResult } from '@shared/types.js'
@@ -41,6 +41,22 @@ function fenceLang(rel: string): string {
 
 function normalizeRel(rel: string): string {
   return rel.replace(/\\/g, '/')
+}
+
+/**
+ * Resolves a caller-supplied path against the project root, returning the absolute path only if
+ * it stays inside the root. Rejects absolute inputs and any path that escapes via `..` or a
+ * different drive — `path.join` does not reset on an absolute segment, so an absolute Windows
+ * path would otherwise be silently mangled into (or out of) the root.
+ */
+function resolveWithinRoot(rootPath: string, raw: string): string | null {
+  if (isAbsolute(raw)) return null
+  const rel = normalizeRel(raw)
+  if (!rel || rel.includes('..')) return null
+  const abs = join(rootPath, rel)
+  const back = relative(rootPath, abs)
+  if (back.startsWith('..') || isAbsolute(back)) return null
+  return abs
 }
 
 export interface BundleFile {
@@ -89,11 +105,11 @@ export async function packContext(opts: PackContextOptions): Promise<PackContext
 
   for (const raw of opts.relPaths) {
     const rel = normalizeRel(raw)
-    if (!rel || rel.includes('..') || isIgnoredRel(rel, match)) {
+    const abs = resolveWithinRoot(opts.rootPath, raw)
+    if (!abs || isIgnoredRel(rel, match)) {
       skipped++
       continue
     }
-    const abs = join(opts.rootPath, rel)
     try {
       const st = await stat(abs)
       if (!st.isFile() || st.size > maxBytes) {
@@ -128,8 +144,8 @@ export async function packContext(opts: PackContextOptions): Promise<PackContext
 export async function listTree(rootPath: string, relDir: string): Promise<PackNode[]> {
   const match = compileIgnoreMatchers([])
   const cleanRel = normalizeRel(relDir).replace(/^\/+|\/+$/g, '')
-  if (cleanRel.includes('..')) return []
-  const cwd = cleanRel ? join(rootPath, cleanRel) : rootPath
+  const cwd = cleanRel ? resolveWithinRoot(rootPath, cleanRel) : rootPath
+  if (!cwd) return []
 
   const entries = await fg('*', {
     cwd,

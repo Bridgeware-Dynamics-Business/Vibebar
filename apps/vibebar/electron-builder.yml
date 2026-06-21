@@ -7,7 +7,7 @@ forceCodeSigning: false
 
 # Pinned because electron is hoisted to the workspace root, so electron-builder
 # cannot infer the version from the app's local node_modules.
-electronVersion: 33.4.11
+electronVersion: 38.8.6
 
 directories:
   output: release
@@ -22,10 +22,26 @@ files:
 npmRebuild: false
 asar: true
 
+# Code signing strategy
+# ----------------------
+# Builds are UNSIGNED by default: `npm run dist` sets CSC_IDENTITY_AUTO_DISCOVERY=false, and the
+# win.* flags below explicitly suppress signing. Unsigned installers trigger a SmartScreen
+# "unknown publisher" warning — expected for early-adopter / portable distribution.
+#
+# To ship a SIGNED build (recommended before wide release):
+#   1. Obtain an OV or EV Authenticode certificate (.pfx). EV avoids SmartScreen reputation warm-up.
+#   2. Provide it to electron-builder via environment variables (never commit the cert):
+#        CSC_LINK         = path to the .pfx OR its base64 contents
+#        CSC_KEY_PASSWORD = the .pfx password
+#   3. In the `win:` block below, set `signAndEditExecutable: true` and remove the `signExts`
+#      exclusion so the .exe/.dll are signed.
+#   4. Run `npm run dist:signed` (it does NOT disable cert auto-discovery).
 win:
   executableName: VibeBar
+  # forceCodeSigning stays false so unsigned local/dev builds keep working even with no cert.
   forceCodeSigning: false
   verifyUpdateCodeSignature: false
+  # Flip to `true` and delete the `signExts` exclusion below when distributing a signed build.
   signAndEditExecutable: false
   signExts:
     - '!.exe'

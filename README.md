@@ -66,6 +66,24 @@ npm run dist         # build an unsigned Windows installer + portable exe
 11. In the Context Packer, select files and pack them — the clipboard holds a prompt-shaped block with secrets stripped.
 12. In Settings, toggle monitors, change the dock position, and quit VibeBar.
 
+## Code signing and distribution
+
+Released builds are **unsigned by default**. `npm run dist` produces an NSIS installer and a portable
+executable with no Authenticode signature, so Windows SmartScreen shows an "unknown publisher" warning
+on first run. This is expected for early-adopter and portable distribution; the portable `.exe` is the
+lowest-friction artifact to share while signing is not yet set up.
+
+To produce a **signed** build:
+
+1. Obtain an OV or EV Authenticode certificate (`.pfx`). An EV certificate sidesteps SmartScreen's
+   reputation warm-up period.
+2. Provide it through environment variables (never commit the certificate or its password):
+   - `CSC_LINK` — path to the `.pfx` file, or its base64-encoded contents
+   - `CSC_KEY_PASSWORD` — the certificate password
+3. In `apps/vibebar/electron-builder.yml`, set `signAndEditExecutable: true` and remove the
+   `signExts` exclusion (both are flagged with inline comments).
+4. Run `npm run dist:signed` (unlike `npm run dist`, it does not disable certificate discovery).
+
 ## Tooling
 
 Electron 33 · electron-vite · TypeScript · React 19 · Tailwind CSS 4 · Framer Motion · xterm.js · Zod · Vitest · electron-store

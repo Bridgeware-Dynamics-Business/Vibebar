@@ -396,6 +396,16 @@ export function SecurityAuditPanel({
           )}
         </div>
 
+        {report?.truncated && (
+          <div className="flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-[11px] text-amber-300">
+            <Icon name="AlertTriangle" size={13} className="mt-0.5 shrink-0" />
+            <span>
+              Scanned the first {report.scannedFiles} of {report.totalCandidates} source files.
+              Results are partial — narrow the project folder for full coverage.
+            </span>
+          </div>
+        )}
+
         {/* Findings list */}
         <div className="vibe-scroll flex-1 space-y-2 overflow-y-auto pr-0.5">
           {report && !report.noProject && findings.length === 0 && !loading && (

@@ -70,6 +70,26 @@ describe('packContext', () => {
       await rm(dir, { recursive: true, force: true })
     }
   })
+
+  it('rejects absolute paths even when the target file exists', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'vb-pack-'))
+    const outside = await mkdtemp(join(tmpdir(), 'vb-outside-'))
+    try {
+      const secret = join(outside, 'secret.ts')
+      await writeFile(secret, 'const token = "AKIA1234567890ABCDEF"')
+      const out = await packContext({
+        rootPath: dir,
+        relPaths: [secret],
+        headerLabel: 'demo'
+      })
+      expect(out.fileCount).toBe(0)
+      expect(out.skipped).toBe(1)
+      expect(out.redactedText).not.toContain('AKIA1234567890ABCDEF')
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+      await rm(outside, { recursive: true, force: true })
+    }
+  })
 })
 
 describe('listTree', () => {
@@ -87,6 +107,18 @@ describe('listTree', () => {
       expect(nodes[0].isDir).toBe(true)
     } finally {
       await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('returns nothing for an absolute directory outside the root', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'vb-tree-'))
+    const outside = await mkdtemp(join(tmpdir(), 'vb-outside-'))
+    try {
+      await writeFile(join(outside, 'leak.ts'), 'export const x = 1')
+      expect(await listTree(dir, outside)).toEqual([])
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+      await rm(outside, { recursive: true, force: true })
     }
   })
 })

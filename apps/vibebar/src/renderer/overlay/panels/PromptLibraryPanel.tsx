@@ -26,7 +26,7 @@ export function PromptLibraryPanel({
 }: {
   profile: ProjectProfile | null
   onClose: () => void
-  onCopyOutcome: (copied: boolean, text: string) => void
+  onCopyOutcome: (copied: boolean, text: string, redactedCount?: number) => void
   solid?: boolean
   onToggleSolid?: () => void
   /** When provided, shows a Detach button that pops the library out into a floating window. */
@@ -53,7 +53,7 @@ export function PromptLibraryPanel({
 
   async function handleCopy(id: string): Promise<void> {
     const result = await window.vibebar.prompts.copy(id)
-    onCopyOutcome(result.copied, result.text)
+    onCopyOutcome(result.copied, result.text, result.findings.length)
     void reload()
   }
 
