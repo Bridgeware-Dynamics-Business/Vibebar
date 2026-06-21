@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { SettingsState } from '@shared/api.js'
 import type { DockSide } from '@shared/types.js'
 import { Icon } from '../../shared/icons'
-import { PanelHeader, Toggle } from '../../shared/ui'
+import { DetachButton, PanelHeader, Toggle } from '../../shared/ui'
 
 const DOCKS: { id: DockSide; label: string }[] = [
   { id: 'left', label: 'Left' },
@@ -13,11 +13,14 @@ const DOCKS: { id: DockSide; label: string }[] = [
 export function SettingsPanel({
   onClose,
   solid,
-  onToggleSolid
+  onToggleSolid,
+  onDetach
 }: {
   onClose: () => void
   solid?: boolean
   onToggleSolid?: () => void
+  /** When provided, shows a Detach button that pops the panel out into a floating window. */
+  onDetach?: () => void
 }): JSX.Element {
   const [state, setState] = useState<SettingsState | null>(null)
 
@@ -53,7 +56,9 @@ export function SettingsPanel({
           onClose={onClose}
           solid={solid}
           onToggleSolid={onToggleSolid}
-        />
+        >
+          {onDetach && <DetachButton onDetach={onDetach} label="Detach Settings" />}
+        </PanelHeader>
         <p className="p-6 text-center text-xs text-vibe-muted">Loading…</p>
       </div>
     )
@@ -66,7 +71,9 @@ export function SettingsPanel({
 
   return (
     <div className="flex h-full flex-col">
-      <PanelHeader title="Settings" onClose={onClose} solid={solid} onToggleSolid={onToggleSolid} />
+      <PanelHeader title="Settings" onClose={onClose} solid={solid} onToggleSolid={onToggleSolid}>
+        {onDetach && <DetachButton onDetach={onDetach} label="Detach Settings" />}
+      </PanelHeader>
 
       <div className="vibe-scroll flex-1 space-y-5 overflow-y-auto p-4">
         <section>

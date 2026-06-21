@@ -6,6 +6,7 @@ import {
   parseUserIgnoreLines
 } from './ignore.js'
 import { mirrorFull, type MirrorOptions } from './mirror.js'
+import { relUnder } from './pathConflict.js'
 import { DEFAULT_DEBOUNCE_MS } from '../shared/constants.js'
 
 export interface SyncStartPayload {
@@ -97,6 +98,16 @@ export class SyncService {
     this.paths = { sourceRoot, destRoot }
 
     const extra = parseUserIgnoreLines(ignoreText)
+
+    // If the sync (destination) folder lives inside the source tree, exclude it from the
+    // scan and watcher. Otherwise the source walk would re-ingest the destination's own
+    // files and mirror them into a nested clone (dest/dest/dest…), duplicating the tree.
+    const nestedDestRel = relUnder(sourceRoot, destRoot)
+    if (nestedDestRel) {
+      extra.push(nestedDestRel, `${nestedDestRel}/**`)
+      this.log(`Sync folder is inside the source folder; excluding "${nestedDestRel}/" from mirroring.`)
+    }
+
     const matchIgnore = compileIgnoreMatchers(extra)
     const fgIgnore = getIgnoreGlobList(extra)
 

@@ -106,9 +106,17 @@ ehthumbs.db
 Thumbs.db
 desktop.ini
 
-# --- Reference material dependencies (kept out of the repo) ----------------
-# The bundled "AI Context" reference projects carry their own installs/builds.
-AI Context/**/node_modules/
-AI Context/**/out/
-AI Context/**/dist/
-AI Context/**/release/
+# --- Code Sync mirror outputs & duplicate working trees --------------------
+# "AI Context/" is the default Code Sync mirror destination — a generated,
+# one-way copy of project files (carries its own node_modules/out/release).
+# "Vibebar/" is a full duplicate working tree that even contains its own
+# nested .git repository. Neither is source: keep both out of the repo so the
+# initial commit stays clean (git would otherwise add Vibebar/ as a gitlink).
+/AI Context/
+/Vibebar/
+
+# Defensive: ignore these mirror artifacts even if they appear nested
+**/AI Context/**/node_modules/
+**/AI Context/**/out/
+**/AI Context/**/dist/
+**/AI Context/**/release/

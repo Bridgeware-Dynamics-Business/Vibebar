@@ -104,6 +104,31 @@ export function FillToggle({
   )
 }
 
+/**
+ * Detach affordance shared by every detachable panel header: pops the panel out into its own
+ * floating, always-on-top window. Sits just before the Fill toggle so the chrome reads the same
+ * across the whole toolbar.
+ */
+export function DetachButton({
+  onDetach,
+  label
+}: {
+  onDetach: () => void
+  label: string
+}): JSX.Element {
+  return (
+    <button
+      type="button"
+      onClick={onDetach}
+      title="Detach into a floating window"
+      aria-label={label}
+      className="vibe-no-drag rounded-md p-1 text-vibe-muted hover:bg-white/10 hover:text-vibe-text"
+    >
+      <Icon name="ExternalLink" size={16} />
+    </button>
+  )
+}
+
 export function PanelHeader({
   title,
   onClose,

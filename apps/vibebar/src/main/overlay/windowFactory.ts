@@ -12,12 +12,17 @@ function resolvePreload(name: string): string {
   return join(moduleDir, `../preload/${name}.cjs`)
 }
 
-function loadEntry(win: BrowserWindow, entry: string): void {
+function loadEntry(win: BrowserWindow, entry: string, query?: Record<string, string>): void {
+  const search = query
+    ? `?${new URLSearchParams(query).toString()}`
+    : ''
   const devUrl = process.env['ELECTRON_RENDERER_URL']
   if (devUrl) {
-    void win.loadURL(`${devUrl}/${entry}/index.html`)
+    void win.loadURL(`${devUrl}/${entry}/index.html${search}`)
   } else {
-    void win.loadFile(join(moduleDir, `../renderer/${entry}/index.html`))
+    void win.loadFile(join(moduleDir, `../renderer/${entry}/index.html`), {
+      search: search || undefined
+    })
   }
 }
 
@@ -125,12 +130,13 @@ export function createCodeSyncWindow(bounds: Rect): BrowserWindow {
 }
 
 /**
- * Creates the detached Prompt Library as a floating overlay: frameless, transparent, and
- * always-on-top so it appears to hover beside the toolbar like a menu (mirroring Code Sync).
- * Its drag bar + hide button live in the renderer. Starts hidden; the controller shows it on
- * first toggle.
+ * Creates a detached panel as a floating overlay: frameless, transparent, and always-on-top so
+ * it appears to hover beside the toolbar like a menu (mirroring Code Sync). One window hosts a
+ * single panel, selected via the `panel` query param read by the generic renderer entry. Its
+ * drag bar + hide button live in the renderer. Starts hidden; the controller shows it on first
+ * toggle.
  */
-export function createPromptLibraryWindow(bounds: Rect): BrowserWindow {
+export function createDetachedPanelWindow(panelId: string, bounds: Rect): BrowserWindow {
   const win = new BrowserWindow({
     ...bounds,
     minWidth: 360,
@@ -148,8 +154,8 @@ export function createPromptLibraryWindow(bounds: Rect): BrowserWindow {
     type: 'toolbar',
     backgroundColor: '#00000000',
     webPreferences: {
-      // Reuses the overlay preload: it already exposes the full `window.vibebar` bridge the
-      // panel needs, and the window hides itself via `vibebar.promptLibrary.toggle()`.
+      // Reuses the overlay preload: it already exposes the full `window.vibebar` bridge every
+      // panel needs, and the window hides itself via `vibebar.panel.detach(panelId)`.
       preload: resolvePreload('overlay'),
       contextIsolation: true,
       nodeIntegration: false,
@@ -158,6 +164,6 @@ export function createPromptLibraryWindow(bounds: Rect): BrowserWindow {
   })
   win.setAlwaysOnTop(true, 'screen-saver')
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
-  loadEntry(win, 'promptlibrary')
+  loadEntry(win, 'panel', { panel: panelId })
   return win
 }

@@ -35,3 +35,22 @@ export const TOOL_DEFS: ToolDef[] = [
 ]
 
 export const PANEL_TOOL_IDS = TOOL_DEFS.filter((t) => t.kind === 'panel').map((t) => t.id)
+
+/**
+ * Panels that can be "detached" into their own floating, always-on-top window (mirroring the
+ * Prompt Library). Every `panel` tool is detachable, so the detach affordance is consistent
+ * across the toolbar. Kept as an explicit tuple so it can also seed a Zod enum in the main
+ * process without a runtime `as const` cast on a filtered array.
+ */
+export const DETACHABLE_PANEL_IDS = [
+  'prompt-library',
+  'security-audit',
+  'context-packer',
+  'settings'
+] as const
+
+export type DetachablePanelId = (typeof DETACHABLE_PANEL_IDS)[number]
+
+export function isDetachablePanel(id: ToolId): id is DetachablePanelId {
+  return (DETACHABLE_PANEL_IDS as readonly string[]).includes(id)
+}

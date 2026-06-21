@@ -58,7 +58,7 @@ export default defineConfig({
         input: {
           overlay: r('src/renderer/overlay/index.html'),
           codesync: r('src/renderer/codesync/index.html'),
-          promptlibrary: r('src/renderer/promptlibrary/index.html'),
+          panel: r('src/renderer/panel/index.html'),
           terminal: r('src/renderer/terminal/index.html')
         }
       }

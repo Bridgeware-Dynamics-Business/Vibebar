@@ -5,9 +5,9 @@ import { CodeSyncController } from './codesync/CodeSyncController.js'
 import { GitStatusService } from './git/GitStatusService.js'
 import { GitHubService } from './github/GitHubService.js'
 import { registerIpc } from './ipc/registerIpc.js'
+import { DetachedPanelController } from './overlay/DetachedPanelController.js'
 import { OverlayManager } from './overlay/OverlayManager.js'
 import { ProjectService } from './project/ProjectService.js'
-import { PromptLibraryController } from './promptlibrary/PromptLibraryController.js'
 import { PromptStore } from './prompts/PromptStore.js'
 import { AppStore } from './settings/store.js'
 import { TerminalController } from './terminal/TerminalController.js'
@@ -17,7 +17,7 @@ const projects = new ProjectService(store)
 const prompts = new PromptStore(store, projects)
 const overlay = new OverlayManager(store)
 const codesync = new CodeSyncController(store)
-const promptLibrary = new PromptLibraryController(store)
+const detachedPanels = new DetachedPanelController(store)
 const terminal = new TerminalController(store, projects, (visible) =>
   overlay.broadcast(CH.terminalVisibility, { visible })
 )
@@ -53,7 +53,7 @@ if (!app.requestSingleInstanceLock()) {
       projects,
       prompts,
       codesync,
-      promptLibrary,
+      detachedPanels,
       terminal,
       audit,
       github,
@@ -72,7 +72,7 @@ if (!app.requestSingleInstanceLock()) {
   app.on('before-quit', () => {
     overlay.destroy()
     codesync.dispose()
-    promptLibrary.dispose()
+    detachedPanels.dispose()
     terminal.dispose()
     gitStatus.dispose()
   })

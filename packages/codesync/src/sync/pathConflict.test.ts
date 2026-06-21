@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { join } from 'node:path'
 import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { platform, tmpdir } from 'node:os'
-import { conflictMessage, isUnderOrEqual } from './pathConflict.js'
+import { conflictMessage, isUnderOrEqual, relUnder } from './pathConflict.js'
 
 describe('isUnderOrEqual', () => {
   it('does not treat different Windows drive letters as nested', () => {
@@ -22,6 +22,26 @@ describe('isUnderOrEqual', () => {
     } finally {
       await rm(dir, { recursive: true, force: true })
     }
+  })
+})
+
+describe('relUnder', () => {
+  it('returns a posix relative path when child is nested under parent', () => {
+    expect(relUnder(join('a', 'b'), join('a', 'b', 'sync', 'out'))).toBe('sync/out')
+  })
+
+  it('returns null when paths are equal', () => {
+    expect(relUnder(join('a', 'b'), join('a', 'b'))).toBeNull()
+  })
+
+  it('returns null when child is not under parent', () => {
+    expect(relUnder(join('a', 'b'), join('a', 'c'))).toBeNull()
+    expect(relUnder(join('a', 'b', 'c'), join('a', 'b'))).toBeNull()
+  })
+
+  it('returns null across Windows drive letters', () => {
+    if (platform() !== 'win32') return
+    expect(relUnder('C:\\code\\src', 'D:\\code\\src\\out')).toBeNull()
   })
 })
 

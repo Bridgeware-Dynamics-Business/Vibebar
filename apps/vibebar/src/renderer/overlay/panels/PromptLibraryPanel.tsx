@@ -2,7 +2,7 @@ import { filterTemplates, PROMPT_CATEGORIES } from '@vibebar/prompt-engine'
 import { useEffect, useMemo, useState } from 'react'
 import type { ProjectProfile, PromptListResult, PromptTemplate } from '@shared/types.js'
 import { Icon } from '../../shared/icons'
-import { Chip, PanelHeader, Toggle } from '../../shared/ui'
+import { Chip, DetachButton, PanelHeader, Toggle } from '../../shared/ui'
 import { PromptCard } from './PromptCard'
 import { PromptEditor } from './PromptEditor'
 
@@ -101,17 +101,7 @@ export function PromptLibraryPanel({
         solid={solid}
         onToggleSolid={onToggleSolid}
       >
-        {onDetach && (
-          <button
-            type="button"
-            onClick={onDetach}
-            title="Detach into a floating window"
-            aria-label="Detach Prompt Library"
-            className="vibe-no-drag rounded-md p-1 text-vibe-muted hover:bg-white/10 hover:text-vibe-text"
-          >
-            <Icon name="ExternalLink" size={16} />
-          </button>
-        )}
+        {onDetach && <DetachButton onDetach={onDetach} label="Detach Prompt Library" />}
       </PanelHeader>
 
       <div className="border-b border-vibe-border px-4 py-3">

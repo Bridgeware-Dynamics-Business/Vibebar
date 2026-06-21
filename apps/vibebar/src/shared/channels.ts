@@ -40,8 +40,9 @@ export const CH = {
   codesyncToggle: 'codesync:toggle',
   codesyncHide: 'codesync:hide',
 
-  // Prompt Library floating overlay (detached menu). Toggling also hides it when visible.
-  promptLibraryToggle: 'promptLibrary:toggle',
+  // Detached panel windows (popped-out menus). One floating, always-on-top window per panel;
+  // toggling also hides it when visible, so the detached window's own close button reuses this.
+  panelDetach: 'panel:detach',
 
   // Smart Terminal
   terminalToggle: 'terminal:toggle',
@@ -109,7 +110,7 @@ export const INVOKABLE_CHANNELS: readonly string[] = [
   CH.settingsDisplays,
   CH.codesyncToggle,
   CH.codesyncHide,
-  CH.promptLibraryToggle,
+  CH.panelDetach,
   CH.terminalToggle,
   CH.terminalRun,
   CH.terminalCancel,

@@ -9,9 +9,10 @@ import type {
   ShellType,
   VibeSettings
 } from '@shared/types.js'
+import type { DetachablePanelId } from '@shared/tools.js'
 import type { AuditService } from '../audit/AuditService.js'
 import type { CodeSyncController } from '../codesync/CodeSyncController.js'
-import type { PromptLibraryController } from '../promptlibrary/PromptLibraryController.js'
+import type { DetachedPanelController } from '../overlay/DetachedPanelController.js'
 import type { OverlayManager } from '../overlay/OverlayManager.js'
 import { listTree, packContext } from '../packer/contextPacker.js'
 import type { ProjectService } from '../project/ProjectService.js'
@@ -29,7 +30,7 @@ export interface IpcDeps {
   projects: ProjectService
   prompts: PromptStore
   codesync: CodeSyncController
-  promptLibrary: PromptLibraryController
+  detachedPanels: DetachedPanelController
   terminal: TerminalController
   audit: AuditService
   github: GitHubService
@@ -48,7 +49,7 @@ function headerLabel(deps: IpcDeps): string {
  * runs the channel's allowlist + Zod check before the body, so no handler trusts raw input.
  */
 export function registerIpc(deps: IpcDeps): void {
-  const { store, overlay, projects, prompts, codesync, promptLibrary, terminal, audit, github, gitStatus } =
+  const { store, overlay, projects, prompts, codesync, detachedPanels, terminal, audit, github, gitStatus } =
     deps
 
   const handle = <T>(channel: string, fn: (payload: unknown) => T | Promise<T>): void => {
@@ -83,8 +84,8 @@ export function registerIpc(deps: IpcDeps): void {
   handle(CH.projectSelect, async () => {
     const profile = await projects.select()
     overlay.broadcast(CH.projectChanged, profile)
-    // The detached Prompt Library lives outside the overlay broadcast set; notify it directly.
-    promptLibrary.send(CH.projectChanged, profile)
+    // Detached panel windows live outside the overlay broadcast set; notify them directly.
+    detachedPanels.send(CH.projectChanged, profile)
     terminal.setProject(profile)
     gitStatus.setProject(profile)
     return profile
@@ -93,7 +94,7 @@ export function registerIpc(deps: IpcDeps): void {
   handle(CH.projectAddContextFolder, async () => {
     const profile = await projects.addContextFolder()
     overlay.broadcast(CH.projectChanged, profile)
-    promptLibrary.send(CH.projectChanged, profile)
+    detachedPanels.send(CH.projectChanged, profile)
     return profile
   })
   handle(CH.projectOpenContextFolder, () => projects.openContextFolder())
@@ -185,9 +186,11 @@ export function registerIpc(deps: IpcDeps): void {
     return { ok: true }
   })
 
-  // Prompt Library detached overlay (popped-out menu). Toggle also hides when visible, so the
-  // detached window's own close button reuses this channel.
-  handle(CH.promptLibraryToggle, () => promptLibrary.toggle())
+  // Detached panel overlays (popped-out menus). Toggle also hides when visible, so a detached
+  // window's own close button reuses this channel.
+  handle(CH.panelDetach, (p) =>
+    detachedPanels.toggle((p as { panelId: DetachablePanelId }).panelId)
+  )
 
   // Smart Terminal
   handle(CH.terminalToggle, () => terminal.toggle())

@@ -1,20 +1,23 @@
 import { useEffect, useState } from 'react'
 import type { PackNode, PackResult, ProjectProfile } from '@shared/types.js'
 import { Icon } from '../../shared/icons'
-import { PanelHeader } from '../../shared/ui'
+import { DetachButton, PanelHeader } from '../../shared/ui'
 
 export function ContextPackerPanel({
   profile,
   onClose,
   onCopyOutcome,
   solid,
-  onToggleSolid
+  onToggleSolid,
+  onDetach
 }: {
   profile: ProjectProfile | null
   onClose: () => void
   onCopyOutcome: (copied: boolean, text: string) => void
   solid?: boolean
   onToggleSolid?: () => void
+  /** When provided, shows a Detach button that pops the panel out into a floating window. */
+  onDetach?: () => void
 }): JSX.Element {
   const [childrenByDir, setChildrenByDir] = useState<Record<string, PackNode[]>>({})
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
@@ -106,7 +109,9 @@ export function ContextPackerPanel({
         onClose={onClose}
         solid={solid}
         onToggleSolid={onToggleSolid}
-      />
+      >
+        {onDetach && <DetachButton onDetach={onDetach} label="Detach Context Packer" />}
+      </PanelHeader>
 
       {!profile ? (
         <p className="p-6 text-center text-xs text-vibe-muted">

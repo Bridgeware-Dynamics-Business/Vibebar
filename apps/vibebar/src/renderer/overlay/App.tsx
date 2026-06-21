@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ToolId } from '@shared/tools.js'
+import type { DetachablePanelId, ToolId } from '@shared/tools.js'
 import type { GitStatus, OverlayLayout, ProjectProfile } from '@shared/types.js'
 import { ClipboardFallbackModal } from '../shared/ClipboardFallbackModal'
 import { useFillToggle } from '../shared/ui'
@@ -135,12 +135,16 @@ export function App(): JSX.Element {
     if (!copied) setFallback({ open: true, text })
   }, [])
 
-  // Pop the Prompt Library out into a floating window (like Code Sync) and collapse the
-  // inline panel so the two presentations don't overlap.
-  const detachPromptLibrary = useCallback(() => {
-    closePanel()
-    void window.vibebar.promptLibrary.toggle()
-  }, [closePanel])
+  // Pop a panel out into its own floating window (like Code Sync) and collapse the inline panel
+  // so the two presentations don't overlap. The detached window is keyed by panel id, so this
+  // works uniformly for every detachable tool.
+  const detachPanel = useCallback(
+    (id: DetachablePanelId) => {
+      closePanel()
+      void window.vibebar.panel.detach(id)
+    },
+    [closePanel]
+  )
 
   const isVertical = layout.orientation === 'vertical'
   const toolbarOrderClass =
@@ -168,7 +172,7 @@ export function App(): JSX.Element {
             onCopyOutcome={onCopyOutcome}
             solid={solid}
             onToggleSolid={toggleSolid}
-            onDetach={detachPromptLibrary}
+            onDetach={() => detachPanel('prompt-library')}
           />
         )
       case 'context-packer':
@@ -179,6 +183,7 @@ export function App(): JSX.Element {
             onCopyOutcome={onCopyOutcome}
             solid={solid}
             onToggleSolid={toggleSolid}
+            onDetach={() => detachPanel('context-packer')}
           />
         )
       case 'security-audit':
@@ -188,10 +193,18 @@ export function App(): JSX.Element {
             onCopyOutcome={onCopyOutcome}
             solid={solid}
             onToggleSolid={toggleSolid}
+            onDetach={() => detachPanel('security-audit')}
           />
         )
       case 'settings':
-        return <SettingsPanel onClose={closePanel} solid={solid} onToggleSolid={toggleSolid} />
+        return (
+          <SettingsPanel
+            onClose={closePanel}
+            solid={solid}
+            onToggleSolid={toggleSolid}
+            onDetach={() => detachPanel('settings')}
+          />
+        )
       default:
         return null
     }

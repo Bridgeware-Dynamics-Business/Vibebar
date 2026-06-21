@@ -63,8 +63,8 @@ const api: VibeBarApi = {
   codesync: {
     toggle: () => ipcRenderer.invoke(CH.codesyncToggle)
   },
-  promptLibrary: {
-    toggle: () => ipcRenderer.invoke(CH.promptLibraryToggle)
+  panel: {
+    detach: (panelId) => ipcRenderer.invoke(CH.panelDetach, { panelId })
   },
   terminal: {
     toggle: () => ipcRenderer.invoke(CH.terminalToggle),

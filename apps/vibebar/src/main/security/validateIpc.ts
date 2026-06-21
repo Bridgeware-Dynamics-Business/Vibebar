@@ -1,6 +1,7 @@
 import { PROMPT_CATEGORIES } from '@vibebar/prompt-engine'
 import { z } from 'zod'
 import { CH, INVOKABLE_CHANNELS, type ChannelName } from '@shared/channels.js'
+import { DETACHABLE_PANEL_IDS } from '@shared/tools.js'
 
 const dockSchema = z.enum(['left', 'right', 'top'])
 
@@ -55,6 +56,8 @@ const SCHEMAS: Partial<Record<ChannelName, z.ZodTypeAny>> = {
   }),
 
   [CH.clipboardWrite]: z.object({ text: z.string().max(1_000_000) }),
+
+  [CH.panelDetach]: z.object({ panelId: z.enum(DETACHABLE_PANEL_IDS) }),
 
   [CH.terminalRun]: z.object({ command: z.string().min(1).max(8000) }),
   [CH.auditRunInTerminal]: z.object({ quiet: z.boolean() }),

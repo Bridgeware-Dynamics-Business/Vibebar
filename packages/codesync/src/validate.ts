@@ -1,5 +1,6 @@
 import { stat } from 'node:fs/promises'
 import { DEFAULT_DEBOUNCE_MS, DEFAULT_MAX_FILE_BYTES, MAX_SYNC_INSTANCES } from './shared/constants.js'
+import { isUnderOrEqual } from './sync/pathConflict.js'
 
 function assertString(v: unknown, max: number, field: string): string {
   if (typeof v !== 'string') throw new Error(`${field} must be a string`)
@@ -34,6 +35,12 @@ export async function validateSyncStart(payload: unknown): Promise<ValidatedSync
   const ignoreText = typeof p.ignoreText === 'string' ? p.ignoreText : ''
   if (sourceRoot.toLowerCase() === destRoot.toLowerCase()) {
     throw new Error('Source and sync folder must be different paths')
+  }
+  // The source living inside the sync folder is destructive: the mirror's delete pass would
+  // treat the original source files as stray output and remove them. (The inverse — a sync
+  // folder nested in the source — is allowed and handled by excluding it from the scan.)
+  if (isUnderOrEqual(destRoot, sourceRoot)) {
+    throw new Error('Source folder cannot be inside the sync folder (this would delete your source files).')
   }
   await stat(sourceRoot).catch(() => {
     throw new Error('Source folder is not accessible')

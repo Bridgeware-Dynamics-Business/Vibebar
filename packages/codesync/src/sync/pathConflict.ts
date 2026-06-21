@@ -1,4 +1,4 @@
-import { isAbsolute, relative, resolve } from 'node:path'
+import { isAbsolute, relative, resolve, sep } from 'node:path'
 
 /**
  * Returns true if `child` is exactly `parent` or is contained under `parent`
@@ -16,6 +16,25 @@ export function isUnderOrEqual(parent: string, child: string): boolean {
   if (!rel) return true
   if (isAbsolute(rel)) return false
   return !rel.startsWith('..')
+}
+
+/**
+ * If `child` is *strictly* nested under `parent`, returns the relative path from
+ * `parent` to `child` using posix `/` separators (suitable for glob ignore lists).
+ * Returns `null` when they are equal, unrelated, or on different drives/volumes.
+ *
+ * Used so a sync (destination) folder that lives *inside* the source tree can be
+ * excluded from the mirror scan and watcher — otherwise the source scan would
+ * pick up the destination's own files and copy them back into a nested clone
+ * (sync/sync/sync…), duplicating the tree on every pass.
+ */
+export function relUnder(parent: string, child: string): string | null {
+  const p = resolve(parent)
+  const c = resolve(child)
+  if (p === c) return null
+  const rel = relative(p, c)
+  if (!rel || isAbsolute(rel) || rel.startsWith('..')) return null
+  return rel.split(sep).join('/')
 }
 
 export interface RunningPair {

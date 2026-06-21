@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AuditFinding, AuditReport, AuditSeverity, ScanResult } from '@shared/types.js'
 import { Icon } from '../../shared/icons'
-import { PanelHeader, Toggle } from '../../shared/ui'
+import { DetachButton, PanelHeader, Toggle } from '../../shared/ui'
 
 type CopyOutcome = (copied: boolean, text: string) => void
 
@@ -252,12 +252,15 @@ export function SecurityAuditPanel({
   onClose,
   onCopyOutcome,
   solid,
-  onToggleSolid
+  onToggleSolid,
+  onDetach
 }: {
   onClose: () => void
   onCopyOutcome: CopyOutcome
   solid?: boolean
   onToggleSolid?: () => void
+  /** When provided, shows a Detach button that pops the panel out into a floating window. */
+  onDetach?: () => void
 }): JSX.Element {
   const [report, setReport] = useState<AuditReport | null>(null)
   const [loading, setLoading] = useState(false)
@@ -322,6 +325,7 @@ export function SecurityAuditPanel({
           <Icon name={loading ? 'Loader2' : 'RefreshCw'} size={13} className={loading ? 'animate-spin' : ''} />
           {loading ? 'Scanning' : 'Run audit'}
         </button>
+        {onDetach && <DetachButton onDetach={onDetach} label="Detach Security Audit" />}
       </PanelHeader>
 
       <div className="flex flex-1 flex-col gap-3 overflow-hidden p-4">

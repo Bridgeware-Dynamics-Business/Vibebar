@@ -1,4 +1,5 @@
 import type { PromptCategory, PromptTemplate } from '@vibebar/prompt-engine'
+import type { DetachablePanelId } from './tools.js'
 import type {
   AuditReport,
   CopyResult,
@@ -80,9 +81,9 @@ export interface VibeBarApi {
   codesync: {
     toggle: () => Promise<{ visible: boolean }>
   }
-  promptLibrary: {
-    /** Toggles the detached, floating Prompt Library window. */
-    toggle: () => Promise<{ visible: boolean }>
+  panel: {
+    /** Toggles a panel's detached, floating window (pops it out / hides it back). */
+    detach: (panelId: DetachablePanelId) => Promise<{ visible: boolean }>
   }
   terminal: {
     toggle: () => Promise<{ visible: boolean }>
