@@ -54,6 +54,10 @@ export const CH = {
   terminalGetState: 'terminal:getState',
   terminalHide: 'terminal:hide',
   terminalIsOpen: 'terminal:isOpen',
+  // Custom resize: the window is frameless + transparent (no OS resize border on Windows), so
+  // the renderer drives resizing from its own edge grips through these channels.
+  terminalResizeStart: 'terminal:resizeStart',
+  terminalResize: 'terminal:resize',
   terminalData: 'terminal:data',
   terminalStatus: 'terminal:status',
   terminalIssues: 'terminal:issues',
@@ -142,6 +146,8 @@ export const INVOKABLE_CHANNELS: readonly string[] = [
   CH.terminalGetState,
   CH.terminalHide,
   CH.terminalIsOpen,
+  CH.terminalResizeStart,
+  CH.terminalResize,
   CH.shellStart,
   CH.shellInput,
   CH.shellSetShell,

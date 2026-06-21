@@ -3,6 +3,7 @@ import { Terminal } from '@xterm/xterm'
 import { AnimatePresence, motion } from 'framer-motion'
 import { type KeyboardEvent, useCallback, useEffect, useRef, useState } from 'react'
 import type { AuditSeverity, DetectedIssue, IssueSeverity, TerminalStatus } from '@shared/types.js'
+import type { ResizeEdge } from '@shared/terminalApi.js'
 import { Icon } from '../shared/icons'
 import { FillToggle, Toggle, useFillToggle } from '../shared/ui'
 import { ShellPanel } from './ShellPanel'
@@ -26,6 +27,54 @@ const AUDIT_ORDER: AuditSeverity[] = ['critical', 'high', 'medium', 'low']
 
 function styleFor(issue: DetectedIssue): SevStyle {
   return issue.auditSeverity ? AUDIT_STYLE[issue.auditSeverity] : ISSUE_STYLE[issue.severity]
+}
+
+/**
+ * Custom resize grips. The Smart Terminal lives in a frameless + transparent window, which on
+ * Windows has no OS resize border, so we draw invisible edge/corner handles that drive the
+ * window's bounds in the main process. On press we snapshot the bounds, then stream the cumulative
+ * cursor delta (screen pixels) while the pointer is captured, so the drag keeps tracking even if
+ * the cursor briefly outruns the moving edge.
+ */
+function ResizeHandles(): JSX.Element {
+  const start = (edge: ResizeEdge) => (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return
+    e.preventDefault()
+    const el = e.currentTarget
+    const startX = e.screenX
+    const startY = e.screenY
+    el.setPointerCapture(e.pointerId)
+    void window.terminal.resizeStart()
+    const move = (ev: PointerEvent): void => {
+      void window.terminal.resize(edge, ev.screenX - startX, ev.screenY - startY)
+    }
+    const up = (ev: PointerEvent): void => {
+      try {
+        el.releasePointerCapture(ev.pointerId)
+      } catch {
+        /* pointer already released */
+      }
+      el.removeEventListener('pointermove', move)
+      el.removeEventListener('pointerup', up)
+    }
+    el.addEventListener('pointermove', move)
+    el.addEventListener('pointerup', up)
+  }
+
+  const edge = 'vibe-no-drag absolute z-50'
+  const corner = 'vibe-no-drag absolute z-[60] h-3 w-3'
+  return (
+    <>
+      <div className={`${edge} inset-x-0 top-0 h-1.5 cursor-ns-resize`} onPointerDown={start('n')} />
+      <div className={`${edge} inset-x-0 bottom-0 h-1.5 cursor-ns-resize`} onPointerDown={start('s')} />
+      <div className={`${edge} inset-y-0 left-0 w-1.5 cursor-ew-resize`} onPointerDown={start('w')} />
+      <div className={`${edge} inset-y-0 right-0 w-1.5 cursor-ew-resize`} onPointerDown={start('e')} />
+      <div className={`${corner} left-0 top-0 cursor-nwse-resize`} onPointerDown={start('nw')} />
+      <div className={`${corner} right-0 top-0 cursor-nesw-resize`} onPointerDown={start('ne')} />
+      <div className={`${corner} left-0 bottom-0 cursor-nesw-resize`} onPointerDown={start('sw')} />
+      <div className={`${corner} right-0 bottom-0 cursor-nwse-resize`} onPointerDown={start('se')} />
+    </>
+  )
 }
 
 const THEME = {
@@ -479,10 +528,11 @@ export function TerminalApp(): JSX.Element {
 
   return (
     <div
-      className={`flex h-full w-full flex-col text-vibe-text ${
+      className={`relative flex h-full w-full flex-col text-vibe-text ${
         solid ? 'bg-vibe-bg' : 'bg-vibe-bg/60 backdrop-blur-xl backdrop-saturate-150'
       }`}
     >
+      <ResizeHandles />
       <header className="vibe-drag flex items-center gap-2 border-b border-vibe-border bg-black/40 px-3 py-2">
         <Icon name="SquareTerminal" size={15} className="text-vibe-accent-2" />
         <span className="text-sm font-semibold">Smart Terminal</span>

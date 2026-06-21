@@ -8,6 +8,12 @@ import type {
 } from './types.js'
 
 /**
+ * One of the eight compass directions a resize grip can pull. Combined edges (corners) move two
+ * sides at once. Used by the renderer's resize handles and validated on the main side.
+ */
+export type ResizeEdge = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw'
+
+/**
  * The typed bridge exposed to the Smart Terminal renderer as `window.terminal`. The terminal
  * runs in its own frameless always-on-top window; it reaches the main process only through
  * these methods, every one of which is an allowlisted, Zod-validated channel.
@@ -18,6 +24,14 @@ export interface TerminalBridge {
   cancel: () => Promise<{ ok: boolean }>
   clear: () => Promise<{ ok: boolean }>
   hide: () => Promise<{ ok: boolean }>
+  /** Snapshots the window's current bounds as the anchor for an interactive resize drag. */
+  resizeStart: () => Promise<{ ok: boolean }>
+  /**
+   * Resizes the window relative to the snapshot taken by {@link resizeStart}. `dx`/`dy` are the
+   * cumulative cursor delta (in screen pixels) since the drag began, so out-of-order delivery
+   * still converges on the latest size.
+   */
+  resize: (edge: ResizeEdge, dx: number, dy: number) => Promise<{ ok: boolean }>
   /** Write arbitrary text to the system clipboard (used for "copy fix prompt"). */
   copy: (text: string) => Promise<{ copied: boolean }>
   /** Runs the full security audit and presents findings in this terminal. */

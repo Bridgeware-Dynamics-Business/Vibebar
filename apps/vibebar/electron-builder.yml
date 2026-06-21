@@ -24,31 +24,34 @@ asar: true
 
 # Code signing strategy
 # ----------------------
-# Builds are UNSIGNED by default: `npm run dist` sets CSC_IDENTITY_AUTO_DISCOVERY=false, and the
-# win.* flags below explicitly suppress signing. Unsigned installers trigger a SmartScreen
-# "unknown publisher" warning — expected for early-adopter / portable distribution.
+# Builds are UNSIGNED by default: `npm run dist` sets CSC_IDENTITY_AUTO_DISCOVERY=false, so with no
+# certificate present electron-builder skips Authenticode signing. Unsigned installers trigger a
+# SmartScreen "unknown publisher" warning — expected for early-adopter / portable distribution.
+#
+# IMPORTANT: `signAndEditExecutable` must stay `true`. It gates the rcedit pass that embeds our
+# icon (build/icon.ico) and version metadata into VibeBar.exe. With it false, electron-builder
+# leaves the stock Electron executable untouched, so Windows Explorer shows the generic Electron
+# icon on the .exe even though the shortcuts look correct. Enabling it does NOT force signing —
+# rcedit edits the binary, and signing is independently skipped when no cert/identity is available.
 #
 # To ship a SIGNED build (recommended before wide release):
 #   1. Obtain an OV or EV Authenticode certificate (.pfx). EV avoids SmartScreen reputation warm-up.
 #   2. Provide it to electron-builder via environment variables (never commit the cert):
 #        CSC_LINK         = path to the .pfx OR its base64 contents
 #        CSC_KEY_PASSWORD = the .pfx password
-#   3. In the `win:` block below, set `signAndEditExecutable: true` and remove the `signExts`
-#      exclusion so the .exe/.dll are signed.
-#   4. Run `npm run dist:signed` (it does NOT disable cert auto-discovery).
+#   3. Run `npm run dist:signed` (it does NOT disable cert auto-discovery).
 win:
   executableName: VibeBar
-  # System-wide app icon: embedded in VibeBar.exe, so the desktop shortcut and the Control Panel
-  # (Programs & Features) entry both render it. Sourced from build/icon.ico (16/32/48/256 px).
+  # System-wide app icon: embedded in VibeBar.exe (via rcedit; see signAndEditExecutable below), so
+  # the .exe in Explorer, the desktop shortcut, and the Control Panel (Programs & Features) entry
+  # all render it. Sourced from build/icon.ico (16/32/48/256 px).
   icon: build/icon.ico
   # forceCodeSigning stays false so unsigned local/dev builds keep working even with no cert.
   forceCodeSigning: false
   verifyUpdateCodeSignature: false
-  # Flip to `true` and delete the `signExts` exclusion below when distributing a signed build.
-  signAndEditExecutable: false
-  signExts:
-    - '!.exe'
-    - '!.dll'
+  # Must be true to embed the icon + version info into the .exe. Signing is still optional and is
+  # skipped automatically when no certificate is configured.
+  signAndEditExecutable: true
   target:
     - target: nsis
       arch: [x64]

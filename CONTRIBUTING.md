@@ -10,9 +10,12 @@ changes so they can be reviewed and merged smoothly.
   that a maintainer reviews and merges. This is enforced by branch protection,
   so even maintainers go through review.
 - **VibeBar is source-available, not open source.** You're welcome to read the
-  code, use it, and contribute improvements back to this project. You may **not**
-  distribute it, sell it, or ship your own version or fork without prior written
-  permission from the maintainer. See [LICENSE](LICENSE) for the binding terms.
+  code, use it, and contribute improvements back to this project. **Forking the
+  repo to prepare and submit pull requests is expressly allowed** under the
+  "Contribution Fork Permission" in the [LICENSE](LICENSE). What you may **not**
+  do is distribute it, sell it, or ship your fork as a standalone or competing
+  product without prior written permission from the maintainer. See
+  [LICENSE](LICENSE) for the binding terms.
 - **Improvements belong to the main application.** The goal is to make VibeBar
   itself better, not to spin off separate releases. Please send your work here
   as a pull request rather than publishing a derivative.

@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { TerminalBridge } from '@shared/terminalApi.js'
+import type { ResizeEdge, TerminalBridge } from '@shared/terminalApi.js'
 import type {
   DetectedIssue,
   ProjectCommand,
@@ -20,6 +20,8 @@ const T = {
   cancel: 'terminal:cancel',
   clear: 'terminal:clear',
   hide: 'terminal:hide',
+  resizeStart: 'terminal:resizeStart',
+  resize: 'terminal:resize',
   clipboardWrite: 'clipboard:write',
   runAudit: 'audit:runInTerminal',
   data: 'terminal:data',
@@ -47,6 +49,9 @@ const api: TerminalBridge = {
   cancel: () => ipcRenderer.invoke(T.cancel),
   clear: () => ipcRenderer.invoke(T.clear),
   hide: () => ipcRenderer.invoke(T.hide),
+  resizeStart: () => ipcRenderer.invoke(T.resizeStart),
+  resize: (edge: ResizeEdge, dx: number, dy: number) =>
+    ipcRenderer.invoke(T.resize, { edge, dx, dy }),
   copy: (text: string) => ipcRenderer.invoke(T.clipboardWrite, { text }),
   runAudit: (quiet: boolean) => ipcRenderer.invoke(T.runAudit, { quiet }),
   onData: (cb: (chunk: string) => void) => subscribe<string>(T.data, cb),

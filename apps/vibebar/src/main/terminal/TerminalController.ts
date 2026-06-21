@@ -14,6 +14,7 @@ import type {
   TerminalRunResult,
   TerminalState
 } from '@shared/types.js'
+import type { ResizeEdge } from '@shared/terminalApi.js'
 import type { ProjectService } from '../project/ProjectService.js'
 import type { AppStore } from '../settings/store.js'
 import { createTerminalWindow } from '../overlay/windowFactory.js'
@@ -23,9 +24,12 @@ import { ShellSession } from './ShellSession.js'
 import { generateProjectCommands } from './projectCommands.js'
 import { analyzeOutput } from './outputAnalyzer.js'
 
-const DEFAULT_W = 780
-const DEFAULT_H = 480
+const DEFAULT_W = 960
+const DEFAULT_H = 620
 const MARGIN = 88
+/** Must mirror minWidth/minHeight in createTerminalWindow so renderer-driven resizing clamps too. */
+const MIN_W = 420
+const MIN_H = 280
 
 const AUDIT_SEVERITY: Record<AuditSeverity, IssueSeverity> = {
   critical: 'error',
@@ -71,6 +75,8 @@ export class TerminalController {
   private shell: ShellSession | null = null
   /** Resolves once the current window's renderer has loaded, so early writes aren't lost. */
   private ready: Promise<void> = Promise.resolve()
+  /** Window bounds captured at the start of a renderer-driven resize drag (see resizeStart). */
+  private resizeAnchor: Rect | null = null
 
   constructor(store: AppStore, projects: ProjectService, onVisibility?: (visible: boolean) => void) {
     this.store = store
@@ -94,6 +100,55 @@ export class TerminalController {
   hide(): void {
     if (this.win && !this.win.isDestroyed()) this.win.hide()
     this.emitVisibility(false)
+  }
+
+  /**
+   * Captures the window's current bounds as the anchor for an interactive resize. The window is
+   * frameless + transparent, so Windows gives it no draggable OS resize border; the renderer's
+   * edge grips drive resizing through resizeStart + resizeBy instead.
+   */
+  resizeStart(): void {
+    if (!this.win || this.win.isDestroyed()) return
+    const b = this.win.getBounds()
+    this.resizeAnchor = { x: b.x, y: b.y, width: b.width, height: b.height }
+  }
+
+  /**
+   * Resizes the window relative to the anchor captured by {@link resizeStart}. `dx`/`dy` are the
+   * cumulative screen-pixel delta since the drag began; west/north edges move the origin while
+   * shrinking, and both axes clamp to the window's minimum size.
+   */
+  resizeBy(edge: ResizeEdge, dx: number, dy: number): void {
+    if (!this.win || this.win.isDestroyed() || !this.resizeAnchor) return
+    const a = this.resizeAnchor
+    let { x, y, width, height } = a
+
+    if (edge.includes('e')) width = a.width + dx
+    if (edge.includes('s')) height = a.height + dy
+    if (edge.includes('w')) {
+      width = a.width - dx
+      x = a.x + dx
+    }
+    if (edge.includes('n')) {
+      height = a.height - dy
+      y = a.y + dy
+    }
+
+    if (width < MIN_W) {
+      if (edge.includes('w')) x = a.x + (a.width - MIN_W)
+      width = MIN_W
+    }
+    if (height < MIN_H) {
+      if (edge.includes('n')) y = a.y + (a.height - MIN_H)
+      height = MIN_H
+    }
+
+    this.win.setBounds({
+      x: Math.round(x),
+      y: Math.round(y),
+      width: Math.round(width),
+      height: Math.round(height)
+    })
   }
 
   private emitVisibility(visible: boolean): void {

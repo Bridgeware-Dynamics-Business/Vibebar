@@ -87,6 +87,13 @@ const SCHEMAS: Partial<Record<ChannelName, z.ZodTypeAny>> = {
   }),
 
   [CH.terminalRun]: z.object({ command: z.string().min(1).max(8000) }),
+  // Resize deltas are bounded to a sane screen-pixel range so a malformed payload can't drive
+  // the window to an absurd size; the controller also clamps to min dimensions.
+  [CH.terminalResize]: z.object({
+    edge: z.enum(['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw']),
+    dx: z.number().finite().min(-20000).max(20000),
+    dy: z.number().finite().min(-20000).max(20000)
+  }),
   [CH.auditRunInTerminal]: z.object({ quiet: z.boolean() }),
 
   [CH.shellStart]: z.object({ shell: z.enum(['powershell', 'cmd', 'bash']) }),

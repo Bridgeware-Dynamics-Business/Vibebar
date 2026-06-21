@@ -24,7 +24,7 @@ Point VibeBar at a folder and it quietly reads the signal files (read-only, it n
 
 ### A terminal that watches your back
 
-The Smart Terminal is a frameless, always-on-top terminal that floats over your other windows and docks on the opposite side from the toolbar. You can drag it, resize it, and toggle it from the bar. Hide it and your scrollback stays put for when you bring it back.
+The Smart Terminal is a frameless, always-on-top terminal that floats over your other windows and docks on the opposite side from the toolbar. It opens at a comfortable default size, you drag it around by its title bar, and you can resize it from any edge or corner — because the window is frameless and transparent, those resize grips are drawn by VibeBar itself rather than the OS, so dragging to resize works the same in a packaged build as it does in development. Toggle it from the bar, and hiding it keeps your scrollback put for when you bring it back.
 
 It runs all your usual build, test, lint, and git commands, but the real trick is that it reads the output. The moment it spots an error (a missing module, a type error, a failing test, a port collision, a stack trace, a package manager blowing up, any of it), it turns that error into a ready-to-paste, project-aware prompt that points your AI straight at a correct and safe fix. Think of it as the eyes on your project while you work.
 
@@ -114,14 +114,16 @@ npm run dist         # build an unsigned Windows installer plus a portable exe
 4. Expand a card to see the sculpted body with the resolved variable chips, then hit Copy. The clipboard should hold the sculpted text. Toggle "Harden prompts" and the safety block gets appended.
 5. Favorites and prompt history should survive a full restart.
 6. Click Code Sync. It opens in its own window while the overlay stays put.
-7. Click Smart Terminal. A terminal opens opposite the toolbar. Run something that fails, like `node missing.js`, and the detected-issues panel should fill with a project-aware fix prompt you can copy. Hit X to hide it, then click the toolbar button again to bring it back with the scrollback still intact.
+7. Click Smart Terminal. A terminal opens opposite the toolbar at a comfortable default size. Drag any edge or corner to resize it (this works in a packaged `.exe`, not just in dev). Run something that fails, like `node missing.js`, and the detected-issues panel should fill with a project-aware fix prompt you can copy. Hit X to hide it, then click the toolbar button again to bring it back with the scrollback still intact.
 8. Click Security Audit on a selected project. The panel auto-runs and lists findings by severity, each one showing its CWE or OWASP mapping, the file and line, and a code frame, with "Copy fix prompt", "Copy behavioral test", and "Copy all as one prompt" buttons. Toggle Auto-scan, set an interval, and watch it re-run live as you edit.
 9. With the Smart Terminal open, click Security Audit in the toolbar. The side panel should not open. Instead the terminal's audit dock fills in (and the panel collapses to save space). That dock offers the same expandable findings, Run audit, auto-scan, and copy-all. Close the terminal with X and the Security Audit side panel reopens right where you left it.
 10. Expand "Scan pasted text for secrets" in the same panel and paste a fake API key. It should get detected and a redacted copy should be offered back to you.
 11. In the Context Packer, select some files and pack them. The clipboard should hold a prompt-shaped block with secrets stripped out.
 12. In Settings, toggle your monitors, change the dock position, and quit VibeBar.
 
-## A note on code signing and distribution
+## A note on the app icon, code signing, and distribution
+
+The VibeBar logo (`apps/vibebar/build/icon.ico`) is embedded directly into `VibeBar.exe` during packaging, so the executable shows the real icon in Windows Explorer — not just the shortcuts. This relies on `signAndEditExecutable: true` in `apps/vibebar/electron-builder.yml`: that flag gates electron-builder's rcedit pass, which is what writes the icon and version metadata into the binary. **Leave it on.** Turning it off ships the stock Electron executable untouched, and Explorer falls back to the generic Electron icon even though the `.ico` is correct. Enabling it does not force signing — editing the binary and signing it are independent, and signing is skipped automatically when no certificate is configured. (Windows aggressively caches exe icons, so if an old icon lingers after a rebuild it's the icon cache, not the build.)
 
 Released builds are unsigned by default. `npm run dist` gives you an NSIS installer and a portable executable with no Authenticode signature, which means Windows SmartScreen will throw an "unknown publisher" warning the first time you run it. That's expected for early-adopter and portable sharing, and honestly the portable `.exe` is the lowest-friction way to pass it around while signing isn't set up yet.
 
@@ -131,8 +133,7 @@ If you want to produce a signed build:
 2. Feed it in through environment variables, and never commit the certificate or its password:
    - `CSC_LINK` is the path to the `.pfx` file, or its base64-encoded contents
    - `CSC_KEY_PASSWORD` is the certificate password
-3. In `apps/vibebar/electron-builder.yml`, set `signAndEditExecutable: true` and remove the `signExts` exclusion. Both are flagged with inline comments so they're easy to find.
-4. Run `npm run dist:signed`. Unlike `npm run dist`, it doesn't disable certificate discovery.
+3. Run `npm run dist:signed`. Unlike `npm run dist`, it doesn't disable certificate discovery, so electron-builder picks up the cert from the environment and signs the binary (the icon is already embedded by the same `signAndEditExecutable` step, signed or not).
 
 ## Under the hood
 

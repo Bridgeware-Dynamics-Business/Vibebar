@@ -10,6 +10,7 @@ import type {
   VibeSettings
 } from '@shared/types.js'
 import type { DetachablePanelId } from '@shared/tools.js'
+import type { ResizeEdge } from '@shared/terminalApi.js'
 import type { ErrorReport } from '@shared/api.js'
 import type { AuditService } from '../audit/AuditService.js'
 import type { CodeSyncController } from '../codesync/CodeSyncController.js'
@@ -231,6 +232,17 @@ export function registerIpc(deps: IpcDeps): void {
   handle(CH.terminalIsOpen, () => ({ open: terminal.isOpen() }))
   handle(CH.terminalHide, () => {
     terminal.hide()
+    return { ok: true }
+  })
+  // Renderer-driven resize: the terminal window is frameless + transparent (no OS resize border
+  // on Windows), so its edge grips snapshot the bounds then stream cumulative deltas here.
+  handle(CH.terminalResizeStart, () => {
+    terminal.resizeStart()
+    return { ok: true }
+  })
+  handle(CH.terminalResize, (p) => {
+    const { edge, dx, dy } = p as { edge: ResizeEdge; dx: number; dy: number }
+    terminal.resizeBy(edge, dx, dy)
     return { ok: true }
   })
 

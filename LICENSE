@@ -8,8 +8,11 @@ license text:
 
   - You MAY view the source code, run and use VibeBar for your own personal
     and internal business purposes, and propose changes back to this project.
+  - You MAY fork this repository and publish that fork on a source host (such
+    as GitHub) FOR THE PURPOSE OF preparing and submitting contributions back
+    to this project. See the "Contribution Fork Permission" below.
   - You MAY NOT distribute VibeBar, sell it, sublicense it, or publish your
-    own version or derivative of it.
+    own version or derivative of it as a separate or competing product.
   - If you want to sell, distribute, or otherwise release VibeBar (modified or
     not), you must obtain prior written permission from the copyright holder.
 
@@ -19,7 +22,48 @@ https://github.com/Bridgeware-Dynamics-Business/Vibebar
 
 The summary above is for convenience only. The binding terms are the PolyForm
 Internal Use License 1.0.0 reproduced in full below, where "the licensor" is
-Bridgeware Dynamics Business.
+Bridgeware Dynamics Business, as supplemented by the Contribution Fork
+Permission immediately below.
+
+================================================================================
+
+# Contribution Fork Permission (Supplemental Grant)
+
+This is an additional, binding permission granted by the licensor on top of the
+PolyForm Internal Use License 1.0.0. Where this grant gives you broader rights
+than the PolyForm license for the limited purpose described here, this grant
+controls; in all other respects the PolyForm license applies in full.
+
+Notwithstanding the no-distribution restriction in the PolyForm Internal Use
+License, the licensor grants you permission to:
+
+  1. Create a fork or copy of this repository, including on a public source
+     host such as GitHub, GitLab, or similar; and
+  2. Publish, push, and maintain that fork, including your changes and new
+     works based on the software,
+
+solely for the purpose of preparing, proposing, and submitting Contributions
+back to this project (for example, by opening a pull request against the
+official repository) and keeping your fork in sync with upstream.
+
+This permission is subject to all of the following conditions:
+
+  - Your fork must remain clearly identifiable as a fork of VibeBar and must
+    retain this LICENSE file, the copyright notice, and attribution to the
+    licensor.
+  - You may NOT use the fork to distribute, publish, sell, or otherwise make
+    available VibeBar (modified or not) as a standalone, separate, competing,
+    or independently usable product, application, installer, package, or
+    binary release, and you may NOT advertise or promote your fork as such.
+  - You may NOT remove or weaken this LICENSE, the copyright notice, or any
+    license headers in the source.
+  - Contributions you submit are governed by the project's Contributor License
+    Agreement (CLA.md).
+
+If your use of a fork goes beyond preparing and submitting Contributions back
+to this project, you need prior written permission from the licensor as
+described above. This grant does not expand any right to distribute releases of
+VibeBar to end users.
 
 ================================================================================
 
