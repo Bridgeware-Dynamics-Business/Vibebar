@@ -137,3 +137,14 @@ If you want to produce a signed build:
 ## Under the hood
 
 Electron 33, electron-vite, TypeScript, React 19, Tailwind CSS 4, Framer Motion, xterm.js, Zod, Vitest, and electron-store.
+
+## License
+
+VibeBar is **source-available, not open source**. It's released under the
+[PolyForm Internal Use License 1.0.0](LICENSE).
+
+In short: you're free to read the code, use VibeBar for personal and internal
+business purposes, and contribute improvements back to this project. You may
+**not** distribute it, sell it, or release your own version or fork. If you'd
+like to sell or distribute VibeBar, please reach out for written permission
+first. Contributions are always welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).

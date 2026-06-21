@@ -38,6 +38,9 @@ asar: true
 #   4. Run `npm run dist:signed` (it does NOT disable cert auto-discovery).
 win:
   executableName: VibeBar
+  # System-wide app icon: embedded in VibeBar.exe, so the desktop shortcut and the Control Panel
+  # (Programs & Features) entry both render it. Sourced from build/icon.ico (16/32/48/256 px).
+  icon: build/icon.ico
   # forceCodeSigning stays false so unsigned local/dev builds keep working even with no cert.
   forceCodeSigning: false
   verifyUpdateCodeSignature: false
@@ -58,6 +61,12 @@ nsis:
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: true
+  createStartMenuShortcut: true
+  # Use the VibeBar logo for the installer/uninstaller wizard and the installer's header bitmap
+  # corner, so the branding is consistent from download through install and removal.
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  installerHeaderIcon: build/icon.ico
   artifactName: ${name}-${version}-setup.${ext}
 
 portable:

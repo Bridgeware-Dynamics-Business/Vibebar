@@ -196,6 +196,10 @@ export function registerIpc(deps: IpcDeps): void {
     } else {
       overlay.onSettingsChanged()
     }
+    // Re-apply the console's monitor selection when it changes (create/destroy per-display windows).
+    if (partial.errorConsoleDisplayIds !== undefined) {
+      errorConsole.onSettingsChanged()
+    }
     return { settings: next, displays: overlay.displays() }
   })
 

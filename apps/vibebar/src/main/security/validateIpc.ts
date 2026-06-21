@@ -103,6 +103,7 @@ const SCHEMAS: Partial<Record<ChannelName, z.ZodTypeAny>> = {
     .object({
       dock: dockSchema.optional(),
       enabledDisplayIds: z.array(z.string().min(1).max(64)).max(16).optional(),
+      errorConsoleDisplayIds: z.array(z.string().min(1).max(64)).max(16).optional(),
       guardrailsEnabled: z.boolean().optional(),
       launchOnStartup: z.boolean().optional()
     })

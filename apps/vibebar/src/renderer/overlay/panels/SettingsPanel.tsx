@@ -52,6 +52,22 @@ export function SettingsPanel({
     void save({ enabledDisplayIds: [] })
   }
 
+  function toggleConsoleDisplay(id: string): void {
+    if (!state) return
+    const current = state.settings.errorConsoleDisplayIds
+    const next = current.includes(id) ? current.filter((x) => x !== id) : [...current, id]
+    void save({ errorConsoleDisplayIds: next })
+  }
+
+  function showConsoleOnAll(): void {
+    if (!state) return
+    void save({ errorConsoleDisplayIds: state.displays.map((d) => d.id) })
+  }
+
+  function showConsoleOnPrimary(): void {
+    void save({ errorConsoleDisplayIds: [] })
+  }
+
   if (!state) {
     return (
       <div className="flex h-full flex-col">
@@ -72,6 +88,9 @@ export function SettingsPanel({
   const onPrimaryOnly = settings.enabledDisplayIds.length === 0
   const onAll =
     displays.length > 0 && displays.every((d) => settings.enabledDisplayIds.includes(d.id))
+  const consoleOnPrimaryOnly = settings.errorConsoleDisplayIds.length === 0
+  const consoleOnAll =
+    displays.length > 0 && displays.every((d) => settings.errorConsoleDisplayIds.includes(d.id))
 
   return (
     <div className="flex h-full flex-col">
@@ -125,6 +144,62 @@ export function SettingsPanel({
                     type="checkbox"
                     checked={checked}
                     onChange={() => toggleDisplay(d.id)}
+                    className="accent-vibe-accent"
+                  />
+                </label>
+              )
+            })}
+          </div>
+        </section>
+
+        <section>
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-vibe-muted">
+            Error Console
+          </h3>
+          <p className="mb-2 text-xs text-vibe-muted">
+            Choose which displays show the in-app error console (bottom-left). None selected shows
+            the primary display only. Closing it on any monitor closes it on all of them.
+          </p>
+          <div className="mb-2 flex gap-2">
+            <button
+              type="button"
+              onClick={showConsoleOnAll}
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg border py-1.5 text-xs transition-colors ${
+                consoleOnAll
+                  ? 'border-vibe-accent bg-vibe-accent/15 text-white'
+                  : 'border-vibe-border bg-white/[0.03] text-vibe-muted hover:text-vibe-text'
+              }`}
+            >
+              <Icon name="Monitor" size={14} /> Show on all
+            </button>
+            <button
+              type="button"
+              onClick={showConsoleOnPrimary}
+              className={`flex-1 rounded-lg border py-1.5 text-xs transition-colors ${
+                consoleOnPrimaryOnly
+                  ? 'border-vibe-accent bg-vibe-accent/15 text-white'
+                  : 'border-vibe-border bg-white/[0.03] text-vibe-muted hover:text-vibe-text'
+              }`}
+            >
+              Primary only
+            </button>
+          </div>
+          <div className="space-y-1.5">
+            {displays.map((d) => {
+              const checked = consoleOnPrimaryOnly
+                ? d.isPrimary
+                : settings.errorConsoleDisplayIds.includes(d.id)
+              return (
+                <label
+                  key={d.id}
+                  className="flex cursor-pointer items-center gap-2 rounded-lg border border-vibe-border bg-white/[0.03] px-3 py-2 text-sm text-vibe-text"
+                >
+                  <Icon name="Bug" size={16} className="text-vibe-muted" />
+                  <span className="flex-1">{d.label}</span>
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleConsoleDisplay(d.id)}
                     className="accent-vibe-accent"
                   />
                 </label>

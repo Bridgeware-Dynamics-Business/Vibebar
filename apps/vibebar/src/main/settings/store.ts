@@ -28,6 +28,7 @@ interface StoreSchema {
 const DEFAULT_SETTINGS: VibeSettings = {
   dock: 'left',
   enabledDisplayIds: [],
+  errorConsoleDisplayIds: [],
   guardrailsEnabled: true,
   launchOnStartup: false
 }

@@ -31,7 +31,7 @@ const gitStatus = new GitStatusService(projects, (status) =>
 )
 const quickLaunch = new QuickLaunchService(store)
 const snip = new SnipController(projects)
-const errorConsole = new ErrorConsoleController()
+const errorConsole = new ErrorConsoleController(store)
 
 // A rejected promise with no handler would otherwise vanish silently; log it so a failure in any
 // background task (a mirror pass, a git refresh) is at least diagnosable rather than invisible.

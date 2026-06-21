@@ -28,6 +28,8 @@ export interface VibeSettings {
   dock: DockSide
   /** Display ids the overlay should appear on. Empty means primary display only. */
   enabledDisplayIds: string[]
+  /** Display ids the in-app error console should appear on. Empty means primary display only. */
+  errorConsoleDisplayIds: string[]
   guardrailsEnabled: boolean
   launchOnStartup: boolean
 }

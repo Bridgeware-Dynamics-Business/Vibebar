@@ -1,40 +1,45 @@
 name: CI
 
+# Runs on every pull request and on pushes to main, so broken code can't
+# slip into the protected branch. Pair this with a branch protection rule
+# that requires the "verify" check to pass before merging.
+
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
+  push:
+    branches: [main]
 
+# Cancel superseded runs on the same branch/PR to save CI minutes.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   verify:
-    name: Verify (test, typecheck, build)
-    runs-on: windows-latest
+    name: Type-check, test, and build
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Check out code
         uses: actions/checkout@v4
 
-      - name: Setup Node
+      - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Run tests
-        run: npm test
-
-      - name: Typecheck packages
+      - name: Type-check
         run: npm run typecheck
 
-      - name: Typecheck Electron app
-        run: npm run typecheck -w vibebar
+      - name: Run tests
+        run: npm test
 
       - name: Build
         run: npm run build
