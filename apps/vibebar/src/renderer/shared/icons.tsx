@@ -1,0 +1,102 @@
+import {
+  AlertTriangle,
+  Ban,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  Dot,
+  ExternalLink,
+  Eye,
+  FlaskConical,
+  FolderCheck,
+  FolderOpen,
+  FolderPlus,
+  FolderSync,
+  GitBranch,
+  Github,
+  GripHorizontal,
+  ListChecks,
+  Loader2,
+  type LucideIcon,
+  Monitor,
+  PackageOpen,
+  PanelBottom,
+  PanelBottomClose,
+  PanelRight,
+  PanelRightClose,
+  Play,
+  Plus,
+  RefreshCw,
+  RotateCcw,
+  ScanSearch,
+  Terminal as TerminalIcon,
+  Search,
+  Settings,
+  ShieldAlert,
+  ShieldCheck,
+  Sparkles,
+  SquareTerminal,
+  Star,
+  Trash2,
+  Wrench,
+  X
+} from 'lucide-react'
+
+const ICONS: Record<string, LucideIcon> = {
+  Sparkles,
+  FolderSync,
+  PackageOpen,
+  ShieldAlert,
+  Settings,
+  FolderOpen,
+  FolderPlus,
+  FolderCheck,
+  GitBranch,
+  Github,
+  Copy,
+  Check,
+  Star,
+  Plus,
+  Search,
+  X,
+  Trash2,
+  ChevronRight,
+  ChevronDown,
+  Dot,
+  ExternalLink,
+  Monitor,
+  AlertTriangle,
+  ShieldCheck,
+  Eye,
+  SquareTerminal,
+  ScanSearch,
+  PanelRight,
+  PanelRightClose,
+  PanelBottom,
+  PanelBottomClose,
+  Play,
+  Ban,
+  RefreshCw,
+  RotateCcw,
+  Loader2,
+  Wrench,
+  FlaskConical,
+  GripHorizontal,
+  ListChecks,
+  Terminal: TerminalIcon
+}
+
+export function Icon({
+  name,
+  size = 18,
+  className
+}: {
+  name: string
+  size?: number
+  className?: string
+}): JSX.Element | null {
+  const Component = ICONS[name]
+  if (!Component) return null
+  return <Component size={size} className={className} aria-hidden />
+}

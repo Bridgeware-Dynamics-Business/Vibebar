@@ -1,0 +1,332 @@
+import { homedir } from 'node:os'
+import { type BrowserWindow, screen } from 'electron'
+import type { ProjectProfile } from '@vibebar/project-detector'
+import { CH } from '@shared/channels.js'
+import type {
+  AuditFinding,
+  AuditReport,
+  AuditSeverity,
+  DetectedIssue,
+  DockSide,
+  IssueSeverity,
+  ProjectCommand,
+  ShellType,
+  TerminalRunResult,
+  TerminalState
+} from '@shared/types.js'
+import type { ProjectService } from '../project/ProjectService.js'
+import type { AppStore } from '../settings/store.js'
+import { createTerminalWindow } from '../overlay/windowFactory.js'
+import type { Rect } from '../overlay/snapLogic.js'
+import { TerminalSession } from './TerminalSession.js'
+import { ShellSession } from './ShellSession.js'
+import { generateProjectCommands } from './projectCommands.js'
+import { analyzeOutput } from './outputAnalyzer.js'
+
+const DEFAULT_W = 780
+const DEFAULT_H = 480
+const MARGIN = 88
+
+const AUDIT_SEVERITY: Record<AuditSeverity, IssueSeverity> = {
+  critical: 'error',
+  high: 'error',
+  medium: 'warning',
+  low: 'info'
+}
+
+/** Maps a security-audit finding into the terminal's issue shape, carrying both prompts + context. */
+function findingToIssue(f: AuditFinding): DetectedIssue {
+  return {
+    id: f.id,
+    severity: AUDIT_SEVERITY[f.severity],
+    title: f.title,
+    summary: f.detail,
+    evidence: f.evidence ?? '',
+    prompt: f.fixPrompt,
+    testPrompt: f.testPrompt,
+    category: f.category,
+    source: 'audit',
+    auditSeverity: f.severity,
+    file: f.file,
+    line: f.line,
+    codeContext: f.codeContext,
+    cwe: f.cwe,
+    references: f.references
+  }
+}
+
+/**
+ * Owns the Smart Terminal window and its session. The window is created lazily and reused; the
+ * toolbar button toggles its visibility (hiding preserves scrollback and session state). It
+ * spawns on the side opposite the toolbar dock, stays always-on-top, and analyzes every
+ * finished command for fixable issues using the active project's profile.
+ */
+export class TerminalController {
+  private readonly store: AppStore
+  private readonly projects: ProjectService
+  private readonly onVisibility?: (visible: boolean) => void
+  private win: BrowserWindow | null = null
+  private session: TerminalSession | null = null
+  /** The expandable bottom terminal's persistent interactive shell (created on demand). */
+  private shell: ShellSession | null = null
+  /** Resolves once the current window's renderer has loaded, so early writes aren't lost. */
+  private ready: Promise<void> = Promise.resolve()
+
+  constructor(store: AppStore, projects: ProjectService, onVisibility?: (visible: boolean) => void) {
+    this.store = store
+    this.projects = projects
+    this.onVisibility = onVisibility
+  }
+
+  toggle(): { visible: boolean } {
+    if (this.win && !this.win.isDestroyed() && this.win.isVisible()) {
+      this.win.hide()
+      this.emitVisibility(false)
+      return { visible: false }
+    }
+    this.ensureWindow()
+    this.win?.show()
+    this.win?.focus()
+    this.emitVisibility(true)
+    return { visible: true }
+  }
+
+  hide(): void {
+    if (this.win && !this.win.isDestroyed()) this.win.hide()
+    this.emitVisibility(false)
+  }
+
+  private emitVisibility(visible: boolean): void {
+    this.onVisibility?.(visible)
+  }
+
+  /** True when the terminal window exists and is currently visible to the user. */
+  isOpen(): boolean {
+    return Boolean(this.win && !this.win.isDestroyed() && this.win.isVisible())
+  }
+
+  /**
+   * Mirrors audit findings into the terminal *only if it is already open* — it never creates or
+   * shows the window. Writes a single concise, timestamped status line and refreshes the findings
+   * panel, so repeated/auto scans stream in live without spamming the scrollback. Returns whether
+   * it was mirrored, so the caller can tell the user where the results went.
+   */
+  mirrorAuditIfOpen(report: AuditReport): boolean {
+    if (!this.isOpen()) return false
+    this.presentAudit(report, { quiet: true })
+    return true
+  }
+
+  run(command: string): TerminalRunResult {
+    this.ensureWindow()
+    if (!this.session) return { accepted: false, reason: 'Terminal not ready.' }
+    return this.session.run(command)
+  }
+
+  cancel(): void {
+    this.session?.cancel()
+  }
+
+  clear(): void {
+    /* The renderer clears its own buffer; nothing to persist here. */
+  }
+
+  // ---- Built-in interactive shell (expandable bottom terminal) ----
+
+  /** Spawns (or reuses) the interactive shell. Switching shell program restarts the session. */
+  shellStart(shell: ShellType): void {
+    this.ensureWindow()
+    if (this.shell && this.shell.shell === shell) {
+      // Already running this shell: nudge a fresh prompt for the (re)opened panel.
+      this.send(CH.shellReady, { exitCode: 0 })
+      return
+    }
+    this.shell?.dispose()
+    const cwd = this.projects.getProfile()?.rootPath ?? homedir()
+    this.shell = new ShellSession({
+      shell,
+      cwd,
+      onData: (chunk) => this.send(CH.shellData, chunk),
+      onReady: (exitCode) => this.send(CH.shellReady, { exitCode }),
+      onClosed: () => this.send(CH.shellClosed, undefined)
+    })
+    this.shell.start()
+  }
+
+  shellInput(line: string): void {
+    this.shell?.runLine(line)
+  }
+
+  shellSetShell(shell: ShellType): void {
+    this.shellStart(shell)
+  }
+
+  shellStop(): void {
+    this.shell?.dispose()
+    this.shell = null
+  }
+
+  projectCommands(): Promise<ProjectCommand[]> {
+    return generateProjectCommands(this.projects.getProfile())
+  }
+
+  /** Shows the terminal and prints a scan banner before the (async) audit runs. */
+  async beginAudit(): Promise<void> {
+    this.ensureWindow()
+    this.win?.show()
+    this.win?.focus()
+    this.emitVisibility(true)
+    await this.ready
+    const project = this.projects.getProfile()?.folderName ?? 'this project'
+    this.writeLine('')
+    this.writeLine('\u001b[38;5;213m\u25cf Security audit \u2014 deep repo scan\u001b[0m')
+    this.writeLine(`\u001b[2mScanning ${project} for behavioral and supply-chain risks\u2026\u001b[0m`)
+  }
+
+  /**
+   * Pushes findings to the issue panel and prints a summary. In `quiet` mode (used for mirrored
+   * and auto scans) it prints a single compact, timestamped line instead of the full banner, so
+   * the scrollback stays clean while findings refresh live.
+   */
+  presentAudit(report: AuditReport, opts: { quiet?: boolean } = {}): void {
+    this.ensureWindow()
+    if (report.noProject) {
+      if (!opts.quiet) {
+        this.writeLine('\u001b[33mNo project selected. Pick one from the toolbar, then run the audit again.\u001b[0m')
+      }
+      this.send(CH.terminalIssues, [])
+      return
+    }
+
+    const issues = report.findings.map(findingToIssue)
+    const counts = report.findings.reduce<Record<string, number>>((acc, f) => {
+      acc[f.severity] = (acc[f.severity] ?? 0) + 1
+      return acc
+    }, {})
+    const summary = (['critical', 'high', 'medium', 'low'] as AuditSeverity[])
+      .filter((s) => counts[s])
+      .map((s) => `${counts[s]} ${s}`)
+      .join(', ')
+
+    if (opts.quiet) {
+      const stamp = new Date().toLocaleTimeString()
+      this.writeLine(
+        issues.length === 0
+          ? `\u001b[2m[${stamp}] audit \u2014 ${report.scannedFiles} files, no signals\u001b[0m`
+          : `\u001b[38;5;213m[${stamp}] audit \u2014 ${issues.length} issue(s): ${summary}\u001b[0m`
+      )
+    } else if (issues.length === 0) {
+      this.writeLine(
+        `\u001b[32m\u2713 Scanned ${report.scannedFiles} files \u2014 no behavioral-risk signals found.\u001b[0m`
+      )
+      this.writeLine('\u001b[2m  Absence of a signal is not proof of safety \u2014 still test auth and authorization.\u001b[0m')
+    } else {
+      this.writeLine(
+        `\u001b[31m\u2713 Scanned ${report.scannedFiles} files \u2014 ${issues.length} issue(s): ${summary}\u001b[0m`
+      )
+      this.writeLine('\u001b[2m  Open an issue on the right \u2192 copy the fix prompt (and a behavioral test) into your AI.\u001b[0m')
+    }
+    this.send(CH.terminalIssues, issues)
+  }
+
+  /** Writes one line to the terminal view (CRLF for xterm). */
+  private writeLine(text: string): void {
+    this.send(CH.terminalData, `${text}\r\n`)
+  }
+
+  getState(): TerminalState {
+    const profile = this.projects.getProfile()
+    return {
+      status: this.session?.getStatus() ?? {
+        running: false,
+        cwd: profile?.rootPath ?? homedir(),
+        exitCode: null,
+        lastCommand: null
+      },
+      projectName: profile?.folderName ?? null
+    }
+  }
+
+  /** Called when the active project changes so the terminal follows the project root. */
+  setProject(profile: ProjectProfile | null): void {
+    if (profile?.rootPath) {
+      this.session?.setCwd(profile.rootPath)
+      this.shell?.setCwd(profile.rootPath)
+    }
+    this.pushState()
+  }
+
+  dispose(): void {
+    this.session?.dispose()
+    this.session = null
+    this.shell?.dispose()
+    this.shell = null
+    if (this.win && !this.win.isDestroyed()) this.win.destroy()
+    this.win = null
+  }
+
+  private ensureWindow(): void {
+    if (this.win && !this.win.isDestroyed()) return
+    const bounds = this.computeBounds()
+    const win = createTerminalWindow(bounds)
+    this.win = win
+    this.ready = new Promise<void>((resolve) => {
+      win.webContents.once('did-finish-load', () => resolve())
+    })
+
+    const startCwd = this.projects.getProfile()?.rootPath ?? homedir()
+    this.session = new TerminalSession({
+      cwd: startCwd,
+      onData: (chunk) => this.send(CH.terminalData, chunk),
+      onStatus: (status) => this.send(CH.terminalStatus, status),
+      onResult: ({ command, output, exitCode }) => {
+        const issues = analyzeOutput({
+          command,
+          output,
+          exitCode,
+          profile: this.projects.getProfile()
+        })
+        this.send(CH.terminalIssues, issues)
+      }
+    })
+
+    win.on('closed', () => {
+      this.session?.dispose()
+      this.session = null
+      this.shell?.dispose()
+      this.shell = null
+      this.win = null
+      this.emitVisibility(false)
+    })
+    win.webContents.on('did-finish-load', () => this.pushState())
+  }
+
+  private pushState(): void {
+    this.send(CH.terminalStatus, this.getState().status)
+  }
+
+  private send(channel: string, payload: unknown): void {
+    if (this.win && !this.win.isDestroyed()) this.win.webContents.send(channel, payload)
+  }
+
+  private computeBounds(): Rect {
+    const display = screen.getPrimaryDisplay()
+    const wa = display.workArea
+    const dock: DockSide = this.store.getSettings().dock
+    const width = Math.min(DEFAULT_W, wa.width - 2 * MARGIN)
+    const height = Math.min(DEFAULT_H, wa.height - 2 * MARGIN)
+
+    let x: number
+    let y = Math.round(wa.y + (wa.height - height) / 2)
+    if (dock === 'right') {
+      x = wa.x + MARGIN
+    } else if (dock === 'top') {
+      x = Math.round(wa.x + (wa.width - width) / 2)
+      y = wa.y + wa.height - height - MARGIN
+    } else {
+      // Toolbar on the left → terminal on the right.
+      x = wa.x + wa.width - width - MARGIN
+    }
+    return { x, y, width, height }
+  }
+}

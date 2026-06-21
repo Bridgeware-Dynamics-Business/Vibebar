@@ -1,0 +1,26 @@
+{
+  "name": "vibe-code-toolbar",
+  "version": "1.0.0",
+  "private": true,
+  "description": "VibeBar — a floating Windows overlay companion for vibe coders: project-aware prompt library, secret scanner, context packer, and continuous AI-context folder sync.",
+  "author": "VibeBar",
+  "license": "MIT",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w vibebar",
+    "build": "npm run build -w vibebar",
+    "dist": "npm run dist -w vibebar",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

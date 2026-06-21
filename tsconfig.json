@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "lib": ["ES2023"],
+    "baseUrl": ".",
+    "paths": {
+      "@vibebar/codesync": ["packages/codesync/src/index.ts"],
+      "@vibebar/codesync/*": ["packages/codesync/src/*"],
+      "@vibebar/project-detector": ["packages/project-detector/src/index.ts"],
+      "@vibebar/prompt-engine": ["packages/prompt-engine/src/index.ts"],
+      "@vibebar/prompt-packs": ["packages/prompt-packs/src/index.ts"]
+    }
+  },
+  "include": ["packages/*/src/**/*.ts"]
+}

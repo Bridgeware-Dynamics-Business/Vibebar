@@ -1,0 +1,48 @@
+# Windows packaging for VibeBar. See https://www.electron.build/
+appId: com.vibebar.app
+productName: VibeBar
+copyright: Copyright © VibeBar
+
+forceCodeSigning: false
+
+# Pinned because electron is hoisted to the workspace root, so electron-builder
+# cannot infer the version from the app's local node_modules.
+electronVersion: 33.4.11
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - 'out/**'
+  - 'package.json'
+
+# Bundle the workspace runtime deps that electron-vite externalizes (chokidar, fast-glob, …).
+# electron-builder collects production dependencies from node_modules automatically.
+npmRebuild: false
+asar: true
+
+win:
+  executableName: VibeBar
+  forceCodeSigning: false
+  verifyUpdateCodeSignature: false
+  signAndEditExecutable: false
+  signExts:
+    - '!.exe'
+    - '!.dll'
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  shortcutName: ${productName}
+  uninstallDisplayName: ${productName}
+  createDesktopShortcut: true
+  artifactName: ${name}-${version}-setup.${ext}
+
+portable:
+  artifactName: ${name}-${version}-portable.${ext}

@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "baseUrl": "../..",
+    "paths": {
+      "@vibebar/project-detector": ["packages/project-detector/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*.ts"]
+}

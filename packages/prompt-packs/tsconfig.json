@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "baseUrl": "../..",
+    "paths": {
+      "@vibebar/prompt-engine": ["packages/prompt-engine/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*.ts"]
+}

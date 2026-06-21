@@ -1,0 +1,53 @@
+# Packaging for Windows (and other platforms). See https://www.electron.build/
+appId: com.codesync.app
+productName: Code Sync
+copyright: Copyright © ${author}
+
+# Do not sign installers or executables (no certificate / signtool).
+forceCodeSigning: false
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!electron.vite.config.{js,ts,mjs,cjs}'
+  - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml}'
+  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
+  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  - '!vitest.config.ts'
+  - '!electron-builder.yml'
+
+# Pure JS deps; no native unpack needed unless you add native modules later.
+npmRebuild: false
+
+win:
+  executableName: CodeSync
+  forceCodeSigning: false
+  verifyUpdateCodeSignature: false
+  signAndEditExecutable: false
+  # Skip signtool entirely: negative patterns exclude these extensions from signing.
+  # See winPackager.shouldSignFile in app-builder-lib.
+  signExts:
+    - '!.exe'
+    - '!.dll'
+  target:
+    # NSIS = installer wizard (Code Sync Setup x.x.x.exe)
+    - target: nsis
+      arch: [x64]
+    # Portable = single folder-less exe you can copy anywhere
+    - target: portable
+      arch: [x64]
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  shortcutName: ${productName}
+  uninstallDisplayName: ${productName}
+  createDesktopShortcut: true
+  artifactName: ${name}-${version}-setup.${ext}
+
+portable:
+  artifactName: ${name}-${version}-portable.${ext}

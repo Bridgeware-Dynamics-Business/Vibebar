@@ -1,0 +1,21 @@
+{
+  "name": "@vibebar/codesync",
+  "version": "1.0.0",
+  "private": true,
+  "description": "One-way folder mirror engine for AI context — source to sync folder.",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "chokidar": "^4.0.3",
+    "fast-glob": "^3.3.3",
+    "p-limit": "^6.2.0",
+    "picomatch": "^4.0.2"
+  },
+  "devDependencies": {
+    "@types/picomatch": "^3.0.2"
+  }
+}

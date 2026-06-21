@@ -1,0 +1,114 @@
+# ---------------------------------------------------------------------------
+# Vibe Code Toolbar — .gitignore
+# Stack: npm workspaces monorepo · Electron (electron-vite + electron-builder)
+#        React + TailwindCSS · TypeScript · Vitest
+# ---------------------------------------------------------------------------
+
+# --- Dependencies ----------------------------------------------------------
+node_modules/
+.pnp
+.pnp.js
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# --- Build output ----------------------------------------------------------
+out/
+dist/
+dist-ssr/
+build/
+release/
+release-builds/
+app-builds/
+packages/*/lib/
+packages/*/dist/
+
+# electron-builder packaging artifacts (installers, unpacked apps, blockmaps)
+*.exe
+*.msi
+*.dmg
+*.pkg
+*.deb
+*.rpm
+*.AppImage
+*.snap
+*.blockmap
+*.nsis.7z
+*.zip
+builder-effective-config.yaml
+builder-debug.yml
+
+# --- Caches / intermediate -------------------------------------------------
+.vite/
+.turbo/
+.cache/
+.parcel-cache/
+.eslintcache
+.stylelintcache
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+
+# --- Tests / coverage ------------------------------------------------------
+coverage/
+.nyc_output/
+test-results/
+playwright-report/
+playwright/.cache/
+
+# --- Logs ------------------------------------------------------------------
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# --- Native modules / node-gyp ---------------------------------------------
+build/Release/
+prebuilds/
+*.node
+
+# --- Environment / secrets — never commit ---------------------------------
+.env
+.env.*
+!.env.example
+*.local
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+secrets.json
+credentials.json
+
+# --- Editor / IDE ----------------------------------------------------------
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+*~
+
+# --- OS --------------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# --- Reference material dependencies (kept out of the repo) ----------------
+# The bundled "AI Context" reference projects carry their own installs/builds.
+AI Context/**/node_modules/
+AI Context/**/out/
+AI Context/**/dist/
+AI Context/**/release/

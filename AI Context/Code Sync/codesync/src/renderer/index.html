@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Code Sync</title>
+  </head>
+  <body>
+    <div id="app">
+      <header>
+        <h1>Code Sync</h1>
+        <p class="subtitle">
+          One-way mirror tuned for dev work: only files that actually changed are copied (size +
+          modification time, like a cheap diff). Defaults skip <code>node_modules</code>,
+          <code>.git</code>, Python caches, Rust <code>target</code>, build outputs, and more — add
+          your own globs below. Multiple instances run side by side when you multitask.
+        </p>
+      </header>
+
+      <div class="instances-toolbar">
+        <button type="button" id="btn-add-instance" class="ghost">+ Add sync instance</button>
+        <span id="instance-limit-hint" class="hint"></span>
+      </div>
+
+      <div id="instances"></div>
+
+      <section class="field">
+        <label for="ignore">Extra ignore patterns (one per line, glob) — shared by all instances</label>
+        <textarea id="ignore" rows="4" spellcheck="false"></textarea>
+      </section>
+
+      <section class="field row tight">
+        <div>
+          <label for="debounce">Debounce (ms)</label>
+          <input id="debounce" type="number" min="50" step="10" value="350" />
+        </div>
+        <div>
+          <label for="maxbytes">Max file size (MB, 0 = no limit)</label>
+          <input id="maxbytes" type="number" min="0" step="1" value="100" />
+        </div>
+      </section>
+
+      <p class="warn">
+        Warning: files and folders in each sync folder that are not in its source (and not ignored)
+        will be deleted during sync.
+      </p>
+
+      <div class="actions">
+        <button type="button" id="btn-save">Save settings</button>
+        <span id="settings-feedback" class="hint" aria-live="polite"></span>
+      </div>
+    </div>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>
