@@ -59,7 +59,9 @@ export default defineConfig({
           overlay: r('src/renderer/overlay/index.html'),
           codesync: r('src/renderer/codesync/index.html'),
           panel: r('src/renderer/panel/index.html'),
-          terminal: r('src/renderer/terminal/index.html')
+          terminal: r('src/renderer/terminal/index.html'),
+          snip: r('src/renderer/snip/index.html'),
+          errorconsole: r('src/renderer/errorconsole/index.html')
         }
       }
     }

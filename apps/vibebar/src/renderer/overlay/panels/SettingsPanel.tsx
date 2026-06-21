@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { SettingsState } from '@shared/api.js'
-import type { DockSide } from '@shared/types.js'
+import type { DockSide, QuickLaunchApp } from '@shared/types.js'
 import { Icon } from '../../shared/icons'
 import { DetachButton, PanelHeader, Toggle } from '../../shared/ui'
 
@@ -23,9 +23,13 @@ export function SettingsPanel({
   onDetach?: () => void
 }): JSX.Element {
   const [state, setState] = useState<SettingsState | null>(null)
+  const [quickLaunch, setQuickLaunch] = useState<QuickLaunchApp[]>([])
 
   useEffect(() => {
     void window.vibebar.settings.get().then(setState)
+    void window.vibebar.quickLaunch.list().then(setQuickLaunch)
+    // Keep this panel in sync when the list changes from the toolbar or another window.
+    return window.vibebar.quickLaunch.onChanged(setQuickLaunch)
   }, [])
 
   async function save(partial: Parameters<typeof window.vibebar.settings.save>[0]): Promise<void> {
@@ -169,6 +173,69 @@ export function SettingsPanel({
               onChange={(next) => void save({ launchOnStartup: next })}
             />
           </div>
+        </section>
+
+        <section>
+          <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-vibe-muted">
+            Quick Launch
+          </h3>
+          <p className="mb-2 text-xs text-vibe-muted">
+            One-click launchers in the toolbar (under GitHub). Launching opens your current project
+            in the app when one is selected.
+          </p>
+          <div className="space-y-1.5">
+            {quickLaunch.map((app) => (
+              <div
+                key={app.id}
+                className="flex items-center gap-2.5 rounded-lg border border-vibe-border bg-white/[0.03] px-2.5 py-2"
+              >
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-vibe-accent-2/50 bg-vibe-accent-2/12 text-vibe-accent-2">
+                  <Icon name={app.icon} size={15} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="truncate text-sm text-vibe-text">{app.name}</span>
+                    {app.builtIn && (
+                      <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-vibe-muted">
+                        Built-in
+                      </span>
+                    )}
+                  </div>
+                  <p
+                    className={`truncate text-[11px] ${app.path ? 'text-vibe-muted' : 'text-amber-400'}`}
+                    title={app.path || undefined}
+                  >
+                    {app.path || 'Path not set — click the pencil to locate it'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  title={`Set ${app.name}'s executable path`}
+                  aria-label={`Set ${app.name}'s executable path`}
+                  onClick={() => void window.vibebar.quickLaunch.locate(app.id).then(setQuickLaunch)}
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-vibe-border text-vibe-muted transition-colors hover:border-white/20 hover:text-vibe-text"
+                >
+                  <Icon name="Pencil" size={13} />
+                </button>
+                <button
+                  type="button"
+                  title={`Remove ${app.name}`}
+                  aria-label={`Remove ${app.name}`}
+                  onClick={() => void window.vibebar.quickLaunch.remove(app.id).then(setQuickLaunch)}
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-red-500/30 text-red-400 transition-colors hover:bg-red-500/10"
+                >
+                  <Icon name="Trash2" size={13} />
+                </button>
+              </div>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => void window.vibebar.quickLaunch.add().then(setQuickLaunch)}
+            className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-vibe-accent-2/40 py-2 text-xs text-vibe-accent-2 transition-colors hover:border-vibe-accent-2 hover:bg-vibe-accent-2/10"
+          >
+            <Icon name="Plus" size={14} /> Add application
+          </button>
         </section>
       </div>
 

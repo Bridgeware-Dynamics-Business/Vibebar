@@ -8,6 +8,8 @@ declare global {
     codesync: CodeSyncApi
     codesyncWindow: { hide: () => Promise<{ ok: boolean }> }
     terminal: TerminalBridge
+    /** Guard so the error-capture listeners are installed at most once per renderer (HMR-safe). */
+    __APP_ERROR_CONSOLE_INSTALLED__?: boolean
   }
 
   // React 19 removed the ambient global JSX namespace; re-expose it from the react package

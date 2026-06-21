@@ -4,6 +4,7 @@ export type ToolId =
   | 'security-audit'
   | 'code-sync'
   | 'context-packer'
+  | 'snip'
   | 'github'
   | 'settings'
 
@@ -25,11 +26,12 @@ export interface ToolDef {
  * here plus a handler; the toolbar and registry both read from this list.
  */
 export const TOOL_DEFS: ToolDef[] = [
-  { id: 'prompt-library', label: 'Prompt Library', icon: 'Sparkles', kind: 'panel' },
+  { id: 'prompt-library', label: 'Prompt Library', icon: 'Library', kind: 'panel' },
   { id: 'terminal', label: 'Smart Terminal', icon: 'SquareTerminal', kind: 'window' },
   { id: 'security-audit', label: 'Security Audit', icon: 'ScanSearch', kind: 'panel' },
   { id: 'code-sync', label: 'Code Sync', icon: 'FolderSync', kind: 'window' },
   { id: 'context-packer', label: 'Context Packer', icon: 'PackageOpen', kind: 'panel' },
+  { id: 'snip', label: 'Snip to AI Context', icon: 'Crop', kind: 'action' },
   { id: 'github', label: 'Open in GitHub Desktop', icon: 'Github', kind: 'action', pinnedEnd: true },
   { id: 'settings', label: 'Settings', icon: 'Settings', kind: 'panel', pinnedEnd: true }
 ]

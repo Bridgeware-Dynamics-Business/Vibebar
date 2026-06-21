@@ -2,6 +2,7 @@ import { app, dialog, session } from 'electron'
 import { CH } from '@shared/channels.js'
 import { AuditService } from './audit/AuditService.js'
 import { CodeSyncController } from './codesync/CodeSyncController.js'
+import { ErrorConsoleController } from './errorconsole/ErrorConsoleController.js'
 import { GitStatusService } from './git/GitStatusService.js'
 import { GitHubService } from './github/GitHubService.js'
 import { registerIpc } from './ipc/registerIpc.js'
@@ -9,7 +10,9 @@ import { DetachedPanelController } from './overlay/DetachedPanelController.js'
 import { OverlayManager } from './overlay/OverlayManager.js'
 import { ProjectService } from './project/ProjectService.js'
 import { PromptStore } from './prompts/PromptStore.js'
+import { QuickLaunchService } from './quicklaunch/QuickLaunchService.js'
 import { AppStore } from './settings/store.js'
+import { SnipController } from './snip/SnipController.js'
 import { TerminalController } from './terminal/TerminalController.js'
 
 const store = new AppStore()
@@ -26,6 +29,9 @@ const github = new GitHubService(store)
 const gitStatus = new GitStatusService(projects, (status) =>
   overlay.broadcast(CH.gitStatusChanged, status)
 )
+const quickLaunch = new QuickLaunchService(store)
+const snip = new SnipController(projects)
+const errorConsole = new ErrorConsoleController()
 
 // A rejected promise with no handler would otherwise vanish silently; log it so a failure in any
 // background task (a mirror pass, a git refresh) is at least diagnosable rather than invisible.
@@ -60,7 +66,10 @@ async function bootstrap(): Promise<void> {
     terminal,
     audit,
     github,
-    gitStatus
+    gitStatus,
+    quickLaunch,
+    snip,
+    errorConsole
   })
   overlay.start()
   gitStatus.setProject(projects.getProfile())
@@ -92,5 +101,7 @@ if (!app.requestSingleInstanceLock()) {
     detachedPanels.dispose()
     terminal.dispose()
     gitStatus.dispose()
+    snip.dispose()
+    errorConsole.dispose()
   })
 }

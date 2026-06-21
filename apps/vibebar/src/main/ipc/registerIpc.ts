@@ -10,8 +10,10 @@ import type {
   VibeSettings
 } from '@shared/types.js'
 import type { DetachablePanelId } from '@shared/tools.js'
+import type { ErrorReport } from '@shared/api.js'
 import type { AuditService } from '../audit/AuditService.js'
 import type { CodeSyncController } from '../codesync/CodeSyncController.js'
+import type { ErrorConsoleController } from '../errorconsole/ErrorConsoleController.js'
 import type { DetachedPanelController } from '../overlay/DetachedPanelController.js'
 import type { OverlayManager } from '../overlay/OverlayManager.js'
 import { listTree, packContext } from '../packer/contextPacker.js'
@@ -23,6 +25,8 @@ import type { AppStore } from '../settings/store.js'
 import type { TerminalController } from '../terminal/TerminalController.js'
 import type { GitStatusService } from '../git/GitStatusService.js'
 import type { GitHubService } from '../github/GitHubService.js'
+import type { QuickLaunchService } from '../quicklaunch/QuickLaunchService.js'
+import type { SnipController } from '../snip/SnipController.js'
 
 export interface IpcDeps {
   store: AppStore
@@ -35,6 +39,9 @@ export interface IpcDeps {
   audit: AuditService
   github: GitHubService
   gitStatus: GitStatusService
+  quickLaunch: QuickLaunchService
+  snip: SnipController
+  errorConsole: ErrorConsoleController
 }
 
 function headerLabel(deps: IpcDeps): string {
@@ -49,8 +56,21 @@ function headerLabel(deps: IpcDeps): string {
  * runs the channel's allowlist + Zod check before the body, so no handler trusts raw input.
  */
 export function registerIpc(deps: IpcDeps): void {
-  const { store, overlay, projects, prompts, codesync, detachedPanels, terminal, audit, github, gitStatus } =
-    deps
+  const {
+    store,
+    overlay,
+    projects,
+    prompts,
+    codesync,
+    detachedPanels,
+    terminal,
+    audit,
+    github,
+    gitStatus,
+    quickLaunch,
+    snip,
+    errorConsole
+  } = deps
 
   const handle = <T>(channel: string, fn: (payload: unknown) => T | Promise<T>): void => {
     ipcMain.handle(channel, async (_event, raw: unknown) => {
@@ -252,9 +272,54 @@ export function registerIpc(deps: IpcDeps): void {
     return { findings: report.findings.length, noProject: report.noProject }
   })
 
+  // Snip to AI Context — freeze the screen, draw a box, save the crop, hand back a paste-ready
+  // prompt. `save` accepts only a png data URL (validated in validateIpc) and writes inside the
+  // active project's AI context folder.
+  handle(CH.snipStart, () => snip.start())
+  handle(CH.snipGetCapture, () => snip.getCapture())
+  handle(CH.snipSave, (p) => {
+    const { dataUrl, fileName } = p as { dataUrl: string; fileName?: string }
+    return snip.save(dataUrl, fileName)
+  })
+  handle(CH.snipCancel, () => snip.cancel())
+
   // GitHub Desktop + live change tracking
   handle(CH.githubOpen, () => github.open(projects.getProfile()?.rootPath ?? null))
   handle(CH.gitStatus, () => gitStatus.getStatus())
+
+  // In-app error console — a renderer reports an already-redacted error (validated above); main is
+  // a pure local forwarder that surfaces the always-on-top console window. Nothing leaves the app.
+  handle(CH.errorsReport, (p) => {
+    errorConsole.report((p as { report: ErrorReport }).report)
+    return { ok: true }
+  })
+  handle(CH.errorsClear, () => {
+    errorConsole.clear()
+    return { ok: true }
+  })
+  handle(CH.errorsClose, () => {
+    errorConsole.close()
+    return { ok: true }
+  })
+
+  // Quick Launch — mutations broadcast the new list so the toolbar and any detached Settings
+  // window stay in sync regardless of which surface triggered the change.
+  const broadcastQuickLaunch = (apps: ReturnType<QuickLaunchService['list']>): typeof apps => {
+    overlay.broadcast(CH.quickLaunchChanged, apps)
+    detachedPanels.send(CH.quickLaunchChanged, apps)
+    return apps
+  }
+  handle(CH.quickLaunchList, () => quickLaunch.list())
+  handle(CH.quickLaunchRun, (p) =>
+    quickLaunch.launch((p as { id: string }).id, projects.getProfile()?.rootPath ?? null)
+  )
+  handle(CH.quickLaunchAdd, async () => broadcastQuickLaunch(await quickLaunch.add()))
+  handle(CH.quickLaunchRemove, (p) =>
+    broadcastQuickLaunch(quickLaunch.remove((p as { id: string }).id))
+  )
+  handle(CH.quickLaunchLocate, async (p) =>
+    broadcastQuickLaunch(await quickLaunch.locate((p as { id: string }).id))
+  )
 
   // Lifecycle — the overlay has no taskbar entry, so the renderer needs an explicit quit.
   handle(CH.appQuit, () => {

@@ -14,8 +14,12 @@ import {
 import { createOverlayWindow } from './windowFactory.js'
 
 const TOOLBAR_THICKNESS = 64
-const COLLAPSED_LENGTH = 480
-const OPEN_LENGTH = 660
+// The bar holds a fixed run of circular buttons (project, tools, GitHub, quick-launch, settings).
+// Keep collapsed and open lengths equal so the buttons always have room to stay perfectly round
+// (no flex-shrink squish) and the bar doesn't change length when a side panel opens — only its
+// width grows by PANEL_EXTENT.
+const COLLAPSED_LENGTH = 680
+const OPEN_LENGTH = 680
 const PANEL_EXTENT = 470
 const MOVE_SETTLE_MS = 110
 

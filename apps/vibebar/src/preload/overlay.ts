@@ -1,12 +1,13 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { PromptCategory, PromptTemplate } from '@vibebar/prompt-engine'
-import type { VibeBarApi } from '@shared/api.js'
+import type { ErrorReport, VibeBarApi } from '@shared/api.js'
 import { CH } from '@shared/channels.js'
 import type {
   DockSide,
   GitStatus,
   OverlayLayout,
   ProjectProfile,
+  QuickLaunchApp,
   VibeSettings
 } from '@shared/types.js'
 
@@ -20,8 +21,7 @@ const api: VibeBarApi = {
   overlay: {
     getState: () => ipcRenderer.invoke(CH.overlayGetState),
     setDock: (dock: DockSide) => ipcRenderer.invoke(CH.overlaySetDock, { dock }),
-    setPanel: (open: boolean, extent = 0) =>
-      ipcRenderer.invoke(CH.overlaySetPanel, { open, extent }),
+    setPanel: (open: boolean) => ipcRenderer.invoke(CH.overlaySetPanel, { open }),
     onLayout: (cb: (layout: OverlayLayout) => void) => subscribe(CH.overlayLayout, cb)
   },
   project: {
@@ -79,9 +79,30 @@ const api: VibeBarApi = {
   github: {
     open: () => ipcRenderer.invoke(CH.githubOpen)
   },
+  snip: {
+    start: () => ipcRenderer.invoke(CH.snipStart),
+    getCapture: () => ipcRenderer.invoke(CH.snipGetCapture),
+    save: (dataUrl: string, fileName?: string) =>
+      ipcRenderer.invoke(CH.snipSave, { dataUrl, fileName }),
+    cancel: () => ipcRenderer.invoke(CH.snipCancel)
+  },
   git: {
     getStatus: () => ipcRenderer.invoke(CH.gitStatus),
     onStatusChanged: (cb: (status: GitStatus) => void) => subscribe(CH.gitStatusChanged, cb)
+  },
+  errors: {
+    report: (report: ErrorReport) => ipcRenderer.invoke(CH.errorsReport, { report }),
+    clear: () => ipcRenderer.invoke(CH.errorsClear),
+    close: () => ipcRenderer.invoke(CH.errorsClose),
+    onPush: (cb: (reports: ErrorReport[]) => void) => subscribe(CH.errorsPush, cb)
+  },
+  quickLaunch: {
+    list: () => ipcRenderer.invoke(CH.quickLaunchList),
+    run: (id: string) => ipcRenderer.invoke(CH.quickLaunchRun, { id }),
+    add: () => ipcRenderer.invoke(CH.quickLaunchAdd),
+    remove: (id: string) => ipcRenderer.invoke(CH.quickLaunchRemove, { id }),
+    locate: (id: string) => ipcRenderer.invoke(CH.quickLaunchLocate, { id }),
+    onChanged: (cb: (apps: QuickLaunchApp[]) => void) => subscribe(CH.quickLaunchChanged, cb)
   },
   app: {
     quit: () => ipcRenderer.invoke(CH.appQuit)

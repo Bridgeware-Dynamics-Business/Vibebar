@@ -1,7 +1,12 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { DetachablePanelId, ToolId } from '@shared/tools.js'
-import type { GitStatus, OverlayLayout, ProjectProfile } from '@shared/types.js'
+import type {
+  GitStatus,
+  OverlayLayout,
+  ProjectProfile,
+  QuickLaunchApp
+} from '@shared/types.js'
 import { ClipboardFallbackModal } from '../shared/ClipboardFallbackModal'
 import { useFillToggle } from '../shared/ui'
 import { Toolbar } from './Toolbar'
@@ -16,6 +21,7 @@ export function App(): JSX.Element {
   const [layout, setLayout] = useState<OverlayLayout>(DEFAULT_LAYOUT)
   const [profile, setProfile] = useState<ProjectProfile | null>(null)
   const [gitStatus, setGitStatus] = useState<GitStatus | null>(null)
+  const [quickLaunchApps, setQuickLaunchApps] = useState<QuickLaunchApp[]>([])
   const [activePanel, setActivePanel] = useState<ToolId | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [solid, toggleSolid] = useFillToggle('overlay.solid')
@@ -36,12 +42,14 @@ export function App(): JSX.Element {
       setProfile(state.profile)
     })
     void window.vibebar.git.getStatus().then(setGitStatus)
+    void window.vibebar.quickLaunch.list().then(setQuickLaunchApps)
     void window.vibebar.terminal.isOpen().then(({ open }) => {
       terminalOpenRef.current = open
     })
     const offLayout = window.vibebar.overlay.onLayout(setLayout)
     const offProject = window.vibebar.project.onChanged(setProfile)
     const offGit = window.vibebar.git.onStatusChanged(setGitStatus)
+    const offQuickLaunch = window.vibebar.quickLaunch.onChanged(setQuickLaunchApps)
     const offTerminal = window.vibebar.terminal.onVisibility(({ visible }) => {
       terminalOpenRef.current = visible
       if (visible) {
@@ -63,6 +71,7 @@ export function App(): JSX.Element {
       offLayout()
       offProject()
       offGit()
+      offQuickLaunch()
       offTerminal()
     }
   }, [])
@@ -71,6 +80,14 @@ export function App(): JSX.Element {
     setNotice(text)
     if (noticeTimer.current) clearTimeout(noticeTimer.current)
     noticeTimer.current = setTimeout(() => setNotice(null), 4000)
+  }, [])
+
+  // Clear any pending notice timeout on teardown so a fired callback can't call setState after
+  // the window's React tree is gone (harmless today as the root rarely unmounts, but correct).
+  useEffect(() => {
+    return () => {
+      if (noticeTimer.current) clearTimeout(noticeTimer.current)
+    }
   }, [])
 
   // Collapse only the React state here; the OS window stays expanded until the panel's exit
@@ -97,6 +114,14 @@ export function App(): JSX.Element {
     if (!result.ok && result.error) showNotice(result.error)
   }, [showNotice])
 
+  const handleQuickLaunch = useCallback(
+    async (id: string) => {
+      const result = await window.vibebar.quickLaunch.run(id)
+      if (!result.ok && result.error) showNotice(result.error)
+    },
+    [showNotice]
+  )
+
   const handleTool = useCallback(
     (id: ToolId) => {
       if (id === 'code-sync') {
@@ -109,6 +134,12 @@ export function App(): JSX.Element {
       }
       if (id === 'github') {
         void window.vibebar.github.open().then((result) => {
+          if (!result.ok && result.error) showNotice(result.error)
+        })
+        return
+      }
+      if (id === 'snip') {
+        void window.vibebar.snip.start().then((result) => {
           if (!result.ok && result.error) showNotice(result.error)
         })
         return
@@ -232,10 +263,12 @@ export function App(): JSX.Element {
           profile={profile}
           activePanel={activePanel}
           gitStatus={gitStatus}
+          quickLaunchApps={quickLaunchApps}
           onSelectProject={() => void handleSelectProject()}
           onAddContextFolder={() => void handleAddContextFolder()}
           onOpenContextFolder={() => void handleOpenContextFolder()}
           onTool={handleTool}
+          onQuickLaunch={(id) => void handleQuickLaunch(id)}
         />
       </div>
 

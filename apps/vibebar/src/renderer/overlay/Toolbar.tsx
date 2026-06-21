@@ -1,6 +1,13 @@
 import { AnimatePresence, motion } from 'framer-motion'
+import { Fragment } from 'react'
 import { TOOL_DEFS, type ToolId } from '@shared/tools.js'
-import type { DockSide, GitStatus, Orientation, ProjectProfile } from '@shared/types.js'
+import type {
+  DockSide,
+  GitStatus,
+  Orientation,
+  ProjectProfile,
+  QuickLaunchApp
+} from '@shared/types.js'
 import { Icon } from '../shared/icons'
 
 interface CircleButtonProps {
@@ -12,6 +19,8 @@ interface CircleButtonProps {
   success?: boolean
   /** When > 0, renders a live count bubble (e.g. uncommitted changes). */
   badge?: number
+  /** "launch" gives the quick-launch buttons a distinct cyan-accent treatment so they stand out. */
+  tone?: 'default' | 'launch'
   onClick: () => void
 }
 
@@ -22,13 +31,16 @@ function CircleButton({
   accent,
   success,
   badge,
+  tone = 'default',
   onClick
 }: CircleButtonProps): JSX.Element {
   const stateClass = success
     ? 'border-emerald-500/60 bg-emerald-500/15 text-emerald-300'
     : active
       ? 'border-vibe-accent bg-vibe-accent/20 text-white'
-      : 'border-white/10 bg-white/5 text-vibe-muted hover:border-white/20 hover:bg-white/10 hover:text-vibe-text'
+      : tone === 'launch'
+        ? 'border-vibe-accent-2/50 bg-vibe-accent-2/12 text-vibe-accent-2 shadow-[0_0_10px_-2px_var(--color-vibe-accent-2)] hover:border-vibe-accent-2 hover:bg-vibe-accent-2/20 hover:text-white'
+        : 'border-white/10 bg-white/5 text-vibe-muted hover:border-white/20 hover:bg-white/10 hover:text-vibe-text'
   return (
     <motion.button
       type="button"
@@ -38,7 +50,7 @@ function CircleButton({
       whileHover={{ scale: 1.08 }}
       whileTap={{ scale: 0.95 }}
       transition={{ type: 'spring', stiffness: 400, damping: 22 }}
-      className={`vibe-no-drag relative flex h-11 w-11 items-center justify-center rounded-full border transition-colors ${stateClass} ${accent ? 'ring-2 ring-vibe-accent-2/70' : ''}`}
+      className={`vibe-no-drag relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full border transition-colors ${stateClass} ${accent ? 'ring-2 ring-vibe-accent-2/70' : ''}`}
     >
       <Icon name={icon} size={19} />
       {success && (
@@ -96,24 +108,31 @@ export function Toolbar({
   profile,
   activePanel,
   gitStatus,
+  quickLaunchApps,
   onSelectProject,
   onAddContextFolder,
   onOpenContextFolder,
-  onTool
+  onTool,
+  onQuickLaunch
 }: {
   orientation: Orientation
   dock: DockSide
   profile: ProjectProfile | null
   activePanel: ToolId | null
   gitStatus: GitStatus | null
+  quickLaunchApps: QuickLaunchApp[]
   onSelectProject: () => void
   onAddContextFolder: () => void
   onOpenContextFolder: () => void
   onTool: (id: ToolId) => void
+  onQuickLaunch: (id: string) => void
 }): JSX.Element {
   const isVertical = orientation === 'vertical'
   const tools = TOOL_DEFS.filter((t) => !t.pinnedEnd)
   const pinned = TOOL_DEFS.filter((t) => t.pinnedEnd)
+  const dividerClass = isVertical
+    ? 'h-px w-7 shrink-0 bg-vibe-border'
+    : 'h-7 w-px shrink-0 bg-vibe-border'
 
   return (
     <div
@@ -142,7 +161,7 @@ export function Toolbar({
           }}
         />
       )}
-      <div className={isVertical ? 'h-px w-7 bg-vibe-border' : 'h-7 w-px bg-vibe-border'} />
+      <div className={dividerClass} />
       {tools.map((tool) => (
         <CircleButton
           key={tool.id}
@@ -156,14 +175,36 @@ export function Toolbar({
       {pinned.map((tool) => {
         const git = tool.id === 'github' ? gitButtonInfo(gitStatus) : null
         return (
-          <CircleButton
-            key={tool.id}
-            icon={tool.icon}
-            label={git?.label ?? tool.label}
-            active={activePanel === tool.id}
-            badge={git?.badge}
-            onClick={() => onTool(tool.id)}
-          />
+          <Fragment key={tool.id}>
+            <CircleButton
+              icon={tool.icon}
+              label={git?.label ?? tool.label}
+              active={activePanel === tool.id}
+              badge={git?.badge}
+              onClick={() => onTool(tool.id)}
+            />
+            {/* Quick Launch sits directly under GitHub, fenced by dividers so the cyan editor
+                launchers read as their own distinct cluster within the bar. */}
+            {tool.id === 'github' && quickLaunchApps.length > 0 && (
+              <>
+                <div className={dividerClass} />
+                {quickLaunchApps.map((app) => (
+                  <CircleButton
+                    key={app.id}
+                    icon={app.icon}
+                    label={
+                      app.path
+                        ? `Launch ${app.name}${profile ? ` on ${profile.folderName}` : ''}`
+                        : `${app.name} — set its path in Settings`
+                    }
+                    tone="launch"
+                    onClick={() => onQuickLaunch(app.id)}
+                  />
+                ))}
+                <div className={dividerClass} />
+              </>
+            )}
+          </Fragment>
         )
       })}
     </div>

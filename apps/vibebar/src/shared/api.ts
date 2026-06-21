@@ -14,7 +14,11 @@ import type {
   PreviewResult,
   ProjectProfile,
   PromptListResult,
+  QuickLaunchApp,
+  QuickLaunchResult,
   ScanResult,
+  SnipCapture,
+  SnipSaveResult,
   VibeSettings
 } from './types.js'
 
@@ -34,12 +38,30 @@ export interface RedactedCopyResult {
   redactedText: string
 }
 
+/**
+ * A single captured runtime error from a renderer. Every string field is already redacted by the
+ * originating renderer (see renderer/shared/redactErrors) before it crosses IPC, so nothing here
+ * should contain a live secret or full user path.
+ */
+export interface ErrorReport {
+  /** Stable id for de-duped list rendering (timestamp + counter). */
+  id: string
+  kind: 'error' | 'unhandledrejection'
+  message: string
+  source: string
+  line: number | null
+  column: number | null
+  stack: string
+  /** ISO-8601 capture time. */
+  timestamp: string
+}
+
 /** The full bridge exposed to the overlay renderer as `window.vibebar`. */
 export interface VibeBarApi {
   overlay: {
     getState: () => Promise<OverlayState>
     setDock: (dock: DockSide) => Promise<OverlayLayout>
-    setPanel: (open: boolean, extent?: number) => Promise<OverlayLayout>
+    setPanel: (open: boolean) => Promise<OverlayLayout>
     onLayout: (cb: (layout: OverlayLayout) => void) => () => void
   }
   project: {
@@ -101,9 +123,50 @@ export interface VibeBarApi {
     /** Opens GitHub Desktop on the active project so the user can commit/push. */
     open: () => Promise<GitHubOpenResult>
   }
+  snip: {
+    /**
+     * Freezes the display under the cursor and opens the fullscreen snip overlay so the user can
+     * drag a selection box over the still image.
+     */
+    start: () => Promise<{ ok: boolean; error?: string }>
+    /** The overlay calls this on load to fetch the frozen screenshot it draws the selection over. */
+    getCapture: () => Promise<SnipCapture | null>
+    /**
+     * Saves the cropped PNG (data URL) into the AI context folder, returning a paste-ready prompt.
+     * An optional `fileName` lets the user name the file; it is sanitized and `.png`-suffixed in
+     * the main process, falling back to a timestamped default when blank or invalid.
+     */
+    save: (dataUrl: string, fileName?: string) => Promise<SnipSaveResult>
+    /** Closes the snip overlay without saving. */
+    cancel: () => Promise<{ ok: boolean }>
+  }
   git: {
     getStatus: () => Promise<GitStatus>
     onStatusChanged: (cb: (status: GitStatus) => void) => () => void
+  }
+  errors: {
+    /** Forwards one captured, already-redacted error to the console window (auto-opens it). */
+    report: (report: ErrorReport) => Promise<{ ok: boolean }>
+    /** Empties the console's error buffer (the console's Clear button). */
+    clear: () => Promise<{ ok: boolean }>
+    /** Hides the console window until the next error arrives (the console's Close button). */
+    close: () => Promise<{ ok: boolean }>
+    /** The console window subscribes to receive the current (capped, newest-first) error list. */
+    onPush: (cb: (reports: ErrorReport[]) => void) => () => void
+  }
+  quickLaunch: {
+    /** Lists configured quick-launch apps (built-in Cursor/Codex + any the user added). */
+    list: () => Promise<QuickLaunchApp[]>
+    /** Launches an app by id, opening the active project folder when one is selected. */
+    run: (id: string) => Promise<QuickLaunchResult>
+    /** Opens a native picker to add a new app; returns the updated list. */
+    add: () => Promise<QuickLaunchApp[]>
+    /** Removes an app by id; returns the updated list. */
+    remove: (id: string) => Promise<QuickLaunchApp[]>
+    /** Opens a native picker to set/replace an app's executable path; returns the updated list. */
+    locate: (id: string) => Promise<QuickLaunchApp[]>
+    /** Fires when the app list changes (kept in sync across overlay + detached windows). */
+    onChanged: (cb: (apps: QuickLaunchApp[]) => void) => () => void
   }
   app: {
     quit: () => Promise<{ ok: boolean }>

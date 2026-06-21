@@ -74,10 +74,32 @@ export const CH = {
   auditScan: 'audit:scan',
   auditRunInTerminal: 'audit:runInTerminal',
 
+  // Snip to AI Context — drag-select a screen region, preview, then save it to the AI context
+  // folder and hand back a ready-to-paste prompt referencing the image.
+  snipStart: 'snip:start',
+  snipGetCapture: 'snip:getCapture',
+  snipSave: 'snip:save',
+  snipCancel: 'snip:cancel',
+
   // GitHub Desktop + live change tracking
   githubOpen: 'github:open',
   gitStatus: 'git:status',
   gitStatusChanged: 'git:statusChanged',
+
+  // In-app error console — a renderer reports a captured (already-redacted) runtime error; the
+  // console window receives the live list and asks main to clear/close itself.
+  errorsReport: 'errors:report',
+  errorsClear: 'errors:clear',
+  errorsClose: 'errors:close',
+  errorsPush: 'errors:push',
+
+  // Quick Launch — one-click external editor/app launchers (Cursor, Codex, custom)
+  quickLaunchList: 'quickLaunch:list',
+  quickLaunchRun: 'quickLaunch:run',
+  quickLaunchAdd: 'quickLaunch:add',
+  quickLaunchRemove: 'quickLaunch:remove',
+  quickLaunchLocate: 'quickLaunch:locate',
+  quickLaunchChanged: 'quickLaunch:changed',
 
   appQuit: 'app:quit'
 } as const
@@ -128,8 +150,20 @@ export const INVOKABLE_CHANNELS: readonly string[] = [
   CH.auditRun,
   CH.auditScan,
   CH.auditRunInTerminal,
+  CH.snipStart,
+  CH.snipGetCapture,
+  CH.snipSave,
+  CH.snipCancel,
   CH.githubOpen,
   CH.gitStatus,
+  CH.errorsReport,
+  CH.errorsClear,
+  CH.errorsClose,
+  CH.quickLaunchList,
+  CH.quickLaunchRun,
+  CH.quickLaunchAdd,
+  CH.quickLaunchRemove,
+  CH.quickLaunchLocate,
   CH.appQuit,
   // Code Sync runs its own IPC registry (packages/codesync) with its own payload validation
   // (validateSyncStart / validateConfigSave). Its invokable channels are mirrored here so this
@@ -156,5 +190,7 @@ export const PUSH_CHANNELS: readonly string[] = [
   CH.shellReady,
   CH.shellClosed,
   CH.gitStatusChanged,
+  CH.quickLaunchChanged,
+  CH.errorsPush,
   CODESYNC_CHANNELS.log
 ]

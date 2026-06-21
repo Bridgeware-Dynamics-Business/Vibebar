@@ -1,10 +1,20 @@
 import { type FSWatcher, watch } from 'node:fs'
+import picomatch from 'picomatch'
+import { getIgnoreGlobList, isIgnoredRel } from '@vibebar/codesync'
 import type { ProjectProfile } from '@vibebar/project-detector'
 import type { GitStatus } from '@shared/types.js'
 import type { ProjectService } from '../project/ProjectService.js'
 import { NO_REPO, readGitStatus } from './gitStatus.js'
 
 const DEBOUNCE_MS = 700
+
+// Reuse Code Sync's shared ignore conventions (node_modules, dist, build, .next, target, caches,
+// coverage, etc.) so the badge isn't refreshed by churn that `git status` would ignore anyway —
+// e.g. an `npm install` or a dev server writing thousands of build-output files. `.git` is
+// deliberately kept OUT of the filter: staging, committing, and pushing all write under `.git`,
+// and those MUST still refresh the badge.
+const WATCH_IGNORE_GLOBS = getIgnoreGlobList([]).filter((glob) => glob !== '**/.git/**')
+const matchIgnoredWatchPath = picomatch(WATCH_IGNORE_GLOBS, { dot: true })
 
 /**
  * Tracks uncommitted changes for the active project in near real time. It watches the project
@@ -55,7 +65,10 @@ export class GitStatusService {
   private startWatch(root: string): void {
     try {
       // Recursive watching is supported on Windows/macOS; bursts are coalesced by the debounce.
-      this.watcher = watch(root, { recursive: true }, () => this.scheduleRefresh())
+      this.watcher = watch(root, { recursive: true }, (_event, filename) => {
+        if (typeof filename === 'string' && isIgnoredRel(filename, matchIgnoredWatchPath)) return
+        this.scheduleRefresh()
+      })
       this.watcher.on('error', () => this.stopWatch())
     } catch {
       // Recursive watch unsupported here — refresh-on-project-change still works.

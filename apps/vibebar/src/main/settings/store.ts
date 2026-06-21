@@ -2,7 +2,13 @@ import type { CodeSyncConfig } from '@vibebar/codesync'
 import { DEFAULT_DEBOUNCE_MS, DEFAULT_MAX_FILE_BYTES } from '@vibebar/codesync'
 import type { PromptTemplate } from '@vibebar/prompt-engine'
 import Store from 'electron-store'
-import type { DisplayLayout, DockSide, HistoryEntry, VibeSettings } from '@shared/types.js'
+import type {
+  DisplayLayout,
+  DockSide,
+  HistoryEntry,
+  QuickLaunchApp,
+  VibeSettings
+} from '@shared/types.js'
 
 interface StoreSchema {
   settings: VibeSettings
@@ -15,6 +21,8 @@ interface StoreSchema {
   github: { desktopPath: string }
   /** Per-display dock + anchor, keyed by display id, so each monitor's bar stays where placed. */
   displayLayouts: Record<string, DisplayLayout>
+  /** One-click toolbar launchers; seeded with Cursor + Codex on first run. */
+  quickLaunch: QuickLaunchApp[]
 }
 
 const DEFAULT_SETTINGS: VibeSettings = {
@@ -23,6 +31,15 @@ const DEFAULT_SETTINGS: VibeSettings = {
   guardrailsEnabled: true,
   launchOnStartup: false
 }
+
+/**
+ * Built-in quick-launch editors seeded on first run. Paths start empty and are filled by
+ * auto-detection (see QuickLaunchService) or by the user via the Settings file picker.
+ */
+const DEFAULT_QUICK_LAUNCH: QuickLaunchApp[] = [
+  { id: 'cursor', name: 'Cursor', path: '', icon: 'MousePointer2', builtIn: true },
+  { id: 'codex', name: 'Codex', path: '', icon: 'Code2', builtIn: true }
+]
 
 const HISTORY_LIMIT = 50
 
@@ -49,7 +66,8 @@ export class AppStore {
           debounceMs: DEFAULT_DEBOUNCE_MS
         },
         github: { desktopPath: '' },
-        displayLayouts: {}
+        displayLayouts: {},
+        quickLaunch: DEFAULT_QUICK_LAUNCH
       }
     })
   }
@@ -144,5 +162,29 @@ export class AppStore {
 
   saveCodeSyncConfig(partial: Partial<CodeSyncConfig>): void {
     this.store.set('codesync', { ...this.getCodeSyncConfig(), ...partial })
+  }
+
+  getQuickLaunchApps(): QuickLaunchApp[] {
+    return this.store.get('quickLaunch') ?? DEFAULT_QUICK_LAUNCH
+  }
+
+  setQuickLaunchApps(apps: QuickLaunchApp[]): QuickLaunchApp[] {
+    this.store.set('quickLaunch', apps)
+    return apps
+  }
+
+  addQuickLaunchApp(app: QuickLaunchApp): QuickLaunchApp[] {
+    return this.setQuickLaunchApps([...this.getQuickLaunchApps(), app])
+  }
+
+  updateQuickLaunchApp(id: string, patch: Partial<QuickLaunchApp>): QuickLaunchApp[] {
+    const next = this.getQuickLaunchApps().map((app) =>
+      app.id === id ? { ...app, ...patch } : app
+    )
+    return this.setQuickLaunchApps(next)
+  }
+
+  removeQuickLaunchApp(id: string): QuickLaunchApp[] {
+    return this.setQuickLaunchApps(this.getQuickLaunchApps().filter((app) => app.id !== id))
   }
 }

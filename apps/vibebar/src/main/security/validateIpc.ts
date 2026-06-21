@@ -31,10 +31,7 @@ const promptIdPayload = z.object({ promptId: z.string().min(1).max(128) })
 /** Payload schemas per channel. Channels with no entry take no payload. */
 const SCHEMAS: Partial<Record<ChannelName, z.ZodTypeAny>> = {
   [CH.overlaySetDock]: z.object({ dock: dockSchema }),
-  [CH.overlaySetPanel]: z.object({
-    open: z.boolean(),
-    extent: z.number().int().min(0).max(4000)
-  }),
+  [CH.overlaySetPanel]: z.object({ open: z.boolean() }),
 
   [CH.promptsPreview]: z.object({
     promptId: z.string().min(1).max(128),
@@ -59,6 +56,36 @@ const SCHEMAS: Partial<Record<ChannelName, z.ZodTypeAny>> = {
 
   [CH.panelDetach]: z.object({ panelId: z.enum(DETACHABLE_PANEL_IDS) }),
 
+  // The cropped region is a PNG data URL. Bounded generously so a large selection still fits,
+  // and pinned to the png data-URL prefix so the handler never decodes arbitrary input.
+  [CH.snipSave]: z.object({
+    dataUrl: z
+      .string()
+      .min(1)
+      .max(64_000_000)
+      .startsWith('data:image/png;base64,'),
+    // Optional user-chosen name; sanitized + extension-enforced in the controller before any
+    // filesystem use, so an unsafe value here can never escape the AI context folder.
+    fileName: z.string().max(200).optional()
+  }),
+
+  // Error console — the renderer sends an already-redacted report. Bounds keep a runaway stack
+  // from ballooning the IPC payload; strings are still rendered with textContent on the far side.
+  [CH.errorsReport]: z.object({
+    report: z
+      .object({
+        id: z.string().min(1).max(64),
+        kind: z.enum(['error', 'unhandledrejection']),
+        message: z.string().max(20_000),
+        source: z.string().max(4096),
+        line: z.number().int().nullable(),
+        column: z.number().int().nullable(),
+        stack: z.string().max(40_000),
+        timestamp: z.string().max(40)
+      })
+      .strict()
+  }),
+
   [CH.terminalRun]: z.object({ command: z.string().min(1).max(8000) }),
   [CH.auditRunInTerminal]: z.object({ quiet: z.boolean() }),
 
@@ -66,6 +93,11 @@ const SCHEMAS: Partial<Record<ChannelName, z.ZodTypeAny>> = {
   [CH.shellSetShell]: z.object({ shell: z.enum(['powershell', 'cmd', 'bash']) }),
   // Allow empty strings (a bare Enter) and trailing whitespace; the shell handles them.
   [CH.shellInput]: z.object({ line: z.string().max(8000) }),
+
+  // Quick Launch — the renderer only ever names an app by id; the path is resolved in main.
+  [CH.quickLaunchRun]: z.object({ id: z.string().min(1).max(64) }),
+  [CH.quickLaunchRemove]: z.object({ id: z.string().min(1).max(64) }),
+  [CH.quickLaunchLocate]: z.object({ id: z.string().min(1).max(64) }),
 
   [CH.settingsSave]: z
     .object({

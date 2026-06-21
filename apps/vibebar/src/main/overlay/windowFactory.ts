@@ -146,6 +146,79 @@ export function createCodeSyncWindow(bounds: Rect): BrowserWindow {
 }
 
 /**
+ * Creates the Snip overlay: a frameless, transparent, always-on-top window sized to exactly cover
+ * one display (full bounds, including the taskbar area, so any pixel can be captured). It paints a
+ * frozen screenshot the user drags a selection box over, so it must not be movable or resizable.
+ * Reuses the overlay preload — it already exposes the full `window.vibebar` bridge, including the
+ * `snip` namespace. Starts hidden; the controller shows it once the frame is ready.
+ */
+export function createSnipWindow(bounds: Rect): BrowserWindow {
+  const win = new BrowserWindow({
+    ...bounds,
+    frame: false,
+    transparent: true,
+    hasShadow: false,
+    resizable: false,
+    movable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    skipTaskbar: true,
+    show: false,
+    backgroundColor: '#00000000',
+    webPreferences: {
+      preload: resolvePreload('overlay'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true
+    }
+  })
+  win.setAlwaysOnTop(true, 'screen-saver')
+  win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+  hardenWindow(win)
+  loadEntry(win, 'snip')
+  return win
+}
+
+/**
+ * Creates the in-app Error Console: a frameless, transparent, always-on-top overlay that floats
+ * above every other window (like the toolbar/snip/code-sync) so captured runtime errors are
+ * visible no matter what is focused. It is movable (drag bar in the renderer) and lightly
+ * resizable. Reuses the overlay preload, which exposes the `errors` bridge. Starts hidden; the
+ * controller shows it when the first error arrives.
+ */
+export function createErrorConsoleWindow(bounds: Rect): BrowserWindow {
+  const win = new BrowserWindow({
+    ...bounds,
+    minWidth: 320,
+    minHeight: 240,
+    frame: false,
+    transparent: true,
+    hasShadow: false,
+    resizable: true,
+    movable: true,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    skipTaskbar: true,
+    show: false,
+    type: 'toolbar',
+    backgroundColor: '#00000000',
+    webPreferences: {
+      preload: resolvePreload('overlay'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true
+    }
+  })
+  win.setAlwaysOnTop(true, 'screen-saver')
+  win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+  hardenWindow(win)
+  loadEntry(win, 'errorconsole')
+  return win
+}
+
+/**
  * Creates a detached panel as a floating overlay: frameless, transparent, and always-on-top so
  * it appears to hover beside the toolbar like a menu (mirroring Code Sync). One window hosts a
  * single panel, selected via the `panel` query param read by the generic renderer entry. Its

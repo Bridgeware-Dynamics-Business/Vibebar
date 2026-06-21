@@ -59,6 +59,60 @@ export interface GitHubOpenResult {
   error?: string
 }
 
+/**
+ * A user-configured external editor/app that can be launched straight from the toolbar. The
+ * renderer only ever references an app by `id`; the executable `path` is set in the main process
+ * (via the native file picker or built-in auto-detection) and never accepted from the renderer,
+ * so the IPC surface cannot be coerced into spawning an arbitrary path.
+ */
+export interface QuickLaunchApp {
+  id: string
+  name: string
+  /** Absolute path to the executable / app bundle. Empty until detected or located. */
+  path: string
+  /** lucide-react icon name, resolved in the renderer. */
+  icon: string
+  /** Seeded defaults (Cursor, Codex). Editable and removable like any custom entry. */
+  builtIn?: boolean
+}
+
+/** Result of asking the main process to launch a quick-launch app. */
+export interface QuickLaunchResult {
+  ok: boolean
+  /** A user-facing reason when `ok` is false (e.g. path not set or not found). */
+  error?: string
+}
+
+/**
+ * A frozen screenshot of the display under the cursor, handed to the snip overlay so the user
+ * can draw a selection box over a still image (Windows Snipping Tool style) rather than over a
+ * moving live screen. Sized in device pixels so the renderer can map a CSS-space selection back
+ * to the source pixels when cropping.
+ */
+export interface SnipCapture {
+  /** PNG data URL of the full target display. */
+  dataUrl: string
+  /** Device-pixel width of the capture. */
+  width: number
+  /** Device-pixel height of the capture. */
+  height: number
+}
+
+/** Result of saving a snipped region into the active project's AI context folder. */
+export interface SnipSaveResult {
+  ok: boolean
+  /** File name of the saved image, e.g. "snip-20260621-090800.png". */
+  fileName?: string
+  /** Absolute path of the AI context folder the image landed in. */
+  folderPath?: string
+  /** Absolute path of the saved image file. */
+  filePath?: string
+  /** A ready-to-paste prompt line that points an AI assistant at the saved image. */
+  prompt?: string
+  /** A user-facing reason when `ok` is false (e.g. no project selected). */
+  error?: string
+}
+
 export interface CopyResult {
   copied: boolean
   text: string
