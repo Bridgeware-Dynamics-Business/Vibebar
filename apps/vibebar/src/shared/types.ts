@@ -76,6 +76,13 @@ export interface QuickLaunchApp {
   icon: string
   /** Seeded defaults (Cursor, Codex). Editable and removable like any custom entry. */
   builtIn?: boolean
+  /**
+   * Whether this app shows in the toolbar's Quick Launch cluster. Absent means visible, so
+   * existing stored apps and seeded built-ins default to shown. Hidden apps still appear in
+   * Settings so they can be re-shown; the toolbar condenses (drops the cluster + dividers)
+   * when none are visible.
+   */
+  visible?: boolean
 }
 
 /** Result of asking the main process to launch a quick-launch app. */

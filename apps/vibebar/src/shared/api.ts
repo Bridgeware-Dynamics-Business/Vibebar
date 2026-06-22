@@ -165,10 +165,16 @@ export interface VibeBarApi {
     remove: (id: string) => Promise<QuickLaunchApp[]>
     /** Opens a native picker to set/replace an app's executable path; returns the updated list. */
     locate: (id: string) => Promise<QuickLaunchApp[]>
+    /** Shows/hides an app in the toolbar (it stays listed in Settings); returns the updated list. */
+    setVisible: (id: string, visible: boolean) => Promise<QuickLaunchApp[]>
     /** Fires when the app list changes (kept in sync across overlay + detached windows). */
     onChanged: (cb: (apps: QuickLaunchApp[]) => void) => () => void
   }
   app: {
     quit: () => Promise<{ ok: boolean }>
+    /** Opens the centered "Close Vibe Bar" confirmation popup (the toolbar power button). */
+    confirmQuit: () => Promise<{ ok: boolean }>
+    /** Dismisses the confirmation popup without quitting (its "No" button). */
+    cancelQuit: () => Promise<{ ok: boolean }>
   }
 }

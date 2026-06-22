@@ -15,6 +15,7 @@ import type { ErrorReport } from '@shared/api.js'
 import type { AuditService } from '../audit/AuditService.js'
 import type { CodeSyncController } from '../codesync/CodeSyncController.js'
 import type { ErrorConsoleController } from '../errorconsole/ErrorConsoleController.js'
+import type { ConfirmQuitController } from '../overlay/ConfirmQuitController.js'
 import type { DetachedPanelController } from '../overlay/DetachedPanelController.js'
 import type { OverlayManager } from '../overlay/OverlayManager.js'
 import { listTree, packContext } from '../packer/contextPacker.js'
@@ -36,6 +37,7 @@ export interface IpcDeps {
   prompts: PromptStore
   codesync: CodeSyncController
   detachedPanels: DetachedPanelController
+  confirmQuit: ConfirmQuitController
   terminal: TerminalController
   audit: AuditService
   github: GitHubService
@@ -64,6 +66,7 @@ export function registerIpc(deps: IpcDeps): void {
     prompts,
     codesync,
     detachedPanels,
+    confirmQuit,
     terminal,
     audit,
     github,
@@ -336,10 +339,23 @@ export function registerIpc(deps: IpcDeps): void {
   handle(CH.quickLaunchLocate, async (p) =>
     broadcastQuickLaunch(await quickLaunch.locate((p as { id: string }).id))
   )
+  handle(CH.quickLaunchSetVisible, (p) => {
+    const { id, visible } = p as { id: string; visible: boolean }
+    return broadcastQuickLaunch(quickLaunch.setVisible(id, visible))
+  })
 
-  // Lifecycle — the overlay has no taskbar entry, so the renderer needs an explicit quit.
+  // Lifecycle — the overlay has no taskbar entry, so the renderer needs an explicit quit. The
+  // power button opens a centered confirmation popup; its Yes reuses appQuit, its No cancels.
   handle(CH.appQuit, () => {
     app.quit()
+    return { ok: true }
+  })
+  handle(CH.appConfirmQuit, () => {
+    confirmQuit.open()
+    return { ok: true }
+  })
+  handle(CH.appCancelQuit, () => {
+    confirmQuit.close()
     return { ok: true }
   })
 }

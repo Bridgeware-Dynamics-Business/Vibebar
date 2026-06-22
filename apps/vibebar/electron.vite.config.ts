@@ -61,7 +61,8 @@ export default defineConfig({
           panel: r('src/renderer/panel/index.html'),
           terminal: r('src/renderer/terminal/index.html'),
           snip: r('src/renderer/snip/index.html'),
-          errorconsole: r('src/renderer/errorconsole/index.html')
+          errorconsole: r('src/renderer/errorconsole/index.html'),
+          confirm: r('src/renderer/confirm/index.html')
         }
       }
     }

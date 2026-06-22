@@ -6,6 +6,7 @@ import { ErrorConsoleController } from './errorconsole/ErrorConsoleController.js
 import { GitStatusService } from './git/GitStatusService.js'
 import { GitHubService } from './github/GitHubService.js'
 import { registerIpc } from './ipc/registerIpc.js'
+import { ConfirmQuitController } from './overlay/ConfirmQuitController.js'
 import { DetachedPanelController } from './overlay/DetachedPanelController.js'
 import { OverlayManager } from './overlay/OverlayManager.js'
 import { ProjectService } from './project/ProjectService.js'
@@ -14,6 +15,7 @@ import { QuickLaunchService } from './quicklaunch/QuickLaunchService.js'
 import { AppStore } from './settings/store.js'
 import { SnipController } from './snip/SnipController.js'
 import { TerminalController } from './terminal/TerminalController.js'
+import { TrayController } from './tray/TrayController.js'
 
 const store = new AppStore()
 const projects = new ProjectService(store)
@@ -21,6 +23,8 @@ const prompts = new PromptStore(store, projects)
 const overlay = new OverlayManager(store)
 const codesync = new CodeSyncController(store)
 const detachedPanels = new DetachedPanelController(store)
+const confirmQuit = new ConfirmQuitController()
+const tray = new TrayController(overlay, detachedPanels)
 const terminal = new TerminalController(store, projects, (visible) =>
   overlay.broadcast(CH.terminalVisibility, { visible })
 )
@@ -63,6 +67,7 @@ async function bootstrap(): Promise<void> {
     prompts,
     codesync,
     detachedPanels,
+    confirmQuit,
     terminal,
     audit,
     github,
@@ -72,6 +77,7 @@ async function bootstrap(): Promise<void> {
     errorConsole
   })
   overlay.start()
+  tray.start()
   gitStatus.setProject(projects.getProfile())
 }
 
@@ -99,6 +105,8 @@ if (!app.requestSingleInstanceLock()) {
     overlay.destroy()
     codesync.dispose()
     detachedPanels.dispose()
+    confirmQuit.dispose()
+    tray.dispose()
     terminal.dispose()
     gitStatus.dispose()
     snip.dispose()

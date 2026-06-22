@@ -18,8 +18,8 @@ const TOOLBAR_THICKNESS = 64
 // Keep collapsed and open lengths equal so the buttons always have room to stay perfectly round
 // (no flex-shrink squish) and the bar doesn't change length when a side panel opens — only its
 // width grows by PANEL_EXTENT.
-const COLLAPSED_LENGTH = 680
-const OPEN_LENGTH = 680
+const COLLAPSED_LENGTH = 712
+const OPEN_LENGTH = 712
 const PANEL_EXTENT = 470
 const MOVE_SETTLE_MS = 110
 
@@ -43,6 +43,9 @@ export class OverlayManager {
   private readonly store: AppStore
   private readonly byDisplay = new Map<string, OverlayEntry>()
   private repositioning = false
+  // Whether the toolbars are currently shown. Hiding (from the tray) keeps the windows alive so
+  // renderer state is preserved; it is in-memory only and resets to visible on relaunch.
+  private visible = true
 
   constructor(store: AppStore) {
     this.store = store
@@ -53,6 +56,27 @@ export class OverlayManager {
     screen.on('display-added', this.reconcile)
     screen.on('display-removed', this.reconcile)
     screen.on('display-metrics-changed', this.reconcile)
+  }
+
+  /** Whether the toolbars are currently shown. */
+  isVisible(): boolean {
+    return this.visible
+  }
+
+  /** Shows or hides every overlay window at once (driven by the tray's Show/Hide item). */
+  setVisible(visible: boolean): void {
+    this.visible = visible
+    for (const entry of this.byDisplay.values()) {
+      if (entry.win.isDestroyed()) continue
+      if (visible) entry.win.showInactive()
+      else entry.win.hide()
+    }
+  }
+
+  /** Flips visibility and returns the new state, so the tray can relabel its menu item. */
+  toggleVisible(): boolean {
+    this.setVisible(!this.visible)
+    return this.visible
   }
 
   private currentBounds(dock: DockSide, workArea: Rect, anchor: number, panelOpen: boolean): Rect {
@@ -99,6 +123,8 @@ export class OverlayManager {
       this.byDisplay.set(id, entry)
       this.attachMoveHandler(id, entry)
       win.webContents.on('did-finish-load', () => this.sendLayout(id))
+      // A display added while the bars are hidden must not pop a fresh window into view.
+      if (!this.visible) win.once('ready-to-show', () => win.hide())
       win.on('closed', () => this.byDisplay.delete(id))
     }
   }

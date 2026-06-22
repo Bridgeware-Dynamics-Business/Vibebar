@@ -219,6 +219,41 @@ export function createErrorConsoleWindow(bounds: Rect): BrowserWindow {
 }
 
 /**
+ * Creates the "Close Vibe Bar" confirmation popup: a small, frameless, transparent, always-on-top
+ * window the controller centers on screen. It is fixed (not movable/resizable) and reuses the
+ * overlay preload, which exposes `vibebar.app.quit` / `vibebar.app.cancelQuit`. Starts hidden; the
+ * controller shows it on demand.
+ */
+export function createConfirmWindow(bounds: Rect): BrowserWindow {
+  const win = new BrowserWindow({
+    ...bounds,
+    frame: false,
+    transparent: true,
+    hasShadow: false,
+    resizable: false,
+    movable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    skipTaskbar: true,
+    show: false,
+    type: 'toolbar',
+    backgroundColor: '#00000000',
+    webPreferences: {
+      preload: resolvePreload('overlay'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true
+    }
+  })
+  win.setAlwaysOnTop(true, 'screen-saver')
+  win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+  hardenWindow(win)
+  loadEntry(win, 'confirm')
+  return win
+}
+
+/**
  * Creates a detached panel as a floating overlay: frameless, transparent, and always-on-top so
  * it appears to hover beside the toolbar like a menu (mirroring Code Sync). One window hosts a
  * single panel, selected via the `panel` query param read by the generic renderer entry. Its

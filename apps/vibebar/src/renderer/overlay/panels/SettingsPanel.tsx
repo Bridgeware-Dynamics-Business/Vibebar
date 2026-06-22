@@ -262,7 +262,9 @@ export function SettingsPanel({
             {quickLaunch.map((app) => (
               <div
                 key={app.id}
-                className="flex items-center gap-2.5 rounded-lg border border-vibe-border bg-white/[0.03] px-2.5 py-2"
+                className={`flex items-center gap-2.5 rounded-lg border border-vibe-border bg-white/[0.03] px-2.5 py-2 transition-opacity ${
+                  app.visible === false ? 'opacity-55' : ''
+                }`}
               >
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-vibe-accent-2/50 bg-vibe-accent-2/12 text-vibe-accent-2">
                   <Icon name={app.icon} size={15} />
@@ -283,6 +285,33 @@ export function SettingsPanel({
                     {app.path || 'Path not set — click the pencil to locate it'}
                   </p>
                 </div>
+                {(() => {
+                  const isVisible = app.visible !== false
+                  return (
+                    <button
+                      type="button"
+                      title={
+                        isVisible
+                          ? `${app.name} is shown in the toolbar — click to hide`
+                          : `${app.name} is hidden from the toolbar — click to show`
+                      }
+                      aria-label={isVisible ? `Hide ${app.name} from toolbar` : `Show ${app.name} in toolbar`}
+                      aria-pressed={isVisible}
+                      onClick={() =>
+                        void window.vibebar.quickLaunch
+                          .setVisible(app.id, !isVisible)
+                          .then(setQuickLaunch)
+                      }
+                      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border transition-colors ${
+                        isVisible
+                          ? 'border-vibe-accent-2/50 bg-vibe-accent-2/12 text-vibe-accent-2 hover:bg-vibe-accent-2/20'
+                          : 'border-vibe-border text-vibe-muted hover:border-white/20 hover:text-vibe-text'
+                      }`}
+                    >
+                      <Icon name={isVisible ? 'Eye' : 'EyeOff'} size={13} />
+                    </button>
+                  )
+                })()}
                 <button
                   type="button"
                   title={`Set ${app.name}'s executable path`}

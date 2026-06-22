@@ -102,10 +102,14 @@ const api: VibeBarApi = {
     add: () => ipcRenderer.invoke(CH.quickLaunchAdd),
     remove: (id: string) => ipcRenderer.invoke(CH.quickLaunchRemove, { id }),
     locate: (id: string) => ipcRenderer.invoke(CH.quickLaunchLocate, { id }),
+    setVisible: (id: string, visible: boolean) =>
+      ipcRenderer.invoke(CH.quickLaunchSetVisible, { id, visible }),
     onChanged: (cb: (apps: QuickLaunchApp[]) => void) => subscribe(CH.quickLaunchChanged, cb)
   },
   app: {
-    quit: () => ipcRenderer.invoke(CH.appQuit)
+    quit: () => ipcRenderer.invoke(CH.appQuit),
+    confirmQuit: () => ipcRenderer.invoke(CH.appConfirmQuit),
+    cancelQuit: () => ipcRenderer.invoke(CH.appCancelQuit)
   }
 }
 

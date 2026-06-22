@@ -79,6 +79,11 @@ export class QuickLaunchService {
     return this.store.removeQuickLaunchApp(id)
   }
 
+  /** Shows/hides an app in the toolbar without deleting it (it stays manageable in Settings). */
+  setVisible(id: string, visible: boolean): QuickLaunchApp[] {
+    return this.store.updateQuickLaunchApp(id, { visible })
+  }
+
   private async pickExecutable(): Promise<string | null> {
     const filters =
       process.platform === 'win32'

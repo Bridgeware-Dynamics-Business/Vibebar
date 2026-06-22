@@ -103,9 +103,13 @@ export const CH = {
   quickLaunchAdd: 'quickLaunch:add',
   quickLaunchRemove: 'quickLaunch:remove',
   quickLaunchLocate: 'quickLaunch:locate',
+  quickLaunchSetVisible: 'quickLaunch:setVisible',
   quickLaunchChanged: 'quickLaunch:changed',
 
-  appQuit: 'app:quit'
+  appQuit: 'app:quit',
+  // Opens the centered "Close Vibe Bar" confirmation window (power button); cancel hides it.
+  appConfirmQuit: 'app:confirmQuit',
+  appCancelQuit: 'app:cancelQuit'
 } as const
 
 export type ChannelName = (typeof CH)[keyof typeof CH]
@@ -170,7 +174,10 @@ export const INVOKABLE_CHANNELS: readonly string[] = [
   CH.quickLaunchAdd,
   CH.quickLaunchRemove,
   CH.quickLaunchLocate,
+  CH.quickLaunchSetVisible,
   CH.appQuit,
+  CH.appConfirmQuit,
+  CH.appCancelQuit,
   // Code Sync runs its own IPC registry (packages/codesync) with its own payload validation
   // (validateSyncStart / validateConfigSave). Its invokable channels are mirrored here so this
   // allowlist remains the single, complete record of every channel the renderer can invoke.

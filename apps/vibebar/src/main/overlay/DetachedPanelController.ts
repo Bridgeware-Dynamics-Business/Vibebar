@@ -47,6 +47,15 @@ export class DetachedPanelController {
     return { visible: true }
   }
 
+  /** Ensures a panel's window exists and is visible (used by the tray's "Open Settings"). */
+  show(panelId: DetachablePanelId): { visible: boolean } {
+    const win = this.ensureWindow(panelId)
+    win.setBounds(this.computeBounds(panelId))
+    win.show()
+    win.focus()
+    return { visible: true }
+  }
+
   /** Pushes an event to every open detached window (e.g. live project changes). */
   send(channel: string, payload: unknown): void {
     for (const win of this.wins.values()) {

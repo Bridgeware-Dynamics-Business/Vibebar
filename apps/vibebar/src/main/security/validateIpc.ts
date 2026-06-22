@@ -105,6 +105,10 @@ const SCHEMAS: Partial<Record<ChannelName, z.ZodTypeAny>> = {
   [CH.quickLaunchRun]: z.object({ id: z.string().min(1).max(64) }),
   [CH.quickLaunchRemove]: z.object({ id: z.string().min(1).max(64) }),
   [CH.quickLaunchLocate]: z.object({ id: z.string().min(1).max(64) }),
+  [CH.quickLaunchSetVisible]: z.object({
+    id: z.string().min(1).max(64),
+    visible: z.boolean()
+  }),
 
   [CH.settingsSave]: z
     .object({

@@ -102,6 +102,39 @@ const OUTWARD_CORNERS: Record<DockSide, string> = {
   top: 'rounded-b-2xl'
 }
 
+// Sits just past the Settings button at the bar's far end, centred on the cross-axis so it lines up
+// with the Settings button's centre. Centring uses a translate on the wrapper (not the button),
+// because framer-motion owns the button's transform for the hover scale.
+const POWER_POSITION: Record<DockSide, string> = {
+  left: 'bottom-2.5 left-1/2 -translate-x-1/2',
+  right: 'bottom-2.5 left-1/2 -translate-x-1/2',
+  top: 'right-2.5 top-1/2 -translate-y-1/2'
+}
+
+// Empty space reserved at the Settings end of the bar so the power button has its own spot and the
+// two never overlap.
+const POWER_RESERVE = 42
+
+/** A small, red-tinted circular power button that opens the "Close Vibe Bar" confirmation. */
+function PowerButton({ dock, onClick }: { dock: DockSide; onClick: () => void }): JSX.Element {
+  return (
+    <div className={`absolute z-10 ${POWER_POSITION[dock]}`}>
+      <motion.button
+        type="button"
+        title="Close VibeBar"
+        aria-label="Close VibeBar"
+        onClick={onClick}
+        whileHover={{ scale: 1.12 }}
+        whileTap={{ scale: 0.92 }}
+        transition={{ type: 'spring', stiffness: 400, damping: 22 }}
+        className="vibe-no-drag flex h-6 w-6 items-center justify-center rounded-full border border-red-500/40 bg-red-500/15 text-red-400 shadow transition-colors hover:border-red-500/70 hover:bg-red-500/25 hover:text-red-300"
+      >
+        <Icon name="Power" size={13} />
+      </motion.button>
+    </div>
+  )
+}
+
 export function Toolbar({
   orientation,
   dock,
@@ -113,7 +146,8 @@ export function Toolbar({
   onAddContextFolder,
   onOpenContextFolder,
   onTool,
-  onQuickLaunch
+  onQuickLaunch,
+  onPower
 }: {
   orientation: Orientation
   dock: DockSide
@@ -126,8 +160,13 @@ export function Toolbar({
   onOpenContextFolder: () => void
   onTool: (id: ToolId) => void
   onQuickLaunch: (id: string) => void
+  onPower: () => void
 }): JSX.Element {
   const isVertical = orientation === 'vertical'
+  // Hidden apps stay in Settings but drop out of the bar; an absent `visible` means shown. When
+  // every launcher is hidden this array empties, so the cluster (and its two dividers) condenses
+  // away via the length guard below.
+  const visibleQuickLaunch = quickLaunchApps.filter((app) => app.visible !== false)
   const tools = TOOL_DEFS.filter((t) => !t.pinnedEnd)
   const pinned = TOOL_DEFS.filter((t) => t.pinnedEnd)
   const dividerClass = isVertical
@@ -136,10 +175,11 @@ export function Toolbar({
 
   return (
     <div
-      className={`vibe-glass vibe-drag flex h-full w-full items-center gap-2 p-2.5 ${OUTWARD_CORNERS[dock]} ${
+      className={`vibe-glass vibe-drag relative flex h-full w-full items-center gap-2 p-2.5 ${OUTWARD_CORNERS[dock]} ${
         isVertical ? 'flex-col' : 'flex-row'
       }`}
     >
+      <PowerButton dock={dock} onClick={onPower} />
       <CircleButton
         icon="FolderOpen"
         label={profile ? `Project: ${profile.folderName}` : 'Select a project'}
@@ -185,10 +225,10 @@ export function Toolbar({
             />
             {/* Quick Launch sits directly under GitHub, fenced by dividers so the cyan editor
                 launchers read as their own distinct cluster within the bar. */}
-            {tool.id === 'github' && quickLaunchApps.length > 0 && (
+            {tool.id === 'github' && visibleQuickLaunch.length > 0 && (
               <>
                 <div className={dividerClass} />
-                {quickLaunchApps.map((app) => (
+                {visibleQuickLaunch.map((app) => (
                   <CircleButton
                     key={app.id}
                     icon={app.icon}
@@ -207,6 +247,13 @@ export function Toolbar({
           </Fragment>
         )
       })}
+      {/* Reserve space past the Settings button for the power button, so the two sit side by side
+          (aligned on the cross-axis) rather than overlapping. */}
+      <div
+        aria-hidden
+        className="shrink-0"
+        style={isVertical ? { height: POWER_RESERVE } : { width: POWER_RESERVE }}
+      />
     </div>
   )
 }

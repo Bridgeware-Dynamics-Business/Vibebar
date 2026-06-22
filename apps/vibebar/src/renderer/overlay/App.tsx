@@ -269,6 +269,7 @@ export function App(): JSX.Element {
           onOpenContextFolder={() => void handleOpenContextFolder()}
           onTool={handleTool}
           onQuickLaunch={(id) => void handleQuickLaunch(id)}
+          onPower={() => void window.vibebar.app.confirmQuit()}
         />
       </div>
 

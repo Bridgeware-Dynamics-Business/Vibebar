@@ -17,6 +17,12 @@ files:
   - 'out/**'
   - 'package.json'
 
+# The system-tray icon is loaded at runtime from outside the asar, so copy it to the resources
+# root (resolved via process.resourcesPath in TrayController).
+extraResources:
+  - from: build/icon.png
+    to: icon.png
+
 # Bundle the workspace runtime deps that electron-vite externalizes (chokidar, fast-glob, …).
 # electron-builder collects production dependencies from node_modules automatically.
 npmRebuild: false
