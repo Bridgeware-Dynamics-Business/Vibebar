@@ -99,6 +99,24 @@ export function SettingsPanel({
       </PanelHeader>
 
       <div className="vibe-scroll flex-1 space-y-5 overflow-y-auto p-4">
+        <section className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
+          <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-amber-200/90">
+            Toolbar missing?
+          </h3>
+          <p className="mb-2 text-xs text-vibe-muted">
+            Brings the floating toolbar back on screen and resets its dock position. Also try the
+            tray icon or <kbd className="rounded bg-white/10 px-1">Ctrl+Shift+H</kbd>.
+          </p>
+          <button
+            type="button"
+            onClick={() => void window.vibebar.overlay.resetToolbar()}
+            className="flex w-full items-center justify-center gap-2 rounded-lg bg-amber-500/20 px-3 py-2 text-sm font-medium text-amber-100 hover:bg-amber-500/30"
+          >
+            <Icon name="RefreshCw" size={16} />
+            Show toolbar
+          </button>
+        </section>
+
         <section>
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-vibe-muted">
             Monitors
@@ -248,6 +266,17 @@ export function SettingsPanel({
               onChange={(next) => void save({ launchOnStartup: next })}
             />
           </div>
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-vibe-text">Global hotkeys</span>
+            <Toggle
+              checked={settings.hotkeysEnabled}
+              onChange={(next) => void save({ hotkeysEnabled: next })}
+            />
+          </div>
+          <p className="text-[11px] leading-relaxed text-vibe-muted">
+            Ctrl+Shift+P command palette · Ctrl+Shift+H hide/show toolbar · Ctrl+Shift+T Smart
+            Terminal
+          </p>
         </section>
 
         <section>

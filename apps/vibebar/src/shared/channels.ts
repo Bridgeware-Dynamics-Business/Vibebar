@@ -9,13 +9,26 @@ export const CH = {
   overlayGetState: 'overlay:getState',
   overlaySetDock: 'overlay:setDock',
   overlaySetPanel: 'overlay:setPanel',
+  overlayResetToolbar: 'overlay:resetToolbar',
+  /** Collapse expanded panel shell on all displays (startup / recovery). */
+  overlayCollapsePanel: 'overlay:collapsePanel',
+  /** Expand the overlay window to the work area while the command palette is open. */
+  overlaySetCommandPalette: 'overlay:setCommandPalette',
+  /** Marks the sender's toolbar as the active one (last clicked) for hotkey routing. */
+  overlaySetActive: 'overlay:setActive',
   overlayLayout: 'overlay:layout',
+  /** Main → renderer: open/close the command palette on this display only. */
+  overlayCommandPalette: 'overlay:commandPalette',
 
   projectSelect: 'project:select',
   projectGet: 'project:get',
   projectChanged: 'project:changed',
+  projectListRecents: 'project:listRecents',
+  projectOpenRecent: 'project:openRecent',
   projectAddContextFolder: 'project:addContextFolder',
   projectOpenContextFolder: 'project:openContextFolder',
+  projectGetAiDocs: 'project:getAiDocs',
+  projectAppendAgentsMd: 'project:appendAgentsMd',
 
   promptsList: 'prompts:list',
   promptsPreview: 'prompts:preview',
@@ -32,6 +45,9 @@ export const CH = {
 
   packerTree: 'packer:tree',
   packerPack: 'packer:pack',
+  packerPreviewChanged: 'packer:previewChanged',
+  packerPackChanged: 'packer:packChanged',
+  packerPresetPaths: 'packer:presetPaths',
 
   clipboardWrite: 'clipboard:write',
 
@@ -54,6 +70,7 @@ export const CH = {
   terminalGetState: 'terminal:getState',
   terminalHide: 'terminal:hide',
   terminalIsOpen: 'terminal:isOpen',
+  terminalGetHints: 'terminal:getHints',
   // Custom resize: the window is frameless + transparent (no OS resize border on Windows), so
   // the renderer drives resizing from its own edge grips through these channels.
   terminalResizeStart: 'terminal:resizeStart',
@@ -77,6 +94,11 @@ export const CH = {
   auditRun: 'audit:run',
   auditScan: 'audit:scan',
   auditRunInTerminal: 'audit:runInTerminal',
+  auditExportSarif: 'audit:exportSarif',
+  auditExportMarkdown: 'audit:exportMarkdown',
+  auditGetConfig: 'audit:getConfig',
+  auditAcceptRisk: 'audit:acceptRisk',
+  auditSetRuleDisabled: 'audit:setRuleDisabled',
 
   // Snip to AI Context — drag-select a screen region, preview, then save it to the AI context
   // folder and hand back a ready-to-paste prompt referencing the image.
@@ -85,10 +107,34 @@ export const CH = {
   snipSave: 'snip:save',
   snipCancel: 'snip:cancel',
 
+  // Notes — project-scoped Markdown notes (library + sticky pop-out windows)
+  notesGetState: 'notes:getState',
+  notesInit: 'notes:init',
+  notesCreate: 'notes:create',
+  notesRead: 'notes:read',
+  notesSave: 'notes:save',
+  notesDelete: 'notes:delete',
+  notesSetProjectName: 'notes:setProjectName',
+  notesPopOut: 'notes:popOut',
+  notesAppendMarkdown: 'notes:appendMarkdown',
+  notesFindSessionLog: 'notes:findSessionLog',
+  notesChanged: 'notes:changed',
+
+  // Session Hub — project-local timeline + handoff bundles
+  sessionGetState: 'session:getState',
+  sessionAppend: 'session:append',
+  sessionTogglePin: 'session:togglePin',
+  sessionClear: 'session:clear',
+  sessionCopyHandoff: 'session:copyHandoff',
+  sessionCopyFixPrompts: 'session:copyFixPrompts',
+  sessionChanged: 'session:changed',
+
   // GitHub Desktop + live change tracking
   githubOpen: 'github:open',
   gitStatus: 'git:status',
   gitStatusChanged: 'git:statusChanged',
+  gitCopyDiffPrompt: 'git:copyDiffPrompt',
+  gitChangedFiles: 'git:changedFiles',
 
   // In-app error console — a renderer reports a captured (already-redacted) runtime error; the
   // console window receives the live list and asks main to clear/close itself.
@@ -107,6 +153,8 @@ export const CH = {
   quickLaunchChanged: 'quickLaunch:changed',
 
   appQuit: 'app:quit',
+  appGetOnboardingState: 'app:getOnboardingState',
+  appCompleteOnboarding: 'app:completeOnboarding',
   // Opens the centered "Close Vibe Bar" confirmation window (power button); cancel hides it.
   appConfirmQuit: 'app:confirmQuit',
   appCancelQuit: 'app:cancelQuit'
@@ -119,10 +167,18 @@ export const INVOKABLE_CHANNELS: readonly string[] = [
   CH.overlayGetState,
   CH.overlaySetDock,
   CH.overlaySetPanel,
+  CH.overlayResetToolbar,
+  CH.overlayCollapsePanel,
+  CH.overlaySetCommandPalette,
+  CH.overlaySetActive,
   CH.projectSelect,
   CH.projectGet,
+  CH.projectListRecents,
+  CH.projectOpenRecent,
   CH.projectAddContextFolder,
   CH.projectOpenContextFolder,
+  CH.projectGetAiDocs,
+  CH.projectAppendAgentsMd,
   CH.promptsList,
   CH.promptsPreview,
   CH.promptsCopy,
@@ -136,6 +192,9 @@ export const INVOKABLE_CHANNELS: readonly string[] = [
   CH.scannerCopyRedacted,
   CH.packerTree,
   CH.packerPack,
+  CH.packerPreviewChanged,
+  CH.packerPackChanged,
+  CH.packerPresetPaths,
   CH.clipboardWrite,
   CH.settingsGet,
   CH.settingsSave,
@@ -150,6 +209,7 @@ export const INVOKABLE_CHANNELS: readonly string[] = [
   CH.terminalGetState,
   CH.terminalHide,
   CH.terminalIsOpen,
+  CH.terminalGetHints,
   CH.terminalResizeStart,
   CH.terminalResize,
   CH.shellStart,
@@ -160,12 +220,35 @@ export const INVOKABLE_CHANNELS: readonly string[] = [
   CH.auditRun,
   CH.auditScan,
   CH.auditRunInTerminal,
+  CH.auditExportSarif,
+  CH.auditExportMarkdown,
+  CH.auditGetConfig,
+  CH.auditAcceptRisk,
+  CH.auditSetRuleDisabled,
   CH.snipStart,
   CH.snipGetCapture,
   CH.snipSave,
   CH.snipCancel,
+  CH.notesGetState,
+  CH.notesInit,
+  CH.notesCreate,
+  CH.notesRead,
+  CH.notesSave,
+  CH.notesDelete,
+  CH.notesSetProjectName,
+  CH.notesPopOut,
+  CH.notesAppendMarkdown,
+  CH.notesFindSessionLog,
   CH.githubOpen,
   CH.gitStatus,
+  CH.gitCopyDiffPrompt,
+  CH.gitChangedFiles,
+  CH.sessionGetState,
+  CH.sessionAppend,
+  CH.sessionTogglePin,
+  CH.sessionClear,
+  CH.sessionCopyHandoff,
+  CH.sessionCopyFixPrompts,
   CH.errorsReport,
   CH.errorsClear,
   CH.errorsClose,
@@ -176,6 +259,8 @@ export const INVOKABLE_CHANNELS: readonly string[] = [
   CH.quickLaunchLocate,
   CH.quickLaunchSetVisible,
   CH.appQuit,
+  CH.appGetOnboardingState,
+  CH.appCompleteOnboarding,
   CH.appConfirmQuit,
   CH.appCancelQuit,
   // Code Sync runs its own IPC registry (packages/codesync) with its own payload validation
@@ -194,6 +279,7 @@ export const INVOKABLE_CHANNELS: readonly string[] = [
 /** Channels the main process pushes to the renderer via webContents.send. */
 export const PUSH_CHANNELS: readonly string[] = [
   CH.overlayLayout,
+  CH.overlayCommandPalette,
   CH.projectChanged,
   CH.terminalData,
   CH.terminalStatus,
@@ -203,6 +289,8 @@ export const PUSH_CHANNELS: readonly string[] = [
   CH.shellReady,
   CH.shellClosed,
   CH.gitStatusChanged,
+  CH.notesChanged,
+  CH.sessionChanged,
   CH.quickLaunchChanged,
   CH.errorsPush,
   CODESYNC_CHANNELS.log

@@ -147,6 +147,7 @@ export function SnipApp(): JSX.Element {
       setSaved(result)
       setPromptText(result.prompt)
       setMode('saved')
+      if (result.copied) setCopied(true)
     } else {
       setErrorMsg(result.error ?? 'Could not save the image.')
       setMode('error')

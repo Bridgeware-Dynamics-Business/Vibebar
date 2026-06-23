@@ -58,5 +58,13 @@ describe('parsePayload', () => {
   it('returns undefined for payload-free channels', () => {
     expect(parsePayload(CH.promptsList, undefined)).toBeUndefined()
     expect(parsePayload(CH.projectSelect, undefined)).toBeUndefined()
+    expect(parsePayload(CH.appGetOnboardingState, undefined)).toBeUndefined()
+  })
+
+  it('validates project openRecent path', () => {
+    expect(parsePayload(CH.projectOpenRecent, { path: 'C:\\dev\\my-app' })).toEqual({
+      path: 'C:\\dev\\my-app'
+    })
+    expect(() => parsePayload(CH.projectOpenRecent, {})).toThrow()
   })
 })

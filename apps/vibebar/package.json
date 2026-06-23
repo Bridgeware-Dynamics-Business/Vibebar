@@ -16,6 +16,15 @@
     "dist:signed": "npm run build && electron-builder --win --config electron-builder.yml"
   },
   "dependencies": {
+    "@babel/parser": "^7.29.7",
+    "@babel/traverse": "^7.29.7",
+    "@babel/types": "^7.29.7",
+    "@tiptap/extension-task-item": "^3.27.1",
+    "@tiptap/extension-task-list": "^3.27.1",
+    "@tiptap/extensions": "^3.27.1",
+    "@tiptap/pm": "^3.27.1",
+    "@tiptap/react": "^3.27.1",
+    "@tiptap/starter-kit": "^3.27.1",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
     "chokidar": "^4.0.3",
@@ -27,6 +36,7 @@
     "picomatch": "^4.0.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "tiptap-markdown": "^0.9.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {

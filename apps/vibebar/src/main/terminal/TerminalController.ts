@@ -11,6 +11,8 @@ import type {
   IssueSeverity,
   ProjectCommand,
   ShellType,
+  TerminalAuditSummary,
+  TerminalIssueUpdate,
   TerminalRunResult,
   TerminalState
 } from '@shared/types.js'
@@ -19,6 +21,7 @@ import type { ProjectService } from '../project/ProjectService.js'
 import type { AppStore } from '../settings/store.js'
 import { createTerminalWindow } from '../overlay/windowFactory.js'
 import type { Rect } from '../overlay/snapLogic.js'
+import { trackWindowBounds, clampWindowBounds } from '../overlay/windowBounds.js'
 import { TerminalSession } from './TerminalSession.js'
 import { ShellSession } from './ShellSession.js'
 import { generateProjectCommands } from './projectCommands.js'
@@ -51,12 +54,34 @@ function findingToIssue(f: AuditFinding): DetectedIssue {
     category: f.category,
     source: 'audit',
     auditSeverity: f.severity,
+    confidence: f.confidence,
     file: f.file,
     line: f.line,
     codeContext: f.codeContext,
     cwe: f.cwe,
-    references: f.references
+    references: f.references,
+    status: f.status
   }
+}
+
+function auditSummary(report: AuditReport): TerminalAuditSummary {
+  return {
+    ranAt: report.ranAt,
+    projectName: report.projectName,
+    scannedFiles: report.scannedFiles,
+    totalCandidates: report.totalCandidates,
+    truncated: report.truncated,
+    noProject: report.noProject,
+    score: report.score,
+    delta: report.delta,
+    durationMs: report.durationMs,
+    cachedFiles: report.cachedFiles
+  }
+}
+
+function gradeTag(report: AuditReport): string {
+  if (!report.score) return ''
+  return ` \u2014 grade ${report.score.grade} (${report.score.value}/100)`
 }
 
 /**
@@ -77,6 +102,9 @@ export class TerminalController {
   private ready: Promise<void> = Promise.resolve()
   /** Window bounds captured at the start of a renderer-driven resize drag (see resizeStart). */
   private resizeAnchor: Rect | null = null
+  /** Last issue count pushed to the renderer (for bridge hints). */
+  private lastIssueCount = 0
+  private untrackBounds: (() => void) | null = null
 
   constructor(store: AppStore, projects: ProjectService, onVisibility?: (visible: boolean) => void) {
     this.store = store
@@ -158,6 +186,11 @@ export class TerminalController {
   /** True when the terminal window exists and is currently visible to the user. */
   isOpen(): boolean {
     return Boolean(this.win && !this.win.isDestroyed() && this.win.isVisible())
+  }
+
+  /** Lightweight bridge hint for Session Hub "what's next" suggestions. */
+  getHints(): { issueCount: number; isOpen: boolean } {
+    return { issueCount: this.lastIssueCount, isOpen: this.isOpen() }
   }
 
   /**
@@ -249,7 +282,7 @@ export class TerminalController {
       if (!opts.quiet) {
         this.writeLine('\u001b[33mNo project selected. Pick one from the toolbar, then run the audit again.\u001b[0m')
       }
-      this.send(CH.terminalIssues, [])
+      this.pushIssues({ issues: [], audit: null })
       return
     }
 
@@ -262,26 +295,37 @@ export class TerminalController {
       .filter((s) => counts[s])
       .map((s) => `${counts[s]} ${s}`)
       .join(', ')
+    const grade = gradeTag(report)
+    const deltaParts: string[] = []
+    if (report.delta?.new) deltaParts.push(`+${report.delta.new} new`)
+    if (report.delta?.resolved) deltaParts.push(`-${report.delta.resolved} resolved`)
+    const delta = deltaParts.length > 0 ? ` (${deltaParts.join(', ')})` : ''
 
     if (opts.quiet) {
       const stamp = new Date().toLocaleTimeString()
       this.writeLine(
         issues.length === 0
-          ? `\u001b[2m[${stamp}] audit \u2014 ${report.scannedFiles} files, no signals\u001b[0m`
-          : `\u001b[38;5;213m[${stamp}] audit \u2014 ${issues.length} issue(s): ${summary}\u001b[0m`
+          ? `\u001b[2m[${stamp}] audit \u2014 ${report.scannedFiles} files${grade}, no signals\u001b[0m`
+          : `\u001b[38;5;213m[${stamp}] audit \u2014 ${report.scannedFiles} files${grade} \u2014 ${issues.length} issue(s): ${summary}${delta}\u001b[0m`
       )
     } else if (issues.length === 0) {
       this.writeLine(
-        `\u001b[32m\u2713 Scanned ${report.scannedFiles} files \u2014 no behavioral-risk signals found.\u001b[0m`
+        `\u001b[32m\u2713 Scanned ${report.scannedFiles} files${grade} \u2014 no behavioral-risk signals found.\u001b[0m`
       )
       this.writeLine('\u001b[2m  Absence of a signal is not proof of safety \u2014 still test auth and authorization.\u001b[0m')
     } else {
       this.writeLine(
-        `\u001b[31m\u2713 Scanned ${report.scannedFiles} files \u2014 ${issues.length} issue(s): ${summary}\u001b[0m`
+        `\u001b[31m\u2713 Scanned ${report.scannedFiles} files${grade} \u2014 ${issues.length} issue(s): ${summary}${delta}\u001b[0m`
       )
       this.writeLine('\u001b[2m  Open an issue on the right \u2192 copy the fix prompt (and a behavioral test) into your AI.\u001b[0m')
     }
-    this.send(CH.terminalIssues, issues)
+    this.pushIssues({ issues, audit: auditSummary(report) })
+  }
+
+  /** Pushes issue-panel updates to the renderer (audit metadata included when from a scan). */
+  private pushIssues(update: TerminalIssueUpdate): void {
+    this.lastIssueCount = update.issues.length
+    this.send(CH.terminalIssues, update)
   }
 
   /** Writes one line to the terminal view (CRLF for xterm). */
@@ -312,6 +356,8 @@ export class TerminalController {
   }
 
   dispose(): void {
+    this.untrackBounds?.()
+    this.untrackBounds = null
     this.session?.dispose()
     this.session = null
     this.shell?.dispose()
@@ -322,9 +368,11 @@ export class TerminalController {
 
   private ensureWindow(): void {
     if (this.win && !this.win.isDestroyed()) return
-    const bounds = this.computeBounds()
+    const bounds = this.resolveBounds()
     const win = createTerminalWindow(bounds)
     this.win = win
+    this.untrackBounds?.()
+    this.untrackBounds = trackWindowBounds(win, (b) => this.store.setTerminalBounds(b))
     this.ready = new Promise<void>((resolve) => {
       win.webContents.once('did-finish-load', () => resolve())
     })
@@ -341,11 +389,13 @@ export class TerminalController {
           exitCode,
           profile: this.projects.getProfile()
         })
-        this.send(CH.terminalIssues, issues)
+        this.pushIssues({ issues, audit: null })
       }
     })
 
     win.on('closed', () => {
+      this.untrackBounds?.()
+      this.untrackBounds = null
       this.session?.dispose()
       this.session = null
       this.shell?.dispose()
@@ -362,6 +412,13 @@ export class TerminalController {
 
   private send(channel: string, payload: unknown): void {
     if (this.win && !this.win.isDestroyed()) this.win.webContents.send(channel, payload)
+  }
+
+  private resolveBounds(): Rect {
+    const saved = this.store.getTerminalBounds()
+    const wa = screen.getPrimaryDisplay().workArea
+    if (saved) return clampWindowBounds(saved, wa)
+    return this.computeBounds()
   }
 
   private computeBounds(): Rect {

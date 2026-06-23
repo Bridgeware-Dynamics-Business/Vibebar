@@ -1,8 +1,14 @@
 import { BrowserWindow, screen } from 'electron'
+import type { DetachablePanelId } from '@shared/tools.js'
 import { CH } from '@shared/channels.js'
 import type { DockSide, DisplayInfo, OverlayLayout } from '@shared/types.js'
 import type { AppStore } from '../settings/store.js'
 import { mapDisplays, resolveEnabledDisplays, type DisplayLike } from '../settings/displayUtils.js'
+import {
+  collapsedToolbarLength,
+  panelInwardExtent,
+  TOOLBAR_THICKNESS
+} from '@shared/overlayMetrics.js'
 import {
   SNAP_THRESHOLD,
   dockedRect,
@@ -13,14 +19,7 @@ import {
 } from './snapLogic.js'
 import { createOverlayWindow } from './windowFactory.js'
 
-const TOOLBAR_THICKNESS = 64
-// The bar holds a fixed run of circular buttons (project, tools, GitHub, quick-launch, settings).
-// Keep collapsed and open lengths equal so the buttons always have room to stay perfectly round
-// (no flex-shrink squish) and the bar doesn't change length when a side panel opens — only its
-// width grows by PANEL_EXTENT.
-const COLLAPSED_LENGTH = 712
-const OPEN_LENGTH = 712
-const PANEL_EXTENT = 470
+const COLLAPSED_LENGTH = collapsedToolbarLength()
 const MOVE_SETTLE_MS = 110
 
 interface OverlayEntry {
@@ -28,6 +27,10 @@ interface OverlayEntry {
   dock: DockSide
   anchor: number
   panelOpen: boolean
+  /** Inward panel size (px) when open — matches {@link PANEL_SIZES} for the active tool. */
+  panelInward: number
+  /** Command palette open — window expands to the full work area for the modal overlay. */
+  paletteOpen: boolean
   moveTimer: ReturnType<typeof setTimeout> | null
 }
 
@@ -43,9 +46,13 @@ export class OverlayManager {
   private readonly store: AppStore
   private readonly byDisplay = new Map<string, OverlayEntry>()
   private repositioning = false
+  /** Prevents infinite reconcile when resetting stale display ids. */
+  private reconcilingFallback = false
   // Whether the toolbars are currently shown. Hiding (from the tray) keeps the windows alive so
   // renderer state is preserved; it is in-memory only and resets to visible on relaunch.
   private visible = true
+  /** Display id of the toolbar the user last clicked or focused — routes the palette hotkey. */
+  private activeDisplayId: string | null = null
 
   constructor(store: AppStore) {
     this.store = store
@@ -68,8 +75,10 @@ export class OverlayManager {
     this.visible = visible
     for (const entry of this.byDisplay.values()) {
       if (entry.win.isDestroyed()) continue
-      if (visible) entry.win.showInactive()
-      else entry.win.hide()
+      if (visible) {
+        entry.win.show()
+        entry.win.moveTop()
+      } else entry.win.hide()
     }
   }
 
@@ -79,9 +88,161 @@ export class OverlayManager {
     return this.visible
   }
 
-  private currentBounds(dock: DockSide, workArea: Rect, anchor: number, panelOpen: boolean): Rect {
-    const length = panelOpen ? OPEN_LENGTH : COLLAPSED_LENGTH
-    const extent = panelOpen ? PANEL_EXTENT : 0
+  /**
+   * Shows every overlay window. Does not reposition (so user drags are not fighting timers).
+   * Pass `reposition: true` only for explicit recovery (reset toolbar).
+   */
+  restoreAndFocus(reposition = false): void {
+    this.visible = true
+    if (reposition) {
+      for (const id of this.byDisplay.keys()) this.positionWindow(id)
+    }
+    for (const entry of this.byDisplay.values()) {
+      if (entry.win.isDestroyed()) continue
+      entry.win.show()
+      entry.win.moveTop()
+    }
+  }
+
+  /** Reloads every overlay window (dev HMR recovery when vite port changes). */
+  reloadAll(): void {
+    for (const entry of this.byDisplay.values()) {
+      if (entry.win.isDestroyed()) continue
+      entry.win.webContents.reload()
+    }
+  }
+
+  /**
+   * Recovery when the toolbar vanished (hidden, off-screen, or stale display ids).
+   * Resets placement to defaults on each enabled display and forces visibility.
+   */
+  resetToolbar(): void {
+    this.visible = true
+    for (const entry of this.byDisplay.values()) {
+      entry.panelOpen = false
+      entry.panelInward = 0
+      entry.paletteOpen = false
+    }
+    this.store.clearDisplayLayouts()
+    this.store.saveSettings({ enabledDisplayIds: [] })
+    for (const [id, entry] of this.byDisplay) {
+      if (entry.win.isDestroyed()) continue
+      const wa = this.workAreaFor(id)
+      if (!wa) continue
+      entry.dock = this.store.getSettings().dock
+      entry.anchor = this.centerAnchor(entry.dock, wa)
+      this.positionWindow(id)
+    }
+    this.restoreAndFocus(true)
+  }
+
+  /** Collapses any expanded panel shell (fixes empty wide overlay with no tools visible). */
+  collapseAllPanels(): void {
+    for (const [id, entry] of this.byDisplay) {
+      let changed = false
+      if (entry.panelOpen) {
+        entry.panelOpen = false
+        entry.panelInward = 0
+        changed = true
+      }
+      if (entry.paletteOpen) {
+        entry.paletteOpen = false
+        changed = true
+      }
+      if (changed) this.positionWindow(id)
+    }
+  }
+
+  /**
+   * Expands/collapses the overlay window to the full work area while the command palette is open,
+   * so the modal backdrop and list are not clipped to the thin toolbar strip.
+   */
+  setCommandPaletteForSender(sender: Electron.WebContents, open: boolean): OverlayLayout {
+    for (const [id, entry] of this.byDisplay) {
+      if (entry.win.webContents.id === sender.id) {
+        entry.paletteOpen = open
+        this.positionWindow(id)
+        if (open) entry.win.moveTop()
+        return this.layoutForEntry(id, entry)
+      }
+    }
+    return this.layout()
+  }
+
+  /** Marks the overlay window that sent the request as the user's active toolbar. */
+  setActiveForSender(sender: Electron.WebContents): void {
+    for (const [id, entry] of this.byDisplay) {
+      if (entry.win.webContents.id === sender.id) {
+        this.activeDisplayId = id
+        return
+      }
+    }
+  }
+
+  /**
+   * Opens the command palette on the display the user last clicked, closing it on any others.
+   * Falls back to the display under the cursor, then primary.
+   */
+  openCommandPaletteHotkey(): void {
+    const targetId = this.resolveCommandPaletteTarget()
+    if (!targetId) return
+
+    for (const [id, entry] of this.byDisplay) {
+      if (entry.win.isDestroyed()) continue
+      if (id === targetId) {
+        entry.paletteOpen = true
+        this.positionWindow(id)
+        entry.win.moveTop()
+        entry.win.webContents.send(CH.overlayCommandPalette, { open: true })
+        continue
+      }
+      if (entry.paletteOpen) {
+        entry.paletteOpen = false
+        this.positionWindow(id)
+        entry.win.webContents.send(CH.overlayCommandPalette, { open: false })
+      }
+    }
+  }
+
+  private resolveCommandPaletteTarget(): string | null {
+    if (this.activeDisplayId && this.byDisplay.has(this.activeDisplayId)) {
+      return this.activeDisplayId
+    }
+    const cursorDisplay = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
+    const cursorId = String(cursorDisplay.id)
+    if (this.byDisplay.has(cursorId)) return cursorId
+    const primaryId = String(screen.getPrimaryDisplay().id)
+    if (this.byDisplay.has(primaryId)) return primaryId
+    return this.byDisplay.keys().next().value ?? null
+  }
+
+  /** How many overlay windows are active (diagnostics). */
+  windowCount(): number {
+    return this.byDisplay.size
+  }
+
+  private anchorOffset(entry: OverlayEntry, workArea: Rect): number {
+    return entry.dock === 'top' ? entry.anchor - workArea.x : entry.anchor - workArea.y
+  }
+
+  private layoutForEntry(id: string, entry: OverlayEntry): OverlayLayout {
+    const workArea = this.workAreaFor(id)
+    return {
+      dock: entry.dock,
+      orientation: orientationFor(entry.dock),
+      anchorOffset: workArea ? this.anchorOffset(entry, workArea) : 0
+    }
+  }
+
+  private currentBounds(
+    dock: DockSide,
+    workArea: Rect,
+    anchor: number,
+    panelOpen: boolean,
+    panelInward: number
+  ): Rect {
+    const length = COLLAPSED_LENGTH
+    const extent = panelOpen ? panelInward : 0
     return dockedRect(dock, workArea, TOOLBAR_THICKNESS, length, extent, anchor)
   }
 
@@ -117,15 +278,36 @@ export class OverlayManager {
       const saved = this.store.getDisplayLayout(id)
       const dock = saved?.dock ?? settings.dock
       const anchor = saved?.anchor ?? this.centerAnchor(dock, d.workArea)
-      const bounds = this.currentBounds(dock, d.workArea, anchor, false)
-      const win = createOverlayWindow(bounds)
-      const entry: OverlayEntry = { win, dock, anchor, panelOpen: false, moveTimer: null }
+      const bounds = this.currentBounds(dock, d.workArea, anchor, false, 0)
+      const win = createOverlayWindow(bounds, (w) => {
+        if (this.visible) {
+          w.show()
+          w.moveTop()
+        } else w.hide()
+      })
+      const entry: OverlayEntry = {
+        win,
+        dock,
+        anchor,
+        panelOpen: false,
+        panelInward: 0,
+        paletteOpen: false,
+        moveTimer: null
+      }
       this.byDisplay.set(id, entry)
       this.attachMoveHandler(id, entry)
+      this.attachInteractionHandlers(id, entry)
       win.webContents.on('did-finish-load', () => this.sendLayout(id))
-      // A display added while the bars are hidden must not pop a fresh window into view.
-      if (!this.visible) win.once('ready-to-show', () => win.hide())
       win.on('closed', () => this.byDisplay.delete(id))
+    }
+
+    // Stale enabledDisplayIds can leave zero windows after a monitor change — always keep primary.
+    if (this.byDisplay.size === 0 && displays.length > 0 && !this.reconcilingFallback) {
+      console.warn('[VibeBar] No overlay on enabled displays; resetting to primary monitor.')
+      this.reconcilingFallback = true
+      this.store.saveSettings({ enabledDisplayIds: [] })
+      this.reconcile()
+      this.reconcilingFallback = false
     }
   }
 
@@ -138,7 +320,9 @@ export class OverlayManager {
     const entry = this.byDisplay.get(id)
     const workArea = this.workAreaFor(id)
     if (!entry || !workArea) return
-    const bounds = this.currentBounds(entry.dock, workArea, entry.anchor, entry.panelOpen)
+    const bounds = entry.paletteOpen
+      ? { ...workArea }
+      : this.currentBounds(entry.dock, workArea, entry.anchor, entry.panelOpen, entry.panelInward)
     this.repositioning = true
     entry.win.setBounds(bounds)
     this.repositioning = false
@@ -157,6 +341,13 @@ export class OverlayManager {
     })
   }
 
+  /** Track focus so the palette hotkey targets the toolbar the user was last using. */
+  private attachInteractionHandlers(id: string, entry: OverlayEntry): void {
+    entry.win.on('focus', () => {
+      this.activeDisplayId = id
+    })
+  }
+
   /**
    * Magnetic snapping during the drag, scoped to the monitor being dragged. As the toolbar
    * nears an edge it locks flush, preserving the perpendicular (free-axis) position so it still
@@ -165,7 +356,7 @@ export class OverlayManager {
    */
   private handleMoveLive(id: string): void {
     const entry = this.byDisplay.get(id)
-    if (!entry) return
+    if (!entry || entry.paletteOpen) return
     const winBounds = entry.win.getBounds()
     const workArea = screen.getDisplayMatching(winBounds).workArea
     const target = snapTarget(winBounds, workArea, SNAP_THRESHOLD)
@@ -181,7 +372,7 @@ export class OverlayManager {
 
   private handleMoveEnd(id: string): void {
     const entry = this.byDisplay.get(id)
-    if (!entry) return
+    if (!entry || entry.paletteOpen) return
     const winBounds = entry.win.getBounds()
     const workArea = screen.getDisplayMatching(winBounds).workArea
     const prevDock = entry.dock
@@ -211,12 +402,17 @@ export class OverlayManager {
    * Panel state is per-display, so opening a menu on one screen never resizes or shifts the
    * toolbars on the other monitors.
    */
-  setPanelForSender(sender: Electron.WebContents, open: boolean): OverlayLayout {
+  setPanelForSender(
+    sender: Electron.WebContents,
+    open: boolean,
+    panelId?: DetachablePanelId
+  ): OverlayLayout {
     for (const [id, entry] of this.byDisplay) {
       if (entry.win.webContents.id === sender.id) {
         entry.panelOpen = open
+        entry.panelInward = open && panelId ? panelInwardExtent(panelId, entry.dock) : 0
         this.positionWindow(id)
-        return { dock: entry.dock, orientation: orientationFor(entry.dock) }
+        return this.layoutForEntry(id, entry)
       }
     }
     return this.layout()
@@ -230,9 +426,9 @@ export class OverlayManager {
 
   /** The layout for the window that sent an IPC request, so each renderer inits to its own dock. */
   layoutForSender(sender: Electron.WebContents): OverlayLayout {
-    for (const entry of this.byDisplay.values()) {
+    for (const [id, entry] of this.byDisplay) {
       if (entry.win.webContents.id === sender.id) {
-        return { dock: entry.dock, orientation: orientationFor(entry.dock) }
+        return this.layoutForEntry(id, entry)
       }
     }
     return this.layout()
@@ -245,10 +441,12 @@ export class OverlayManager {
   /** Sends one monitor its own current layout (dock + orientation). */
   private sendLayout(id: string): void {
     const entry = this.byDisplay.get(id)
-    if (!entry || entry.win.isDestroyed()) return
+    const workArea = this.workAreaFor(id)
+    if (!entry || entry.win.isDestroyed() || !workArea) return
     entry.win.webContents.send(CH.overlayLayout, {
       dock: entry.dock,
-      orientation: orientationFor(entry.dock)
+      orientation: orientationFor(entry.dock),
+      anchorOffset: this.anchorOffset(entry, workArea)
     })
   }
 

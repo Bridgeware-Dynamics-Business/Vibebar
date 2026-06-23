@@ -1,156 +1,25 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { useCallback, useEffect, useRef, useState } from 'react'
-import type { AuditFinding, AuditReport, AuditSeverity, ScanResult } from '@shared/types.js'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type {
+  AuditConfidence,
+  AuditFinding,
+  AuditReport,
+  AuditSeverity,
+  ScanResult
+} from '@shared/types.js'
+import { AuditConfigSection } from '../../shared/auditPanel/AuditConfigSection'
+import { AuditFindingCard } from '../../shared/auditPanel/AuditFindingCard'
+import { AuditFindingGroup } from '../../shared/auditPanel/AuditFindingGroup'
+import { buildAuditPromptFor } from '../../shared/auditPanel/buildAuditPrompt'
+import { AuditExportMenu } from '../../shared/auditPanel/ExportMenu'
+import { AuditFindingFilters, type AuditGroupBy } from '../../shared/auditPanel/FindingFilters'
+import { AUDIT_SEVERITY_STYLE, AuditScoreRing } from '../../shared/auditUi'
 import { Icon } from '../../shared/icons'
 import { DetachButton, PanelHeader, Toggle } from '../../shared/ui'
 
 type CopyOutcome = (copied: boolean, text: string) => void
 
-const SEVERITY_STYLE: Record<AuditSeverity, { text: string; chip: string; dot: string; label: string }> = {
-  critical: { text: 'text-red-300', chip: 'bg-red-500/15 text-red-300', dot: 'bg-red-400', label: 'Critical' },
-  high: { text: 'text-orange-300', chip: 'bg-orange-500/15 text-orange-300', dot: 'bg-orange-400', label: 'High' },
-  medium: { text: 'text-amber-200', chip: 'bg-amber-500/10 text-amber-200', dot: 'bg-amber-300', label: 'Medium' },
-  low: { text: 'text-sky-200', chip: 'bg-sky-500/10 text-sky-200', dot: 'bg-sky-300', label: 'Low' }
-}
-
 const SEVERITY_ORDER: AuditSeverity[] = ['critical', 'high', 'medium', 'low']
-
-/** Builds one consolidated, deeply-contextual prompt covering every finding, ready to paste. */
-function buildConsolidatedPrompt(report: AuditReport): string {
-  const lines: string[] = [
-    `You are a senior application-security engineer. VibeBar ran a read-only static audit of ${report.projectName ?? 'my project'} and found ${report.findings.length} issue(s) across ${report.scannedFiles} scanned files.`,
-    '',
-    'Each finding below includes its severity, the mapped CWE/OWASP entry, the exact file and line, and a code frame. Work through them strictly in severity order (critical first). For each one: confirm it is real, explain the concrete attack it enables, apply the minimal fix without weakening any other control, and then describe a behavioral test that fails before the fix and passes after.',
-    '',
-    'Do not print any secret values, environment variables, or full file paths back to me. Keep each change scoped to its single finding.',
-    '',
-    '==================== FINDINGS ===================='
-  ]
-  report.findings.forEach((f, i) => {
-    lines.push('')
-    lines.push(`#${i + 1} [${f.severity.toUpperCase()}] ${f.title}`)
-    lines.push(`Category: ${f.category}`)
-    if (f.cwe) lines.push(`Weakness: ${f.cwe}`)
-    if (f.references && f.references.length > 0) lines.push(`Standards: ${f.references.join('; ')}`)
-    if (f.file) lines.push(`File: ${f.file}${f.line ? `:${f.line}${f.column ? `:${f.column}` : ''}` : ''}`)
-    lines.push(`What: ${f.detail}`)
-    if (f.codeContext) {
-      lines.push('Code:')
-      lines.push(f.codeContext)
-    } else if (f.evidence) {
-      lines.push(`Evidence: ${f.evidence}`)
-    }
-  })
-  lines.push('')
-  lines.push('==================== END ====================')
-  return lines.join('\n')
-}
-
-function FindingCard({ finding, onCopy }: { finding: AuditFinding; onCopy: CopyOutcome }): JSX.Element {
-  const [expanded, setExpanded] = useState(false)
-  const [copied, setCopied] = useState<'fix' | 'test' | null>(null)
-  const s = SEVERITY_STYLE[finding.severity]
-
-  const doCopy = useCallback(
-    async (which: 'fix' | 'test') => {
-      const text = which === 'fix' ? finding.fixPrompt : finding.testPrompt
-      const r = await window.vibebar.clipboard.write(text)
-      onCopy(r.copied, text)
-      if (r.copied) {
-        setCopied(which)
-        window.setTimeout(() => setCopied(null), 1600)
-      }
-    },
-    [finding.fixPrompt, finding.testPrompt, onCopy]
-  )
-
-  return (
-    <div className="rounded-xl border border-vibe-border bg-white/[0.03] transition-colors hover:border-white/15">
-      <button
-        type="button"
-        onClick={() => setExpanded((v) => !v)}
-        className="flex w-full items-start gap-2 p-3 text-left"
-        aria-expanded={expanded}
-      >
-        <Icon
-          name={expanded ? 'ChevronDown' : 'ChevronRight'}
-          size={16}
-          className="mt-0.5 shrink-0 text-vibe-muted"
-        />
-        <span className="flex-1">
-          <span className="flex flex-wrap items-center gap-2">
-            <span className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${s.chip}`}>
-              <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} /> {s.label}
-            </span>
-            <span className="text-sm font-medium text-vibe-text">{finding.title}</span>
-          </span>
-          <span className="mt-1 block text-xs leading-snug text-vibe-muted">{finding.detail}</span>
-          <span className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] text-vibe-muted">
-            <span className="rounded-full bg-white/5 px-2 py-0.5">{finding.category}</span>
-            {finding.file && (
-              <span className="font-mono text-vibe-muted/90">
-                {finding.file}
-                {finding.line ? `:${finding.line}` : ''}
-              </span>
-            )}
-          </span>
-        </span>
-      </button>
-
-      <AnimatePresence initial={false}>
-        {expanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.18 }}
-            className="overflow-hidden"
-          >
-            <div className="border-t border-vibe-border px-3 py-3">
-              {finding.cwe && (
-                <p className="mb-1 text-[11px] text-vibe-muted">
-                  <span className="text-vibe-text">{finding.cwe}</span>
-                </p>
-              )}
-              {finding.references && finding.references.length > 0 && (
-                <p className="mb-2 text-[11px] text-vibe-muted">{finding.references.join(' \u00b7 ')}</p>
-              )}
-              {finding.codeContext ? (
-                <pre className="vibe-scroll mb-2 max-h-44 overflow-auto whitespace-pre rounded-lg bg-black/40 p-3 font-mono text-[11px] leading-relaxed text-vibe-text">
-                  {finding.codeContext}
-                </pre>
-              ) : (
-                finding.evidence && (
-                  <pre className="vibe-scroll mb-2 max-h-32 overflow-auto whitespace-pre-wrap rounded-lg bg-black/30 p-3 font-mono text-[11px] leading-relaxed text-vibe-text">
-                    {finding.evidence}
-                  </pre>
-                )
-              )}
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => void doCopy('fix')}
-                  className="flex items-center gap-1.5 rounded-lg bg-vibe-accent px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-vibe-accent/85"
-                >
-                  <Icon name={copied === 'fix' ? 'Check' : 'Wrench'} size={14} />
-                  {copied === 'fix' ? 'Copied' : 'Copy fix prompt'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void doCopy('test')}
-                  className="flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium text-vibe-text transition-colors hover:bg-white/15"
-                >
-                  <Icon name={copied === 'test' ? 'Check' : 'FlaskConical'} size={14} />
-                  {copied === 'test' ? 'Copied' : 'Copy behavioral test'}
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  )
-}
 
 function PasteScanner({ onCopy }: { onCopy: CopyOutcome }): JSX.Element {
   const [open, setOpen] = useState(false)
@@ -259,7 +128,6 @@ export function SecurityAuditPanel({
   onCopyOutcome: CopyOutcome
   solid?: boolean
   onToggleSolid?: () => void
-  /** When provided, shows a Detach button that pops the panel out into a floating window. */
   onDetach?: () => void
 }): JSX.Element {
   const [report, setReport] = useState<AuditReport | null>(null)
@@ -269,6 +137,13 @@ export function SecurityAuditPanel({
   const [intervalValue, setIntervalValue] = useState(30)
   const [intervalUnit, setIntervalUnit] = useState<'seconds' | 'minutes'>('seconds')
   const runningRef = useRef(false)
+
+  const [query, setQuery] = useState('')
+  const [sevFilter, setSevFilter] = useState<Set<AuditSeverity>>(new Set())
+  const [confFilter, setConfFilter] = useState<Set<AuditConfidence>>(new Set())
+  const [onlyNew, setOnlyNew] = useState(false)
+  const [groupBy, setGroupBy] = useState<AuditGroupBy>('none')
+  const [showFilters, setShowFilters] = useState(false)
 
   const runAudit = useCallback(async (): Promise<void> => {
     if (runningRef.current) return
@@ -288,10 +163,7 @@ export function SecurityAuditPanel({
     void runAudit()
   }, [runAudit])
 
-  const intervalMs = Math.max(
-    3000,
-    intervalValue * (intervalUnit === 'minutes' ? 60_000 : 1000)
-  )
+  const intervalMs = Math.max(3000, intervalValue * (intervalUnit === 'minutes' ? 60_000 : 1000))
 
   useEffect(() => {
     if (!autoScan) return
@@ -307,11 +179,52 @@ export function SecurityAuditPanel({
     [onCopyOutcome]
   )
 
-  const findings = report?.findings ?? []
+  const acceptRisk = useCallback(
+    async (fingerprint: string) => {
+      await window.vibebar.audit.acceptRisk(fingerprint)
+      void runAudit()
+    },
+    [runAudit]
+  )
+
+  const allFindings = report?.findings ?? []
   const counts = SEVERITY_ORDER.map((sev) => ({
     sev,
-    n: findings.filter((f) => f.severity === sev).length
+    n: allFindings.filter((f) => f.severity === sev).length
   })).filter((c) => c.n > 0)
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return allFindings.filter((f) => {
+      if (sevFilter.size > 0 && !sevFilter.has(f.severity)) return false
+      if (confFilter.size > 0 && !confFilter.has(f.confidence)) return false
+      if (onlyNew && f.status !== 'new') return false
+      if (q) {
+        const hay = `${f.title} ${f.detail} ${f.file ?? ''} ${f.category} ${f.cwe ?? ''}`.toLowerCase()
+        if (!hay.includes(q)) return false
+      }
+      return true
+    })
+  }, [allFindings, query, sevFilter, confFilter, onlyNew])
+
+  const groups = useMemo(() => {
+    if (groupBy === 'none') return null
+    const map = new Map<string, AuditFinding[]>()
+    for (const f of filtered) {
+      const key =
+        groupBy === 'severity'
+          ? AUDIT_SEVERITY_STYLE[f.severity].label
+          : groupBy === 'category'
+            ? f.category
+            : f.file ?? 'Project-level'
+      const arr = map.get(key) ?? []
+      arr.push(f)
+      map.set(key, arr)
+    }
+    return [...map.entries()]
+  }, [filtered, groupBy])
+
+  const hasActiveFilters = sevFilter.size > 0 || confFilter.size > 0 || onlyNew || query.trim().length > 0
 
   return (
     <div className="flex h-full flex-col">
@@ -329,8 +242,64 @@ export function SecurityAuditPanel({
       </PanelHeader>
 
       <div className="flex flex-1 flex-col gap-3 overflow-hidden p-4">
-        {/* Auto-scan controls */}
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-vibe-border bg-white/[0.02] px-3 py-2 text-xs">
+        <div className="flex items-center gap-3 rounded-xl border border-vibe-border bg-white/[0.02] px-3 py-2.5">
+          {report && !report.noProject && report.score && <AuditScoreRing score={report.score} />}
+          <div className="min-w-0 flex-1">
+            {report?.noProject ? (
+              <p className="text-xs text-amber-300">Select a project from the toolbar, then run the audit.</p>
+            ) : report ? (
+              <>
+                <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                  <span className="font-medium text-vibe-text">
+                    {allFindings.length === 0
+                      ? `No risk signals in ${report.scannedFiles} files`
+                      : `${allFindings.length} issue(s) in ${report.scannedFiles} files`}
+                  </span>
+                  {report.delta && (report.delta.new > 0 || report.delta.resolved > 0) && (
+                    <span className="flex items-center gap-1.5">
+                      {report.delta.new > 0 && (
+                        <span className="rounded-full bg-vibe-accent/20 px-2 py-0.5 text-[10px] font-semibold text-vibe-accent-2">
+                          +{report.delta.new} new
+                        </span>
+                      )}
+                      {report.delta.resolved > 0 && (
+                        <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
+                          -{report.delta.resolved} resolved
+                        </span>
+                      )}
+                    </span>
+                  )}
+                </div>
+                <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-vibe-muted">
+                  {counts.map((c) => (
+                    <span
+                      key={c.sev}
+                      className={`flex items-center gap-1 rounded-full px-2 py-0.5 ${AUDIT_SEVERITY_STYLE[c.sev].chip}`}
+                    >
+                      <span className={`h-1.5 w-1.5 rounded-full ${AUDIT_SEVERITY_STYLE[c.sev].dot}`} />
+                      {c.n} {AUDIT_SEVERITY_STYLE[c.sev].label.toLowerCase()}
+                    </span>
+                  ))}
+                  {report.mirroredToTerminal && (
+                    <span className="flex items-center gap-1 text-vibe-accent-2">
+                      <Icon name="SquareTerminal" size={12} /> mirrored
+                    </span>
+                  )}
+                  {typeof report.durationMs === 'number' && (
+                    <span className="text-vibe-muted/70">{report.durationMs}ms</span>
+                  )}
+                  {lastRun && (
+                    <span className="ml-auto text-vibe-muted/80">last {new Date(lastRun).toLocaleTimeString()}</span>
+                  )}
+                </div>
+              </>
+            ) : (
+              <p className="text-xs text-vibe-muted">Running first scan…</p>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 text-xs">
           <Toggle checked={autoScan} onChange={setAutoScan} label="Auto-scan" />
           <span className="text-vibe-text">Auto-scan</span>
           <span className="text-vibe-muted">every</span>
@@ -339,18 +308,18 @@ export function SecurityAuditPanel({
             min={intervalUnit === 'minutes' ? 1 : 5}
             value={intervalValue}
             onChange={(e) => setIntervalValue(Math.max(1, Number(e.target.value) || 1))}
-            className="vibe-no-drag w-14 rounded-md border border-vibe-border bg-black/30 px-2 py-1 text-center text-vibe-text outline-none focus:border-vibe-accent"
+            className="vibe-no-drag w-12 rounded-md border border-vibe-border bg-black/30 px-2 py-1 text-center text-vibe-text outline-none focus:border-vibe-accent"
           />
           <select
             value={intervalUnit}
             onChange={(e) => setIntervalUnit(e.target.value as 'seconds' | 'minutes')}
             className="vibe-no-drag rounded-md border border-vibe-border bg-black/30 px-2 py-1 text-vibe-text outline-none focus:border-vibe-accent"
           >
-            <option value="seconds">seconds</option>
-            <option value="minutes">minutes</option>
+            <option value="seconds">sec</option>
+            <option value="minutes">min</option>
           </select>
           {autoScan && (
-            <span className="ml-auto flex items-center gap-1.5 text-emerald-400">
+            <span className="flex items-center gap-1.5 text-emerald-400">
               <span className="relative flex h-2 w-2">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/70" />
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
@@ -358,93 +327,116 @@ export function SecurityAuditPanel({
               live
             </span>
           )}
+          <div className="ml-auto flex items-center gap-1">
+            {allFindings.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowFilters((v) => !v)}
+                className={`flex items-center gap-1 rounded-md px-2 py-1 ${
+                  showFilters || hasActiveFilters ? 'bg-white/10 text-vibe-text' : 'text-vibe-muted hover:text-vibe-text'
+                }`}
+              >
+                <Icon name="Filter" size={13} /> Filter
+                {hasActiveFilters && <span className="h-1.5 w-1.5 rounded-full bg-vibe-accent" />}
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Summary */}
-        <div className="flex flex-wrap items-center gap-2 text-xs text-vibe-muted">
-          {report?.noProject ? (
-            <span className="text-amber-300">Select a project from the toolbar, then run the audit.</span>
-          ) : report ? (
-            <>
-              <span className="text-vibe-text">
-                {findings.length === 0
-                  ? `No risk signals in ${report.scannedFiles} files`
-                  : `${findings.length} issue(s) in ${report.scannedFiles} files`}
-              </span>
-              {counts.map((c) => (
-                <span
-                  key={c.sev}
-                  className={`flex items-center gap-1 rounded-full px-2 py-0.5 ${SEVERITY_STYLE[c.sev].chip}`}
-                >
-                  <span className={`h-1.5 w-1.5 rounded-full ${SEVERITY_STYLE[c.sev].dot}`} />
-                  {c.n} {SEVERITY_STYLE[c.sev].label.toLowerCase()}
-                </span>
-              ))}
-              {report.mirroredToTerminal && (
-                <span className="flex items-center gap-1 text-[11px] text-vibe-accent-2">
-                  <Icon name="SquareTerminal" size={12} /> mirrored to terminal
-                </span>
-              )}
-              {lastRun && (
-                <span className="ml-auto text-[11px] text-vibe-muted/80">
-                  last {new Date(lastRun).toLocaleTimeString()}
-                </span>
-              )}
-            </>
-          ) : (
-            <span>Running first scan…</span>
-          )}
-        </div>
+        {showFilters && allFindings.length > 0 && (
+          <AuditFindingFilters
+            query={query}
+            onQueryChange={setQuery}
+            sevFilter={sevFilter}
+            onSevFilterChange={setSevFilter}
+            confFilter={confFilter}
+            onConfFilterChange={setConfFilter}
+            onlyNew={onlyNew}
+            onOnlyNewChange={setOnlyNew}
+            groupBy={groupBy}
+            onGroupByChange={setGroupBy}
+            showNewFilter={Boolean(report?.delta && report.delta.new > 0)}
+          />
+        )}
 
         {report?.truncated && (
           <div className="flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-[11px] text-amber-300">
             <Icon name="AlertTriangle" size={13} className="mt-0.5 shrink-0" />
             <span>
-              Scanned the first {report.scannedFiles} of {report.totalCandidates} source files.
-              Results are partial — narrow the project folder for full coverage.
+              Scanned the first {report.scannedFiles} of {report.totalCandidates} source files. Results are partial —
+              narrow the project folder for full coverage.
             </span>
           </div>
         )}
 
-        {/* Findings list */}
         <div className="vibe-scroll flex-1 space-y-2 overflow-y-auto pr-0.5">
-          {report && !report.noProject && findings.length === 0 && !loading && (
+          {report && !report.noProject && allFindings.length === 0 && !loading && (
             <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-xs text-emerald-300">
               <p className="flex items-center gap-2 font-medium">
                 <Icon name="ShieldCheck" size={15} /> No behavioral-risk signals found.
               </p>
               <p className="mt-1 text-emerald-200/70">
-                Absence of a signal is not proof of safety — still test auth and object-level
-                authorization with the behavioral prompts in the Prompt Library.
+                Absence of a signal is not proof of safety — still test auth and object-level authorization with the
+                behavioral prompts in the Prompt Library.
               </p>
             </div>
           )}
-          {findings.map((f) => (
-            <FindingCard key={f.id} finding={f} onCopy={onCopyOutcome} />
-          ))}
+          {allFindings.length > 0 && filtered.length === 0 && (
+            <p className="px-1 py-4 text-center text-xs text-vibe-muted">No findings match the current filters.</p>
+          )}
+          {report &&
+            (groups
+              ? groups.map(([key, items]) => (
+                  <AuditFindingGroup
+                    key={key}
+                    label={groupBy === 'file' ? (key.split('/').pop() ?? key) : key}
+                    sublabel={groupBy === 'file' && key !== 'Project-level' ? key : undefined}
+                    findings={items}
+                    report={report}
+                    onCopy={onCopyOutcome}
+                    scopeLabel={`in ${key}`}
+                    onAcceptRisk={(fp) => void acceptRisk(fp)}
+                  />
+                ))
+              : filtered.map((f) => (
+                  <AuditFindingCard
+                    key={f.id}
+                    finding={f}
+                    onCopy={onCopyOutcome}
+                    onAcceptRisk={(fp) => void acceptRisk(fp)}
+                  />
+                )))}
         </div>
 
         <PasteScanner onCopy={onCopyOutcome} />
+        <AuditConfigSection />
       </div>
 
-      {/* Footer actions */}
       <div className="flex items-center gap-2 border-t border-vibe-border p-3">
         <button
           type="button"
           onClick={() => void window.vibebar.audit.scan()}
-          title="Open the Smart Terminal and present findings. While it's open, every scan (including auto-scan) mirrors there live."
+          title="Open the Smart Terminal and present findings."
           className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-vibe-muted hover:text-vibe-text"
         >
-          <Icon name="SquareTerminal" size={14} /> Open in Smart Terminal
+          <Icon name="SquareTerminal" size={14} /> Smart Terminal
         </button>
+        {report && !report.noProject && allFindings.length > 0 && (
+          <AuditExportMenu
+            onExport={async (format) => {
+              if (format === 'sarif') await window.vibebar.audit.exportSarif()
+              else await window.vibebar.audit.exportMarkdown()
+            }}
+          />
+        )}
         <div className="flex-1" />
-        {findings.length > 0 && report && (
+        {filtered.length > 0 && report && (
           <button
             type="button"
-            onClick={() => void copy(buildConsolidatedPrompt(report))}
+            onClick={() => void copy(buildAuditPromptFor(filtered, report, hasActiveFilters ? '(filtered)' : ''))}
             className="flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium text-vibe-text hover:bg-white/15"
           >
-            <Icon name="Copy" size={14} /> Copy all as one prompt
+            <Icon name="Copy" size={14} /> Copy {hasActiveFilters ? 'filtered' : 'all'} as one prompt
           </button>
         )}
       </div>

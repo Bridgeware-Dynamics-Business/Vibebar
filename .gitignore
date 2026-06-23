@@ -19,6 +19,11 @@ out/
 dist/
 dist-ssr/
 build/
+debug-out/
+debug-out-*/
+debug-*.mjs
+temp-out.js
+temp-main.js
 release/
 release-builds/
 app-builds/
@@ -127,3 +132,9 @@ desktop.ini
 **/AI Context/**/out/
 **/AI Context/**/dist/
 **/AI Context/**/release/
+
+# VibeBar notes (local only)
+Notes/
+
+# VibeBar session timeline (local only)
+.vibebar/

@@ -129,7 +129,20 @@ export class SnipController {
       return { ok: false, error: `Could not save the image: ${message}` }
     }
 
-    const prompt = `Look at the image: ${fileName} in the AI context folder: ${folder}`
+    const relPath = fileName
+    const prompt = [
+      'You have a UI screenshot saved for vision analysis.',
+      '',
+      `Image file: ${relPath}`,
+      `Folder: ${folder}`,
+      '',
+      'Instructions:',
+      '1. Open and inspect the image — describe what you see in the UI (layout, components, visible text).',
+      '2. If this captures a bug or visual issue, explain the problem and likely root cause.',
+      '3. Annotate specific regions of concern (e.g. "top-right button", "modal overlay") when relevant.',
+      '4. Reference the image path above when suggesting code changes in the project.',
+      '5. Do not guess file paths — ask or search the codebase if the relevant source file is unclear.'
+    ].join('\n')
     return { ok: true, fileName, folderPath: folder, filePath, prompt }
   }
 

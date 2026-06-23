@@ -48,6 +48,13 @@ export class TrayController {
         }
       },
       {
+        label: 'Reset toolbar position',
+        click: () => {
+          this.overlay.resetToolbar()
+          this.rebuildMenu()
+        }
+      },
+      {
         label: 'Open Settings',
         click: () => this.detachedPanels.show('settings')
       },

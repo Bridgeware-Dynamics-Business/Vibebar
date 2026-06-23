@@ -175,3 +175,97 @@ export function relativeWithin(rootPath: string, absPath: string): string | null
   if (!rel || rel.startsWith('..')) return null
   return normalizeRel(rel)
 }
+
+export interface PathEstimate {
+  charCount: number
+  fileCount: number
+  skipped: number
+}
+
+/**
+ * Estimates total characters for the given relative paths without building the full bundle.
+ * Respects the same ignore rules and size limits as {@link packContext}.
+ */
+export async function estimatePaths(
+  rootPath: string,
+  relPaths: string[],
+  maxFileBytes = DEFAULT_MAX_FILE_BYTES
+): Promise<PathEstimate> {
+  const match = compileIgnoreMatchers([])
+  let charCount = 0
+  let fileCount = 0
+  let skipped = 0
+
+  for (const raw of relPaths) {
+    const rel = normalizeRel(raw)
+    const abs = resolveWithinRoot(rootPath, raw)
+    if (!abs || isIgnoredRel(rel, match)) {
+      skipped++
+      continue
+    }
+    try {
+      const st = await stat(abs)
+      if (!st.isFile() || st.size > maxFileBytes) {
+        skipped++
+        continue
+      }
+      const content = await readFile(abs, 'utf8')
+      if (looksBinary(content)) {
+        skipped++
+        continue
+      }
+      charCount += content.length
+      fileCount++
+    } catch {
+      skipped++
+    }
+  }
+
+  return { charCount, fileCount, skipped }
+}
+
+const PRESET_GLOBS: Record<'tests' | 'config' | 'entry', string[]> = {
+  tests: ['**/*.test.*', '**/*.spec.*', '**/__tests__/**'],
+  config: [
+    'package.json',
+    'package-lock.json',
+    'pnpm-lock.yaml',
+    'yarn.lock',
+    'tsconfig*.json',
+    '**/vite.config.*',
+    '**/electron.vite.config.*',
+    '**/.vibebar-audit.json'
+  ],
+  entry: [
+    '**/src/main/index.*',
+    '**/src/main/main.*',
+    '**/src/index.*',
+    '**/src/app.*',
+    '**/app.tsx',
+    '**/App.tsx'
+  ]
+}
+
+/** Resolves file paths matching a context-packer preset glob set. */
+export async function resolvePresetPaths(
+  rootPath: string,
+  preset: 'tests' | 'config' | 'entry'
+): Promise<string[]> {
+  const globs = PRESET_GLOBS[preset]
+  const match = compileIgnoreMatchers([])
+  try {
+    const paths = await fg(globs, {
+      cwd: rootPath,
+      onlyFiles: true,
+      dot: preset === 'config',
+      followSymbolicLinks: false,
+      suppressErrors: true
+    })
+    return paths
+      .map((p) => normalizeRel(p))
+      .filter((rel) => !isIgnoredRel(rel, match))
+      .sort()
+  } catch {
+    return []
+  }
+}

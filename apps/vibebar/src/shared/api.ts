@@ -1,22 +1,35 @@
 import type { PromptCategory, PromptTemplate } from '@vibebar/prompt-engine'
 import type { DetachablePanelId } from './tools.js'
 import type {
+  AuditExportResult,
+  AuditAcceptRiskResult,
+  AuditConfigView,
   AuditReport,
   CopyResult,
   DisplayInfo,
   DockSide,
+  GitDiffCopyResult,
   GitHubOpenResult,
   GitStatus,
   HistoryEntry,
+  NoteDetail,
+  NotesState,
+  OnboardingState,
   OverlayLayout,
+  PackChangedPreview,
   PackNode,
   PackResult,
   PreviewResult,
+  ProjectAiDocs,
   ProjectProfile,
   PromptListResult,
   QuickLaunchApp,
+  RecentProject,
   QuickLaunchResult,
   ScanResult,
+  SessionAppendInput,
+  SessionHandoffResult,
+  SessionState,
   SnipCapture,
   SnipSaveResult,
   VibeSettings
@@ -61,16 +74,34 @@ export interface VibeBarApi {
   overlay: {
     getState: () => Promise<OverlayState>
     setDock: (dock: DockSide) => Promise<OverlayLayout>
-    setPanel: (open: boolean) => Promise<OverlayLayout>
+    setPanel: (open: boolean, panelId?: DetachablePanelId) => Promise<OverlayLayout>
+    /** Force the toolbar visible and reset its dock position (recovery). */
+    resetToolbar: () => Promise<{ ok: true }>
+    /** Collapse any expanded panel shell (fixes empty wide overlay). */
+    collapsePanel: () => Promise<{ ok: true }>
+    /** Expand/collapse the overlay window for the full-screen command palette modal. */
+    setCommandPalette: (open: boolean) => Promise<OverlayLayout>
+    /** Records this overlay as the one the user last interacted with (for hotkey routing). */
+    setActive: () => Promise<void>
     onLayout: (cb: (layout: OverlayLayout) => void) => () => void
+    /** Fires when the command palette should open or close on this display. */
+    onCommandPalette: (cb: (state: { open: boolean }) => void) => () => void
   }
   project: {
     select: () => Promise<ProjectProfile | null>
     get: () => Promise<ProjectProfile | null>
+    /** Recently opened project folders (paths validated on disk). */
+    listRecents: () => Promise<RecentProject[]>
+    /** Opens a recent project by absolute path. */
+    openRecent: (path: string) => Promise<ProjectProfile | null>
     /** Creates the AI context folder at the project root (no-op if it already exists). */
     addContextFolder: () => Promise<ProjectProfile | null>
     /** Reveals the project's AI context folder in the OS file explorer (creates it if missing). */
     openContextFolder: () => Promise<{ ok: boolean; error?: string }>
+    /** Reads AGENTS.md, Cursor rules, and AI context README from the active project. */
+    getAiDocs: () => Promise<ProjectAiDocs>
+    /** Appends markdown to AGENTS.md (creates the file if missing). */
+    appendAgentsMd: (markdown: string) => Promise<{ ok: boolean; error?: string }>
     onChanged: (cb: (profile: ProjectProfile | null) => void) => () => void
   }
   prompts: {
@@ -91,6 +122,12 @@ export interface VibeBarApi {
   packer: {
     tree: (dir: string) => Promise<PackNode[]>
     pack: (paths: string[]) => Promise<PackResult>
+    /** Estimates size for git-changed files before packing. */
+    previewChanged: () => Promise<PackChangedPreview>
+    /** Packs git-changed files and copies to clipboard. */
+    packChanged: () => Promise<PackResult>
+    /** Resolves file paths for a preset (tests, config, entry). */
+    presetPaths: (preset: 'tests' | 'config' | 'entry') => Promise<{ paths: string[]; noProject?: boolean }>
   }
   clipboard: {
     write: (text: string) => Promise<{ copied: boolean }>
@@ -111,6 +148,8 @@ export interface VibeBarApi {
     toggle: () => Promise<{ visible: boolean }>
     /** Whether the Smart Terminal window is currently open and visible. */
     isOpen: () => Promise<{ open: boolean }>
+    /** Issue count + visibility for bridge hints. */
+    getHints: () => Promise<{ issueCount: number; isOpen: boolean }>
     /** Fires whenever the Smart Terminal is shown or hidden/closed. */
     onVisibility: (cb: (state: { visible: boolean }) => void) => () => void
   }
@@ -118,6 +157,16 @@ export interface VibeBarApi {
     run: () => Promise<AuditReport>
     /** Runs the deep repo scan and surfaces findings live in the Smart Terminal. */
     scan: () => Promise<{ visible: boolean; findings: number; noProject: boolean }>
+    /** Exports the latest report as SARIF 2.1.0, prompting for a save location. */
+    exportSarif: () => Promise<AuditExportResult>
+    /** Exports the latest report as a Markdown report, prompting for a save location. */
+    exportMarkdown: () => Promise<AuditExportResult>
+    /** Returns the project's audit config view (.vibebar-audit.json). */
+    getConfig: () => Promise<AuditConfigView>
+    /** Adds a finding fingerprint to the accepted-risk baseline. */
+    acceptRisk: (fingerprint: string) => Promise<AuditAcceptRiskResult>
+    /** Enables or disables a rule in the project audit config. */
+    setRuleDisabled: (ruleId: string, disabled: boolean) => Promise<AuditConfigView>
   }
   github: {
     /** Opens GitHub Desktop on the active project so the user can commit/push. */
@@ -143,6 +192,44 @@ export interface VibeBarApi {
   git: {
     getStatus: () => Promise<GitStatus>
     onStatusChanged: (cb: (status: GitStatus) => void) => () => void
+    /** Copies staged + unstaged diff as an AI-ready, redacted prompt. */
+    copyDiffPrompt: () => Promise<GitDiffCopyResult>
+    /** Changed paths (staged, unstaged, untracked) for the active repo. */
+    changedFiles: () => Promise<string[]>
+  }
+  notes: {
+    /** Current Notes state for the active project (folder presence, name, catalog). */
+    getState: () => Promise<NotesState>
+    /** First-run setup: create the Notes folder, name it, and optionally git-ignore it. */
+    init: (projectName: string, addToGitignore: boolean) => Promise<NotesState>
+    /** Creates an empty note; returns its id and the refreshed state. */
+    create: (title: string) => Promise<{ id: string; state: NotesState }>
+    /** Loads a single note's title + Markdown body. */
+    read: (id: string) => Promise<NoteDetail | null>
+    /** Saves a note's title + Markdown body; returns the refreshed state. */
+    save: (id: string, title: string, markdown: string) => Promise<NotesState>
+    /** Deletes a note; returns the refreshed state. */
+    remove: (id: string) => Promise<NotesState>
+    /** Renames the notes project (library header label). */
+    setProjectName: (projectName: string) => Promise<NotesState>
+    /** Pops a note out into its own always-on-top sticky window (or focuses an open one). */
+    popOut: (id: string) => Promise<{ ok: boolean }>
+    /** Appends Markdown to an existing note. */
+    appendMarkdown: (id: string, markdown: string) => Promise<NotesState>
+    /** Finds or creates the "Session log" note for quick captures. */
+    findSessionLog: () => Promise<{ id: string; state: NotesState }>
+    /** Fires when notes change anywhere, so panels and sticky windows stay in sync. */
+    onChanged: (cb: (state: NotesState) => void) => () => void
+  }
+  session: {
+    getState: () => Promise<SessionState>
+    append: (entry: SessionAppendInput) => Promise<SessionState>
+    togglePin: (id: string) => Promise<SessionState>
+    clear: () => Promise<SessionState>
+    copyHandoff: (includeGitDiff?: boolean) => Promise<SessionHandoffResult>
+    /** Copies only pinned audit/terminal fix prompts (not the narrative handoff). */
+    copyFixPrompts: () => Promise<SessionHandoffResult>
+    onChanged: (cb: (state: SessionState) => void) => () => void
   }
   errors: {
     /** Forwards one captured, already-redacted error to the console window (auto-opens it). */
@@ -172,6 +259,10 @@ export interface VibeBarApi {
   }
   app: {
     quit: () => Promise<{ ok: boolean }>
+    /** First-run onboarding visibility state. */
+    getOnboardingState: () => Promise<OnboardingState>
+    /** Marks onboarding complete (skip / don't show again). */
+    completeOnboarding: () => Promise<OnboardingState>
     /** Opens the centered "Close Vibe Bar" confirmation popup (the toolbar power button). */
     confirmQuit: () => Promise<{ ok: boolean }>
     /** Dismisses the confirmation popup without quitting (its "No" button). */

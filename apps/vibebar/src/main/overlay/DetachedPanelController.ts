@@ -1,19 +1,13 @@
 import { BrowserWindow, screen } from 'electron'
 import type { DockSide } from '@shared/types.js'
 import type { DetachablePanelId } from '@shared/tools.js'
+import { PANEL_SIZES } from '@shared/overlayMetrics.js'
 import { createDetachedPanelWindow } from './windowFactory.js'
 import type { Rect } from './snapLogic.js'
 import type { AppStore } from '../settings/store.js'
+import { clampWindowBounds, trackWindowBounds } from './windowBounds.js'
 
 const MARGIN = 88
-
-/** Per-panel default window size; each detached panel opens at a size that suits its content. */
-const PANEL_SIZE: Record<DetachablePanelId, { width: number; height: number }> = {
-  'prompt-library': { width: 460, height: 720 },
-  'security-audit': { width: 520, height: 720 },
-  'context-packer': { width: 460, height: 680 },
-  settings: { width: 440, height: 640 }
-}
 
 /**
  * Manages the detached panel companion windows. Each detachable toolbar panel can pop out into
@@ -28,6 +22,7 @@ const PANEL_SIZE: Record<DetachablePanelId, { width: number; height: number }> =
 export class DetachedPanelController {
   private readonly store: AppStore
   private readonly wins = new Map<DetachablePanelId, BrowserWindow>()
+  private readonly untrack = new Map<DetachablePanelId, () => void>()
 
   constructor(store: AppStore) {
     this.store = store
@@ -40,8 +35,7 @@ export class DetachedPanelController {
       return { visible: false }
     }
     const win = this.ensureWindow(panelId)
-    // Re-anchor opposite the toolbar each time it's shown (dock may have changed).
-    win.setBounds(this.computeBounds(panelId))
+    win.setBounds(this.resolveBounds(panelId))
     win.show()
     win.focus()
     return { visible: true }
@@ -50,7 +44,7 @@ export class DetachedPanelController {
   /** Ensures a panel's window exists and is visible (used by the tray's "Open Settings"). */
   show(panelId: DetachablePanelId): { visible: boolean } {
     const win = this.ensureWindow(panelId)
-    win.setBounds(this.computeBounds(panelId))
+    win.setBounds(this.resolveBounds(panelId))
     win.show()
     win.focus()
     return { visible: true }
@@ -64,6 +58,8 @@ export class DetachedPanelController {
   }
 
   dispose(): void {
+    for (const stop of this.untrack.values()) stop()
+    this.untrack.clear()
     for (const win of this.wins.values()) {
       if (!win.isDestroyed()) win.destroy()
     }
@@ -73,17 +69,34 @@ export class DetachedPanelController {
   private ensureWindow(panelId: DetachablePanelId): BrowserWindow {
     const existing = this.wins.get(panelId)
     if (existing && !existing.isDestroyed()) return existing
-    const win = createDetachedPanelWindow(panelId, this.computeBounds(panelId))
-    win.on('closed', () => this.wins.delete(panelId))
+    const bounds = this.resolveBounds(panelId)
+    const win = createDetachedPanelWindow(panelId, bounds)
+    win.on('closed', () => {
+      this.untrack.get(panelId)?.()
+      this.untrack.delete(panelId)
+      this.wins.delete(panelId)
+    })
+    this.untrack.set(
+      panelId,
+      trackWindowBounds(win, (b) => this.store.setPanelBounds(panelId, b))
+    )
     this.wins.set(panelId, win)
     return win
+  }
+
+  /** Restores saved bounds when present; otherwise computes default placement. */
+  private resolveBounds(panelId: DetachablePanelId): Rect {
+    const saved = this.store.getPanelBounds(panelId)
+    const wa = screen.getPrimaryDisplay().workArea
+    if (saved) return clampWindowBounds(saved, wa)
+    return this.computeBounds(panelId)
   }
 
   /** Places the window on the side opposite the toolbar dock, floating with a screen margin. */
   private computeBounds(panelId: DetachablePanelId): Rect {
     const wa = screen.getPrimaryDisplay().workArea
     const dock: DockSide = this.store.getSettings().dock
-    const size = PANEL_SIZE[panelId]
+    const size = PANEL_SIZES[panelId]
     const width = Math.min(size.width, wa.width - 2 * MARGIN)
     const height = Math.min(size.height, wa.height - 2 * MARGIN)
 

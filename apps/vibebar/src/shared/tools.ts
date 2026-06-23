@@ -2,8 +2,10 @@ export type ToolId =
   | 'prompt-library'
   | 'terminal'
   | 'security-audit'
+  | 'session-hub'
   | 'code-sync'
   | 'context-packer'
+  | 'notes'
   | 'snip'
   | 'github'
   | 'settings'
@@ -29,8 +31,10 @@ export const TOOL_DEFS: ToolDef[] = [
   { id: 'prompt-library', label: 'Prompt Library', icon: 'Library', kind: 'panel' },
   { id: 'terminal', label: 'Smart Terminal', icon: 'SquareTerminal', kind: 'window' },
   { id: 'security-audit', label: 'Security Audit', icon: 'ScanSearch', kind: 'panel' },
+  { id: 'session-hub', label: 'Session Hub', icon: 'Sparkles', kind: 'panel' },
   { id: 'code-sync', label: 'Code Sync', icon: 'FolderSync', kind: 'window' },
   { id: 'context-packer', label: 'Context Packer', icon: 'PackageOpen', kind: 'panel' },
+  { id: 'notes', label: 'Notes', icon: 'StickyNote', kind: 'panel' },
   { id: 'snip', label: 'Snip to AI Context', icon: 'Crop', kind: 'action' },
   { id: 'github', label: 'Open in GitHub Desktop', icon: 'Github', kind: 'action', pinnedEnd: true },
   { id: 'settings', label: 'Settings', icon: 'Settings', kind: 'panel', pinnedEnd: true }
@@ -47,7 +51,9 @@ export const PANEL_TOOL_IDS = TOOL_DEFS.filter((t) => t.kind === 'panel').map((t
 export const DETACHABLE_PANEL_IDS = [
   'prompt-library',
   'security-audit',
+  'session-hub',
   'context-packer',
+  'notes',
   'settings'
 ] as const
 

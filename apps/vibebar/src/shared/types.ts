@@ -7,6 +7,8 @@ export type Orientation = 'vertical' | 'horizontal'
 export interface OverlayLayout {
   dock: DockSide
   orientation: Orientation
+  /** Toolbar position along the dock edge (px from work-area start). Sent with every layout push. */
+  anchorOffset?: number
 }
 
 /** Per-monitor placement of the toolbar: which edge it docks to and where along that edge. */
@@ -32,6 +34,31 @@ export interface VibeSettings {
   errorConsoleDisplayIds: string[]
   guardrailsEnabled: boolean
   launchOnStartup: boolean
+  /** Global hotkeys (toolbar toggle, command palette, terminal). Defaults to on. */
+  hotkeysEnabled: boolean
+}
+
+/** A recently opened project folder, persisted for quick switching. */
+export interface RecentProject {
+  path: string
+  label: string
+  /** Epoch ms when the project was last opened. */
+  lastOpenedAt: number
+}
+
+/** Saved window bounds (screen coordinates). */
+export interface WindowBounds {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+/** First-run onboarding state exposed to the overlay renderer. */
+export interface OnboardingState {
+  /** True when the wizard should auto-open (no project + onboarding not dismissed). */
+  show: boolean
+  complete: boolean
 }
 
 export interface ProjectInfo {
@@ -59,6 +86,16 @@ export interface GitHubOpenResult {
   method?: 'desktop' | 'protocol'
   /** A user-facing reason when `ok` is false. */
   error?: string
+}
+
+/** Result of copying a git diff prompt to the clipboard. */
+export interface GitDiffCopyResult {
+  copied: boolean
+  text: string
+  findings: SecretFinding[]
+  noProject?: boolean
+  noChanges?: boolean
+  notRepo?: boolean
 }
 
 /**
@@ -118,8 +155,55 @@ export interface SnipSaveResult {
   filePath?: string
   /** A ready-to-paste prompt line that points an AI assistant at the saved image. */
   prompt?: string
+  /** Whether the prompt was copied to the clipboard automatically. */
+  copied?: boolean
   /** A user-facing reason when `ok` is false (e.g. no project selected). */
   error?: string
+}
+
+/**
+ * A note's catalog entry as shown in the Notes library. Content lives on disk in
+ * `<projectRoot>/Notes/<id>.md`; the title and timestamps are mirrored in the folder's
+ * JSON index so the library can render without reading every file.
+ */
+export interface NoteSummary {
+  id: string
+  title: string
+  /** Epoch ms of the last save. */
+  updatedAt: number
+  /** Total checklist items in the note. */
+  total: number
+  /** Completed (checked) checklist items, for a progress hint in the library. */
+  done: number
+}
+
+/** A single note's full content, loaded when opening the editor. */
+export interface NoteDetail {
+  id: string
+  title: string
+  /** The note body as Markdown (bold, bullet lists, and `- [ ]` task lists). */
+  markdown: string
+}
+
+/**
+ * The Notes panel's view of the active project: whether a Notes folder exists yet, its
+ * user-given project name, whether it is git-ignored, and the catalog of notes. `noProject`
+ * is true when no project is selected, so the panel can prompt the user to pick one.
+ */
+export interface NotesState {
+  hasFolder: boolean
+  projectName: string
+  gitignored: boolean
+  notes: NoteSummary[]
+  noProject: boolean
+}
+
+/** Result of a Notes mutation that also returns the refreshed state for the caller. */
+export interface NotesResult {
+  ok: boolean
+  /** A user-facing reason when `ok` is false (e.g. no project selected). */
+  error?: string
+  state: NotesState
 }
 
 export interface CopyResult {
@@ -172,6 +256,119 @@ export interface PackResult {
   findings: SecretFinding[]
 }
 
+/** Preview of git-changed files before packing (char/token estimate). */
+export interface PackChangedPreview {
+  paths: string[]
+  charCount: number
+  /** Rough token estimate (chars / 4). */
+  tokenEstimate: number
+  fileCount: number
+  skipped: number
+  noProject?: boolean
+  noFiles?: boolean
+}
+
+export type SessionEntryType = 'prompt' | 'terminal-issue' | 'audit-finding' | 'note' | 'git-diff'
+
+interface SessionEntryBase {
+  id: string
+  type: SessionEntryType
+  title: string
+  timestamp: number
+  pinned: boolean
+  /** Full prompt body captured at copy time (truncated to 8KB when stored). */
+  fullText?: string
+}
+
+export interface SessionPromptEntry extends SessionEntryBase {
+  type: 'prompt'
+  promptId: string
+}
+
+export interface SessionTerminalIssueEntry extends SessionEntryBase {
+  type: 'terminal-issue'
+  issueId: string
+  command?: string
+}
+
+export interface SessionAuditFindingEntry extends SessionEntryBase {
+  type: 'audit-finding'
+  fingerprint: string
+  severity: string
+  file?: string
+  fixExcerpt?: string
+}
+
+export interface SessionNoteEntry extends SessionEntryBase {
+  type: 'note'
+  noteId: string
+  text: string
+}
+
+export interface SessionGitDiffEntry extends SessionEntryBase {
+  type: 'git-diff'
+}
+
+export type SessionEntry =
+  | SessionPromptEntry
+  | SessionTerminalIssueEntry
+  | SessionAuditFindingEntry
+  | SessionNoteEntry
+  | SessionGitDiffEntry
+
+/** Input for appending a session event (id/timestamp/pinned assigned by the service). */
+export type SessionAppendInput =
+  | Omit<SessionPromptEntry, keyof SessionEntryBase>
+  | Omit<SessionTerminalIssueEntry, keyof SessionEntryBase>
+  | Omit<SessionAuditFindingEntry, keyof SessionEntryBase>
+  | Omit<SessionNoteEntry, keyof SessionEntryBase>
+  | Omit<SessionGitDiffEntry, keyof SessionEntryBase>
+
+export interface SessionState {
+  entries: SessionEntry[]
+  noProject: boolean
+  /** Count of pinned entries — included on every session:changed broadcast for toolbar badge. */
+  pinnedCount: number
+}
+
+export interface SessionHandoffResult {
+  copied: boolean
+  text: string
+  findings: SecretFinding[]
+  noProject?: boolean
+  pinnedCount: number
+}
+
+/** Project AI documentation discovered on disk for context sync. */
+export interface ProjectAiDocs {
+  noProject?: boolean
+  agentsMd: string | null
+  /** Relative paths under `.cursor/rules/` with truncated content previews. */
+  cursorRules: { name: string; content: string }[]
+  contextReadme: string | null
+}
+
+/** View of `.vibebar-audit.json` for the audit config UI. */
+export interface AuditConfigView {
+  noProject?: boolean
+  configPath?: string
+  rules: { id: string; disabled: boolean }[]
+  baselineCount: number
+  disabledCount: number
+}
+
+export interface AuditAcceptRiskResult {
+  ok: boolean
+  config: AuditConfigView
+}
+
+/** Markdown snippet to append to a note from a finding or session item. */
+export interface NoteAppendInput {
+  title: string
+  fileLine?: string
+  excerpt: string
+}
+
 export type IssueSeverity = 'error' | 'warning' | 'info'
 
 /**
@@ -195,6 +392,8 @@ export interface DetectedIssue {
   source?: 'terminal' | 'audit'
   /** The original audit severity (critical/high/medium/low), for richer chips than error/warn/info. */
   auditSeverity?: AuditSeverity
+  /** Engine confidence for audit findings (taint-confirmed vs heuristic). */
+  confidence?: AuditConfidence
   /** Relative file path of the finding (audit findings). */
   file?: string
   /** 1-based line of the match (audit findings). */
@@ -205,6 +404,28 @@ export interface DetectedIssue {
   cwe?: string
   /** Industry standards mapped to this finding (audit findings). */
   references?: string[]
+  /** New/existing/resolved relative to the previous audit scan (audit findings). */
+  status?: FindingStatus
+}
+
+/** Scan metadata pushed alongside audit findings in the Smart Terminal dock. */
+export interface TerminalAuditSummary {
+  ranAt: number
+  projectName: string | null
+  scannedFiles: number
+  totalCandidates: number
+  truncated: boolean
+  noProject: boolean
+  score?: AuditScore
+  delta?: AuditDelta
+  durationMs?: number
+  cachedFiles?: number
+}
+
+/** Issues panel payload — command-output detections omit `audit`; audit runs include posture metadata. */
+export interface TerminalIssueUpdate {
+  issues: DetectedIssue[]
+  audit: TerminalAuditSummary | null
 }
 
 export interface TerminalRunResult {
@@ -252,6 +473,20 @@ export interface ProjectCommand {
 
 export type AuditSeverity = 'critical' | 'high' | 'medium' | 'low'
 
+/**
+ * How sure the engine is that a finding is a real, reachable issue:
+ * - `high`   — taint/data-flow confirms untrusted input reaches the sink (or an unambiguous match).
+ * - `medium` — a strong structural match, but reachability could not be proven intra-file.
+ * - `low`    — a heuristic/presence signal worth a human look, prone to false positives.
+ */
+export type AuditConfidence = 'high' | 'medium' | 'low'
+
+/** Rough human effort to remediate, surfaced so users can triage quick wins first. */
+export type RemediationEffort = 'trivial' | 'moderate' | 'involved'
+
+/** Whether a finding is new, carried over, or fixed relative to the previous scan of this project. */
+export type FindingStatus = 'new' | 'existing' | 'resolved'
+
 export type AuditCategory =
   | 'Exposed Secrets'
   | 'Access Control'
@@ -259,6 +494,8 @@ export type AuditCategory =
   | 'Auth Flow'
   | 'Supply Chain'
   | 'Config'
+  | 'Cryptography'
+  | 'Data Exposure'
 
 /**
  * A single behavioral/structural security finding. Each finding carries two prompts: one to
@@ -269,6 +506,8 @@ export interface AuditFinding {
   id: string
   category: AuditCategory
   severity: AuditSeverity
+  /** How sure the engine is this is a real, reachable issue (taint-confirmed vs heuristic). */
+  confidence: AuditConfidence
   title: string
   detail: string
   /** Where the signal was found (relative path), if file-based. */
@@ -285,8 +524,42 @@ export interface AuditFinding {
   references?: string[]
   /** A short snippet of matched evidence. */
   evidence?: string
+  /**
+   * Stable, line-independent identity for this finding (hash of rule + file + normalized code).
+   * Lets us diff scans (new vs resolved) and lets users baseline-mute specific findings.
+   */
+  fingerprint: string
+  /** Rough remediation effort, for triage. */
+  remediationEffort?: RemediationEffort
+  /** Set during diffing: whether this finding is new/carried-over relative to the last scan. */
+  status?: FindingStatus
   fixPrompt: string
   testPrompt: string
+}
+
+/** A weighted posture score (0-100) and its letter grade, derived from open findings. */
+export interface AuditScore {
+  /** 0-100, where 100 is "no signals". */
+  value: number
+  grade: 'A' | 'B' | 'C' | 'D' | 'F'
+}
+
+/** Counts of new/resolved/existing findings versus the previous scan of the same project. */
+export interface AuditDelta {
+  new: number
+  resolved: number
+  existing: number
+}
+
+/** Result of exporting an audit report to a file (SARIF or Markdown). */
+export interface AuditExportResult {
+  saved: boolean
+  /** Absolute path written to, when saved. */
+  path?: string
+  /** Why nothing was saved: the user cancelled, no project, or the write failed. */
+  reason?: 'canceled' | 'no-project' | 'write-failed'
+  /** True when the export reused a cached scan instead of re-running. */
+  fromCache?: boolean
 }
 
 export interface AuditReport {
@@ -302,6 +575,14 @@ export interface AuditReport {
   noProject: boolean
   /** True when this run was also mirrored into the open Smart Terminal. */
   mirroredToTerminal?: boolean
+  /** Weighted posture score + grade for the open findings. */
+  score?: AuditScore
+  /** New/resolved/existing counts relative to the previous scan of this project. */
+  delta?: AuditDelta
+  /** Wall-clock duration of the scan in milliseconds. */
+  durationMs?: number
+  /** How many of the scanned files were served from the incremental cache. */
+  cachedFiles?: number
 }
 
 export type { PromptCategory, PromptTemplate, ResolvedVariable, ProjectProfile }
