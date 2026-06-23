@@ -1,63 +1,59 @@
 # Settings
 
-Open **Settings** from the toolbar (gear icon, pinned end) or the command palette.
+Open **Settings** from the toolbar (gear icon) or `Ctrl+Shift+P` → **Open Settings**.
 
 ## Toolbar missing?
 
-**Show toolbar** — restores visibility and resets dock position to default.
+**Show toolbar** brings the bar back and resets dock position. The same recovery paths are listed in [Keyboard shortcuts](./hotkeys).
 
 ## Monitors
 
-Control which displays show the floating toolbar:
+Choose which displays show the floating toolbar. Per-monitor checkboxes plus **Show on all** and **Primary only**.
 
-- Per-monitor toggles
-- **Show on all** / **Primary only** shortcuts
+An empty enabled-display list means **primary display only**.
 
-Same pattern for the **Error Console** (bottom-left diagnostic window on selected monitors).
+The **Error Console** section uses the same pattern. It appears bottom-left on selected monitors and captures renderer errors (with redaction). Closing it on one monitor closes it on all.
 
 ## Dock position
 
-Place the toolbar on **Left**, **Top**, or **Right** edge of the screen.
+**Left**, **Top**, or **Right**. There is no bottom dock.
+
+Default is left.
 
 ## Behavior
 
 | Setting | Default | Effect |
 |---------|---------|--------|
-| **Harden prompts** | On | Guardrails + secret redaction on copy |
+| **Harden prompts by default** | On | Guardrails and secret redaction on copy |
 | **Launch on startup** | Off | Start VibeBar with Windows |
-| **Global hotkeys** | On | Register `Ctrl+Shift+H/P/T` |
+| **Global hotkeys** | On | Register Ctrl+Shift+H / P / T |
 
-**Harden prompts** also appears as a per-panel toggle in Prompt Library.
+The Prompt Library also shows a **Harden prompts** toggle tied to the same setting.
 
 ## Quick Launch
 
-Configure apps on the toolbar launch cluster:
+Built-in launchers: **Cursor** and **Codex**. For each app you can:
 
-- Show/hide **Cursor**, **Codex**, and custom entries
-- Set executable path per app
-- Add or remove custom launchers
+- Show or hide it on the toolbar
+- Set the executable path (pencil icon)
+- Remove it
 
-Quick Launch opens the app scoped to your **current project path**.
+**Add application** for custom editors or tools. Launch opens the app on your **current project path** when one is selected.
 
 ## Footer
 
-**Quit VibeBar** — closes the app (toolbar power button shows a confirmation first).
+**Quit VibeBar** exits immediately. The toolbar **Power** button shows a confirmation dialog first.
 
-## What is not in Settings (today)
+## Not in Settings today
 
-These are not configurable in the current app:
+These are not configurable in the current release:
 
-- Custom keyboard shortcut rebinding
-- Prompt style presets (minimal vs detailed)
+- Remapping global hotkeys
+- Prompt length presets (minimal vs detailed)
 - Direct AI API keys or send-to-model integration
-- Auto-scan frequency sliders
-- Privacy / cloud toggles (scanning is local)
-
-## Error Console
-
-When enabled on a monitor, captures renderer errors with redaction for debugging. Configure monitors alongside the toolbar in Settings.
+- Privacy or cloud toggles (scanning is local)
 
 ## Related
 
 - [Keyboard shortcuts](./hotkeys)
-- [Prompt Library — guardrails](/features/prompt-library#guardrails)
+- [Prompt Library guardrails](/features/prompt-library#guardrails)

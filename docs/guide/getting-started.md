@@ -1,25 +1,25 @@
-# Getting Started
+# Install & setup
 
-You'll be up and running in a few minutes. VibeBar is a Windows desktop app — no server setup, no API keys required to start.
+VibeBar is a desktop app. No server, no API keys, no account. Install it, pick a project, and you are ready.
 
 ## Requirements
 
 | Requirement | Notes |
 |-------------|-------|
-| **Windows 10+** | macOS and Linux are not supported yet |
-| **Node.js 20+** | Only needed if building from source |
-| **Git** | Recommended — powers git status, diff prompts, and change tracking |
-| **[Cursor](https://cursor.com)** or another editor | Optional — Quick Launch opens your editor on the active project |
+| **Windows 10+** | Required. macOS and Linux are not supported yet. |
+| **Node.js 20+** | Only if you build from source. |
+| **Git** | Needed for git status, diff prompts, and pack-changed. |
+| **Cursor or another editor** | Optional. Quick Launch can open Cursor on your active project. |
 
-## Install
+## Install from a release
 
-### Option A — Download a release (recommended)
+This is the easiest path.
 
-1. Open the [releases page](https://github.com/Bridgeware-Dynamics-Business/Vibebar/releases).
-2. Download the latest installer or portable executable.
-3. Run the installer and launch VibeBar.
+1. Go to [Releases](https://github.com/Bridgeware-Dynamics-Business/Vibebar/releases).
+2. Download the latest installer or portable `.exe`.
+3. Run it and launch VibeBar.
 
-### Option B — Run from source
+## Build from source
 
 From the repo root:
 
@@ -28,7 +28,7 @@ npm install
 npm run dev
 ```
 
-Build a distributable:
+To produce a Windows installer:
 
 ```bash
 npm run build
@@ -37,48 +37,48 @@ npm run dist
 
 ## First launch
 
-When VibeBar starts:
+When VibeBar opens:
 
-1. A **floating toolbar** appears at the edge of your screen (dock position is configurable).
-2. If no project is selected, the **onboarding wizard** opens automatically.
+1. A floating toolbar appears on the edge of your screen (left by default).
+2. If no project is selected, the onboarding wizard opens.
 
-### Onboarding wizard (5 steps)
+### Onboarding (5 steps)
 
-| Step | What you do |
-|------|-------------|
-| **Welcome** | Overview of Session Hub, pack/audit/terminal, and pinning |
-| **Project** | Choose your project folder (or skip for now) |
-| **Cursor** | Optionally set the Cursor executable for Quick Launch |
-| **Context** | Optionally create an `AI Context/` folder in your project |
-| **Session** | Learn about Session Hub and **Copy handoff** |
+| Step | What happens |
+|------|----------------|
+| **Welcome** | Short overview of handoffs, packing, audits, and the terminal. |
+| **Project** | Choose a project folder, or skip for now. |
+| **Cursor** | Optionally point Quick Launch at your Cursor install. |
+| **Context** | Optionally create an `AI Context/` folder in the project. |
+| **Session** | Intro to Session Hub and **Copy handoff**. |
 
-You can skip or dismiss the wizard at any time. **Don't show again** persists your choice.
+Use **Skip**, **Don't show again**, or finish with **Got it — start vibing**. Any of those dismisses the wizard for good.
 
-## Pick a project
+## Select a project
 
-Everything in VibeBar is project-scoped:
+Almost everything in VibeBar is scoped to one project folder.
 
 - Click the **folder icon** on the toolbar to browse or pick a recent project.
-- Or press **`Ctrl+Shift+P`** and choose **Switch project…** or a recent entry.
+- Or press `Ctrl+Shift+P` and choose **Switch project…** or a recent entry.
 
-VibeBar remembers your last 10 projects and detects your stack silently (language, framework, test runner, monorepo, etc.).
+VibeBar remembers your last **10** projects. When you switch, it detects your stack in the background (language, framework, test runner, and similar signals).
 
-## Optional: AI Context folder
+## AI Context folder (optional)
 
-Many teams keep assistant-readable docs in `<project>/AI Context/`. VibeBar can create this folder during onboarding, or you can create it anytime from the toolbar folder+ icon.
+Many teams keep assistant-readable material in `<project>/AI Context/`. VibeBar can create this folder during onboarding, or anytime from the **AI Context** button next to the project picker (folder icon with a plus).
 
-This folder receives:
+That folder is where Code Sync mirrors land, screenshot snips save, and you can add your own docs.
 
-- **Code Sync** mirrors (if configured)
-- **Screenshot snips** from **Snip to AI Context**
-- Any docs you add manually
+## Dock and monitors
 
-## Recommended next steps
+Open **Settings** to move the toolbar to the **left, top, or right** edge, or to choose which monitors show it. There is no bottom dock option.
 
-1. [Walk through your first session](/guide/first-session)
-2. [Explore the feature map](/features/)
-3. Skim [keyboard shortcuts](/reference/hotkeys) — three global hotkeys cover most power-user flows
+## What to read next
 
-## Troubleshooting install
+1. [Your first session](/guide/first-session) for a hands-on walkthrough.
+2. [Toolbar & tools](/features/) for the full tool list.
+3. [Keyboard shortcuts](/reference/hotkeys) for the three global hotkeys.
 
-See [Troubleshooting](/help/troubleshooting) if the toolbar doesn't appear, hotkeys conflict with your IDE, or project detection seems off.
+::: tip Toolbar missing?
+Press `Ctrl+Shift+H`, or use the system tray icon → **Show toolbar**. See [Troubleshooting](/help/troubleshooting) for more.
+:::

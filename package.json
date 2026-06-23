@@ -3,6 +3,14 @@
   "version": "1.0.0",
   "private": true,
   "description": "VibeBar — a floating Windows overlay companion for vibe coders: project-aware prompt library, secret scanner, context packer, and continuous AI-context folder sync.",
+  "homepage": "https://bridgeware-dynamics-business.github.io/Vibebar/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Bridgeware-Dynamics-Business/Vibebar.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Bridgeware-Dynamics-Business/Vibebar/issues"
+  },
   "author": "Bridgeware Dynamics Business",
   "license": "SEE LICENSE IN LICENSE",
   "type": "module",

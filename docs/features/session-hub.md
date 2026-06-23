@@ -1,69 +1,83 @@
 # Session Hub
 
-Your session memory — prompts you copied, git diffs, audit findings, and terminal issues in one timeline.
+Session Hub is your working memory for the day. It collects prompts you copied, git diffs, audit fix copies, and terminal issues in one timeline.
 
-## Timeline entries
+## At a glance
 
-Session Hub records:
+| | |
+|---|---|
+| **Opens as** | Panel (detachable) |
+| **Badge on toolbar** | Pinned item count |
+| **Timeline cap** | 100 visible entries, then **Show N older entries** |
+| **Storage** | `<project>/.vibebar/session.json` (git-ignored) |
 
-| Type | Source |
-|------|--------|
-| **Prompt** | Copied from Prompt Library |
-| **Git diff** | Copied git diff prompt |
-| **Audit finding** | Security Audit copy or scan events |
-| **Terminal issue** | Smart Terminal failure detection |
+## What appears on the timeline
 
-The visible timeline caps at **100 entries** with **Show older** for the rest. Footer shows local **What's next?** heuristics based on recent activity.
+| Type | Added when you… |
+|------|-----------------|
+| **Prompt** | Copy from Prompt Library |
+| **Git diff** | Copy git diff prompt (title: "Git diff copied") |
+| **Audit finding** | Copy fix prompt from Security Audit or terminal audit dock |
+| **Terminal issue** | Copy fix prompt from Smart Terminal |
+| **Note** | Save to note from another panel |
+
+Browsing panels alone does not add entries. **Copy** actions do.
+
+Entries group under **Today** and **Earlier**. The footer shows up to two **What's next?** suggestions based on local heuristics (no LLM).
 
 ## Pinning
 
-Pin items that matter for your current task. The toolbar **Session Hub** badge shows your pin count.
+Pin items you want in a handoff. Unpin when they are done so bundles stay focused.
 
-Pinned items are included in handoffs. Unpin when done to keep handoffs focused.
+The sparkles badge on the toolbar shows **pinned count only**, not total timeline size.
 
 ## Copy actions
 
-| Button | What you get |
-|--------|--------------|
-| **Copy handoff** | Markdown bundle of all pinned items + AGENTS.md excerpt when present |
-| **Copy fix prompts** | Audit and terminal fix prompts only (no full handoff) |
+| Button | Contents |
+|--------|----------|
+| **Copy handoff (N)** | Pinned items, project/stack header, `AGENTS.md` excerpt (up to 2048 chars), suggested next steps, git diff summary |
+| **Copy fix prompts (N)** | Pinned audit and terminal fix prompts only |
 
-Both respect secret redaction when guardrails are enabled.
+Both respect secret redaction when guardrails are on.
 
-**Palette shortcut:** **`Ctrl+Shift+P`** → **Copy session handoff**
+**Copy handoff** requires at least one pinned item. If nothing is pinned, VibeBar shows a notice (including from palette → **Copy session handoff**).
 
 ## Filters
 
-Filter the timeline by entry type to focus on audits, terminal issues, or prompts.
+Timeline filter chips: **All**, **Prompts**, **Audit**, **Terminal**, **Git**.
+
+Note-type entries exist but do not have their own filter chip.
 
 ## Sync project context
 
-**Sync / view AI docs** reads project assistant configuration:
+The collapsible **Sync project context** section shows status for:
 
 - `AGENTS.md`
-- `.cursor/rules/` (Cursor rules)
-- `AI Context/README.md` when present
+- `.cursor/rules/` (file count)
+- `AI Context/README.md`
 
-Use this before a handoff to ensure agent instructions are current. Same action is available from the command palette.
+**Update AGENTS.md from session** appends a handoff block to your agents file.
+
+Palette → **Sync / view AI docs** opens Session Hub (it does not open a separate docs viewer).
 
 ## Pack changed
 
-From Session Hub, **Pack changed** bundles git-modified files into a clipboard prompt — same as Context Packer's changed-files preset, without opening the packer panel.
+**Pack changed** bundles git-modified files to the clipboard with a token estimate (`chars / 4`). Same idea as Context Packer's Changed files preset without opening the packer.
 
-## Storage
+## Clear session
 
-Session data lives in **`.vibebar/session.json`** inside your project. This file is git-ignored by default. Full prompt text is stored when you copy (for accurate handoffs).
+**Clear session** uses a two-step confirmation. This removes local timeline data in `.vibebar/session.json`.
 
-## Workflow tips
+Full prompt text is stored on copy (up to 8192 chars per entry) so handoffs stay accurate.
 
-**End of day:** Pin open questions → Copy handoff → paste into a Cursor chat or save to [Notes](./notes).
+## Workflow ideas
 
-**Mid-refactor:** Pin the git diff entry and key audit findings so your next prompt has full context.
+**End of day:** Pin open threads, copy handoff, paste into a new Cursor chat tomorrow.
 
-**Team handoff:** Copy handoff includes structured markdown another developer (or agent) can paste directly.
+**Mid-refactor:** Pin the git diff entry and key audit findings before switching branches.
 
 ## Related
 
 - [Your first session](/guide/first-session)
-- [Context Packer](./context-packer)
+- [Files & storage](/reference/files-and-storage)
 - [Security Audit](./security-audit)

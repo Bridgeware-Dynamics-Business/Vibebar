@@ -1,54 +1,54 @@
 # Smart Terminal
 
-An embedded terminal below your workflow — run commands, catch failures, and copy AI-ready fix prompts.
+Smart Terminal is a floating shell window rooted in your project directory. Run commands, catch failures, and copy fix prompts without switching to a separate terminal app.
 
-## What it is
+## At a glance
 
-Smart Terminal is a **built-in shell** (PowerShell, CMD, or Bash depending on environment), not a mirror of your IDE's terminal. It runs in your **project working directory**.
+| | |
+|---|---|
+| **Opens as** | Floating window (not a toolbar panel) |
+| **Shell** | PowerShell, cmd, or bash depending on your environment |
+| **Working directory** | Current project folder |
+| **Hotkey** | `Ctrl+Shift+T` |
 
-Open with the terminal icon or **`Ctrl+Shift+T`**.
+It is a built-in terminal. It does not mirror Cursor's integrated terminal.
 
-## Core features
+## Main features
 
-- **xterm.js terminal** — full shell interaction
-- **Failure detection** — parses output for test failures, errors, non-zero exits
-- **Fix prompts** — one-click copy with error context for Cursor
-- **Project commands** — shortcuts parsed from `package.json` scripts and README
-- **Audit dock** — mirrors Security Audit findings when audit panel has results
-- **Re-run & dismiss** — re-run last command; dismiss resolved issues
+- Full interactive shell via xterm.js
+- **Failure detection** on non-zero exits and common test output patterns
+- **Copy fix prompt** and **Copy test** on issues
+- **Re-run last command** and **Mark resolved** (dismiss)
+- **Project commands** menu: scripts from `package.json`, detected commands, README hints
+- **Audit dock** when Security Audit results are presented in the terminal
 
-## Debugging workflow
+Window position and size persist between sessions.
 
-1. Run `npm test` (or your project's test command).
-2. On failure, the dock highlights the issue.
-3. Click **Copy fix prompt**.
-4. Paste in Cursor — prompt includes error output and relevant context.
-5. After fixing, re-run from the terminal.
-6. **Dismiss** the issue when resolved (or let Session Hub track it).
+## Debug workflow
 
-Terminal issues appear on the [Session Hub](./session-hub) timeline.
+1. Open Smart Terminal (`Ctrl+Shift+T` or palette → **Open Smart Terminal**).
+2. Run your test or build command (try **Project commands** for shortcuts).
+3. On failure, the dock highlights the issue.
+4. **Copy fix prompt**, paste in Cursor, implement.
+5. Re-run in the terminal.
+6. **Mark resolved** when green.
 
-## SARIF / Markdown export
+Fix copies append to [Session Hub](./session-hub).
 
-When audit findings are mirrored in the dock, export options match the Security Audit panel.
+## Security Audit in the terminal
 
-## Window behavior
+When audit results show in the terminal dock, you get the same export options as the audit panel (SARIF, Markdown) and can copy fix prompts without switching views.
 
-Smart Terminal is a floating window (not a detachable panel). It restores saved position and size between sessions.
+If Smart Terminal is already open, clicking **Security Audit** on the toolbar routes new scans to this dock.
 
 ## Tips
 
-- Use **Project commands** for common scripts instead of typing paths.
-- Pair with [Security Audit](./security-audit) — run audit, mirror to terminal, copy fixes without panel switching.
-- If the terminal feels cramped, resize the window — bounds persist.
-
-## What it is not
-
-- Does not attach to Cursor's integrated terminal
-- Does not auto-run commands on audit (you stay in control)
+- cwd follows the selected project. Switch projects if paths look wrong.
+- Shell type is not configurable as an IDE profile would be; it follows your Windows environment.
+- Some tools exit 0 even when output looks wrong. Prefer test runners that fail non-zero, or copy output manually.
 
 ## Related
 
-- [Session Hub](./session-hub)
 - [Security Audit](./security-audit)
-- [Real-world workflows](/workflows/real-world-workflows#debug-a-failing-test)
+- [Session Hub](./session-hub)
+- [Everyday patterns](/workflows/real-world-workflows)

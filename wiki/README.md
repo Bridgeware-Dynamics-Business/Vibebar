@@ -1,19 +1,8 @@
 # VibeBar Wiki (legacy)
 
-The wiki has moved to a dedicated documentation site built with [VitePress](https://vitepress.dev/).
+The wiki now lives in **`docs/`** as a [VitePress](https://vitepress.dev/) site.
 
-**Live site:** [https://bridgeware-dynamics-business.github.io/Vibebar/](https://bridgeware-Dynamics-Business.github.io/Vibebar/)
-
-**Source:** [`docs/`](../docs/) in this repository
-
-## Why the move
-
-The original GitHub wiki markdown in this folder was a strong start but drifted from the shipped app (keyboard shortcuts, audit types, snipping behavior). The new site is:
-
-- Version-controlled alongside the code
-- Aligned with actual toolbar tools and workflows
-- Searchable with local full-text search
-- Deployed automatically to GitHub Pages on merge to `main`
+**Live site:** [https://bridgeware-dynamics-business.github.io/Vibebar/](https://bridgeware-dynamics-business.github.io/Vibebar/)
 
 ## Edit the wiki
 
@@ -21,15 +10,15 @@ The original GitHub wiki markdown in this folder was a strong start but drifted 
 npm run docs:dev
 ```
 
-See [Contributing](../docs/contribute/contributing.md) for PR workflow.
+Open the local URL, edit markdown under `docs/`, open a PR. Merging to `main` deploys to GitHub Pages.
 
-## Legacy pages
+## Legacy markdown
 
-These files remain for reference during migration and may be removed later:
+These GitHub wiki files are outdated and kept only for reference:
 
 - `Home.md`
 - `Getting-Started.md`
 - `Core-Features.md`
 - `Whats-Different.md`
 
-Prefer editing `docs/` instead.
+Always edit `docs/` instead.

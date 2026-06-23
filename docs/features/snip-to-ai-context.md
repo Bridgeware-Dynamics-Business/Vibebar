@@ -1,41 +1,43 @@
 # Snip to AI Context
 
-Capture a screenshot region and save it to your AI Context folder with a copy-ready prompt.
+Snip captures a region of your screen, saves it as a PNG in your AI Context folder, and copies a vision prompt to the clipboard.
 
-## How it works
+## At a glance
 
-1. Click **Snip to AI Context** (crop icon) on the toolbar, or **`Ctrl+Shift+P`** → **Snip to AI context**.
-2. Your display freezes briefly with a selection overlay.
-3. Drag a box over the area you want to capture.
-4. VibeBar saves a **PNG** to `<project>/AI Context/` (or configured folder).
-5. A prompt describing the snip is copied to your clipboard.
+| | |
+|---|---|
+| **Trigger** | Toolbar **Snip to AI Context** or palette → **Snip to AI context** |
+| **Requires** | A selected project |
+| **Saves** | `snip-YYYYMMDD-HHMMSS.png` (or a safe custom name) |
+| **Output** | PNG file + clipboard prompt |
 
-Paste into Cursor when reporting UI bugs, layout issues, or visual regressions.
+## How to snip
 
-## Important distinction
+1. Select your project.
+2. Start snip from the toolbar or command palette.
+3. The screen freezes briefly. Drag a box over the area you want.
+4. VibeBar saves the PNG and copies a prompt describing the capture.
 
-This is **screen capture**, not smart code selection. It does not:
+Paste into Cursor when reporting layout bugs, visual regressions, or error dialogs.
 
-- Parse selected source code
-- Pull imports, callers, or usages
-- Connect to your IDE's selection
+::: warning Screen capture, not code selection
+Snip does not read your IDE selection, imports, or call graph. For code context, use [Context Packer](./context-packer) or [Prompt Library](./prompt-library).
+:::
 
-For code context, use [Context Packer](./context-packer) or [Prompt Library](./prompt-library).
+## Best uses
 
-## Best for
-
-- Visual bugs and layout misalignment
-- Error dialogs and toast messages
-- Design review before/after screenshots
-- Anything where a picture helps the AI more than text
+- Misaligned UI or broken layouts
+- Toast messages and modal text
+- Before/after screenshots for design review
+- Anything where a picture helps more than a text description
 
 ## Tips
 
-- Ensure a project is selected so files land in the right `AI Context/` folder.
-- Name or organize snips in AI Context if you capture many per session.
-- Combine with a text prompt: paste the snip prompt, then add steps to reproduce.
+- VibeBar creates the AI Context folder if needed before saving.
+- Add reproduction steps in the same Cursor message after pasting the snip prompt.
+- Organize snips in subfolders under AI Context if you capture many per session.
 
 ## Related
 
 - [Code Sync](./code-sync)
-- [Real-world workflows](/workflows/real-world-workflows#report-a-ui-bug)
+- [Everyday patterns](/workflows/real-world-workflows)

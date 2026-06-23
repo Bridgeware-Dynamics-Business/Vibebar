@@ -1,64 +1,76 @@
 # Prompt Library
 
-Your starting point for almost every AI interaction. Pick a template, preview variables filled from your project, copy to clipboard, paste in Cursor.
+The Prompt Library is where most sessions start. Pick a template, copy it with your project context filled in, and paste it into Cursor.
 
-## What it does
+## At a glance
 
-- **Built-in prompts** — curated templates with guardrails per category
-- **Custom prompts** — create, edit, and delete your own
-- **Stack filtering** — prompts tagged for your detected framework and language rise to the top
-- **Favorites & history** — star templates and revisit recent copies
-- **Harden prompts** — optional guardrails and secret redaction on every copy
+| | |
+|---|---|
+| **Opens as** | Panel (detachable) |
+| **Needs** | A selected project for stack-aware filtering |
+| **Output** | Clipboard text (not sent to an API) |
+| **Also writes to** | Session Hub timeline on copy |
+
+## What you get
+
+- **Built-in templates** across 12 categories, filtered by your detected stack
+- **Custom prompts** you author and store locally
+- **Favorites** and a **Recent** row (up to 8 chips from your last copies)
+- **Harden prompts** toggle for guardrails and secret redaction
 
 ## Categories
 
-Built-in prompts are organized into:
+Filter chips in the panel header:
 
-Security · Debugging · Context · Code Review · Refactor · Performance · Testing · Deploy · UI/UX · Docs · Database · Auth
+**All**, then Security, Debugging, Context, Code Review, Refactor, Performance, Testing, Deploy, UI/UX, Docs, Database, Auth.
 
-Filter by category in the panel header. **All** shows everything matching your stack tags.
+Prompts tagged for your framework and language sort to the top. The header shows a stack summary like `React · TypeScript · Vitest`.
 
-## How copy works
+## How to copy a prompt
 
-1. Open **Prompt Library** from the toolbar or palette.
-2. Search or filter by category.
-3. Click a prompt card → **Copy** (or preview first).
-4. VibeBar fills template variables from your [project profile](/features/#how-features-connect) — framework, language, paths, etc.
-5. If **Harden prompts** is enabled, guardrails append and secrets are redacted.
-6. Paste into Cursor chat.
+1. Open **Prompt Library** from the toolbar or `Ctrl+Shift+P` → **Open Prompt Library**.
+2. Search or pick a category.
+3. Click **Copy** on a card (preview first if you prefer).
+4. VibeBar fills template variables from your project profile.
+5. Paste into Cursor.
 
-There is **no direct send-to-AI API** — the workflow is copy → paste → implement.
+::: info No direct AI send
+VibeBar prepares the clipboard. You paste into Cursor or any chat. Quick Launch on the copy toast can open Cursor on your project.
+:::
 
 ## Guardrails
 
-Category-aware guardrails include:
+When **Harden prompts** is on (default), templates can append rules like:
 
-- `no-secrets` — strip detected secrets before copy
-- `no-innerHTML` — security-focused templates
-- `parameterized-queries` — database templates
-- `validate-input` — auth and testing templates
+| Guardrail | Typical use |
+|-----------|----------------|
+| `no-secrets` | Strip detected secrets before copy |
+| `no-innerHTML` | Security-sensitive templates |
+| `parameterized-queries` | Database templates |
+| `validate-input` | Auth and testing templates |
+| `keep-context-isolation` | Context boundaries |
+| `no-eval` | Unsafe execution patterns |
 
-Toggle **Harden prompts** in the library header or globally in [Settings](/reference/settings).
+Toggle in the library header or globally in **Settings → Behavior**.
 
 ## Custom prompts
 
-Click **New prompt** to open the editor. A stack-aware draft seeds:
+Click **New prompt**. The editor seeds a draft with categories, stack tags, guardrails, and variable placeholders.
 
-- Title and description
-- Categories and stack tags
-- Starter guardrails
-- Variable placeholders wired to project context
+Custom prompts save to your local app config. Built-in prompts cannot be edited, only copied.
 
-Save custom prompts to your local store. Built-in prompts cannot be edited, only copied.
+## Prompt Library vs Security Audit
+
+**Performance**, **Testing**, and similar categories are **prompt templates**, not automated scans. For repo-wide security scanning, use [Security Audit](./security-audit).
 
 ## Tips
 
-- Check the stack summary under the panel header — if it says "stack unknown", select a project with a recognizable `package.json` or config.
-- Use **Performance** or **Testing** category prompts when you want focused advice — these are templates, not automated scans (see [Security Audit](./security-audit) for automated scanning).
-- Detach the panel (pop-out button) to keep prompts visible while coding.
+- If the stack summary says **stack unknown**, select the project root with a recognizable `package.json` or config.
+- Detach the panel to keep it visible while you code.
+- Copied prompts appear in [Session Hub](./session-hub) for pinning and handoffs.
 
 ## Related
 
-- [Command palette](./command-palette) — `Open Prompt Library`
-- [Session Hub](./session-hub) — copied prompts appear on the timeline
-- [Context Packer](./context-packer) — when you need raw file content, not a template
+- [Context Packer](./context-packer) when you need raw file contents
+- [Command palette](./command-palette)
+- [Settings](../reference/settings)

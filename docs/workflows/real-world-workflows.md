@@ -1,88 +1,92 @@
-# Real-world workflows
+# Everyday patterns
 
-Practical patterns that match VibeBar as shipped today.
+Recipes for common days with VibeBar. Each matches how the app works today.
 
 ## Pre-PR security pass
 
 **Goal:** Catch issues before review without leaving your flow.
 
-1. Select the project; open **Security Audit**.
-2. Review critical/high findings; **Copy fix prompt** for each.
-3. Paste into Cursor; implement fixes.
-4. **`Ctrl+Shift+T`** → `npm test` (or your test script).
-5. Re-run audit; baseline accepted risks in `.vibebar-audit.json` if needed.
-6. **Copy git diff prompt** (GitHub badge right-click or palette) for a final review prompt.
-7. Pin key items in Session Hub; **Copy handoff** if handing off to CI or a teammate.
+1. Select the project. Open **Security Audit**.
+2. Triage critical and high findings. **Copy fix prompt** for each.
+3. Paste in Cursor. Implement fixes.
+4. `Ctrl+Shift+T` → run your test script in Smart Terminal.
+5. Re-run the audit. **Accept risk** on findings you are knowingly shipping.
+6. **Right-click** the GitHub badge → copy git diff prompt for a final review message.
+7. Pin key items in Session Hub. **Copy handoff** if someone else picks up the PR.
+
+Commit `.vibebar-audit.json` rule toggles if your team shares them.
 
 ## Debug a failing test
 
 **Goal:** Turn terminal output into a useful Cursor prompt.
 
-1. Open Smart Terminal (**`Ctrl+Shift+T`**).
-2. Run the failing command (use **Project commands** if available).
+1. Open Smart Terminal (`Ctrl+Shift+T`).
+2. Run the failing command (try **Project commands**).
 3. When the dock shows an issue, **Copy fix prompt**.
-4. Paste in Cursor; apply the fix.
-5. Re-run in terminal; **Dismiss** when green.
-6. Optional: **Save to note** from the terminal issue for your PR checklist.
+4. Paste in Cursor. Apply the fix.
+5. Re-run. **Mark resolved** when green.
+6. Optional: **Save to note** for your PR checklist.
 
 ## Report a UI bug
 
-**Goal:** Give the model visual + textual context.
+**Goal:** Give the model something visual.
 
 1. Reproduce the bug on screen.
-2. **Snip to AI Context** → select the affected region.
-3. Paste the copied snip prompt into Cursor.
-4. Add reproduction steps in the same chat.
-5. Pin the session entry if the fix spans multiple iterations.
+2. **Snip to AI Context** over the affected area.
+3. Paste the copied prompt into Cursor.
+4. Add numbered reproduction steps in the same chat.
+5. Pin the session entry if the fix takes multiple rounds.
 
-## Hand off to tomorrow-you (or another agent)
+## Hand off to tomorrow-you
 
-**Goal:** One pasteable bundle of everything that mattered today.
+**Goal:** One pasteable bundle for the next session.
 
-1. Throughout the day, **pin** prompts, audit findings, and terminal issues in Session Hub.
-2. **Sync / view AI docs** to refresh AGENTS.md / Cursor rules in context.
-3. End of day: **Copy handoff**.
-4. Start tomorrow's Cursor chat by pasting the handoff.
+1. During the day, **pin** prompts, audit copies, and terminal issues in Session Hub.
+2. Open Session Hub → **Sync project context** to check `AGENTS.md` and Cursor rules.
+3. End of day: **Copy handoff** (requires pins).
+4. Start tomorrow's chat by pasting the handoff.
 
-Handoffs include AGENTS.md excerpts when the file exists.
+Handoffs include an `AGENTS.md` excerpt when the file exists.
 
-## Onboard a new repo
+## Set up a new repo
 
-**Goal:** Get assistant context standing quickly.
+**Goal:** Stand up assistant context quickly.
 
-1. Complete onboarding: project → Cursor path → **Create AI Context folder**.
-2. Set up **Code Sync** for `src/` or key packages → `AI Context/`.
-3. Run **Security Audit** once for baseline.
-4. Copy a **Context** category prompt from Prompt Library to generate or refine `AGENTS.md`.
-5. **Sync / view AI docs** to confirm rules are picked up.
+1. Finish onboarding: project → Cursor path → create **AI Context** folder.
+2. Open **Code Sync**. Mirror `src/` or key packages into `AI Context/`.
+3. Run **Security Audit** once for a baseline.
+4. Copy a **Context** prompt from the library to draft or refine `AGENTS.md`.
+5. Session Hub → confirm AI docs section looks right.
 
 ## Dependency upgrade day
 
-**Goal:** Supply chain + static issues after `npm update`.
+**Goal:** Catch supply chain and static issues after updates.
 
 1. Enable npm audit in Security Audit.
-2. Rescan; triage new advisories.
-3. Copy fix prompts for upgrades that need code changes.
-4. Smart Terminal: run test suite after each batch.
+2. Rescan. Triage new advisories.
+3. Copy fix prompts where code must change.
+4. Batch test in Smart Terminal between upgrades.
 5. Export **SARIF** if your pipeline ingests it.
 
-## Monorepo: work on one package
+## Work in one package of a monorepo
 
-**Goal:** Keep context scoped.
+**Goal:** Keep context scoped to one package.
 
-1. Switch project to the package root (not always the monorepo root).
-2. Context Packer → **Changed files** or **Entry points** preset.
-3. Session Hub **Pack changed** for quick copies without opening the tree.
-4. Use stack summary in Prompt Library to confirm detection matches the package.
+1. Switch project to the **package root**, not always the monorepo root.
+2. Context Packer → **Changed files** or **Entry points**.
+3. Session Hub → **Pack changed** for quick copies.
+4. Confirm Prompt Library stack summary matches that package.
 
-## When VibeBar is not enough
+## When to reach for something else
 
-- **Runtime-only bugs** — reproduce in terminal, copy fix prompt with stack trace.
-- **Architecture decisions** — Prompt Library **Code Review** or **Refactor** templates + Context Packer for design docs.
-- **Team policy** — commit `.vibebar-audit.json` toggles; document accepted risks in Notes.
+| Situation | Try |
+|-----------|-----|
+| Runtime-only bug | Reproduce in Smart Terminal, copy fix prompt with stack trace |
+| Architecture decision | Code Review or Refactor prompts + Context Packer for design docs |
+| Team policy | Commit audit rule toggles; document accepted risks in Notes |
 
 ## Related
 
 - [Your first session](/guide/first-session)
-- [Feature map](/features/)
+- [Toolbar & tools](/features/)
 - [Troubleshooting](/help/troubleshooting)

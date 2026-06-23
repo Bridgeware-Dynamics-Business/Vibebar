@@ -1,94 +1,93 @@
-# Feature map
+# Toolbar & tools
 
-VibeBar is a floating toolbar plus detachable panels and windows. Everything below is available today.
+VibeBar is a floating toolbar plus a set of panels and windows. This page is the map. Each tool has its own page with more detail.
 
 ## Toolbar layout
 
 ```
-[Project] [AI Context] | [Library] [Terminal] [Audit] [Session] [Sync] [Packer] [Notes] [Snip] | [GitHub] [Settings] [Power]
+[Project] [AI Context] | [Library] [Terminal] [Audit] [Session] [Sync] [Packer] [Notes] [Snip] | [GitHub] [Quick Launch…] [Settings] [Power]
 ```
 
-| Tool | Type | Summary |
-|------|------|---------|
-| **Project switcher** | Control | Browse or pick from 10 recent folders |
-| **AI Context folder** | Control | Create or open `<project>/AI Context/` |
-| **Prompt Library** | Panel | Stack-aware templates with guardrails |
-| **Smart Terminal** | Window | Embedded shell + issue/audit dock |
-| **Security Audit** | Panel | Static repo scan with fix prompts |
-| **Session Hub** | Panel | Timeline, pins, handoffs, AI docs sync |
-| **Code Sync** | Window | Mirror folders into AI context |
-| **Context Packer** | Panel | Bundle files into paste-ready prompts |
-| **Notes** | Panel | Project Markdown notes with checklists |
-| **Snip to AI Context** | Action | Screenshot → PNG + prompt |
-| **GitHub Desktop** | Action | Open repo; badge shows branch/changes |
-| **Settings** | Panel | Dock, monitors, hotkeys, Quick Launch |
-| **Quick Launch** | Cluster | Cursor, Codex, and custom apps |
+## Controls (left side)
 
-Panels marked **detachable** can pop out into always-on-top floating windows: Prompt Library, Security Audit, Session Hub, Context Packer, Notes, and Settings.
+| Control | What it does |
+|---------|----------------|
+| **Project picker** | Browse or switch among your 10 most recent project folders. |
+| **AI Context folder** | Creates `<project>/AI Context/` if missing, or opens it in Explorer. Shows a check when the folder exists. |
 
-## How features connect
+## Tools (center)
+
+| Label | UI type | Summary |
+|-------|---------|---------|
+| **Prompt Library** | Panel | Stack-aware prompt templates with guardrails on copy. |
+| **Smart Terminal** | Window | Shell in your project directory with failure detection. |
+| **Security Audit** | Panel | Static repo scan with fix prompts and export. |
+| **Session Hub** | Panel | Session timeline, pins, handoffs, AI docs section. |
+| **Code Sync** | Window | Mirror folders into your AI context directory. |
+| **Context Packer** | Panel | Pack selected or changed files to the clipboard. |
+| **Notes** | Panel | Markdown notes with task lists under `Notes/`. |
+| **Snip to AI Context** | Action | Screen capture saved as PNG plus a vision prompt. |
+
+**Panels** open attached to the toolbar. **Windows** (Terminal, Code Sync) open as separate floating windows. **Actions** run once (snip, GitHub).
+
+### Detachable panels
+
+Prompt Library, Security Audit, Session Hub, Context Packer, Notes, and Settings can pop out into always-on-top floating windows via the detach button in each panel header.
+
+Smart Terminal and Code Sync are always separate windows.
+
+## Pinned controls (right side)
+
+| Control | What it does |
+|---------|----------------|
+| **Open in GitHub Desktop** | Opens the repo. Badge shows change count. **Right-click** when dirty to copy a git diff prompt. |
+| **Quick Launch** | Built-in **Cursor** and **Codex** launchers, plus any apps you add in Settings. Opens on the current project path. |
+| **Settings** | Dock, monitors, behavior, Quick Launch, quit. |
+| **Power** | Quit confirmation (Settings → Quit closes immediately). |
+
+The Session Hub toolbar button shows a badge with your **pinned count**, not total timeline entries.
+
+## How tools connect
 
 ```mermaid
 flowchart TB
-  subgraph detect [Background]
-    PD[Project detector]
-  end
-  subgraph input [You]
-    PL[Prompt Library]
-    CP[Context Packer]
-    SA[Security Audit]
-    ST[Smart Terminal]
-  end
-  subgraph memory [Session]
-    SH[Session Hub]
-    NT[Notes]
-  end
-  subgraph context [AI Context folder]
-    CS[Code Sync]
-    SN[Snips]
-  end
-  PD --> PL
-  PD --> CP
-  SA --> SH
-  ST --> SH
+  PD[Project detector] --> PL[Prompt Library]
+  PD --> CP[Context Packer]
+  SA[Security Audit] --> SH[Session Hub]
+  ST[Smart Terminal] --> SH
   PL --> SH
   SA --> ST
-  CS --> context
-  SN --> context
-  SH -->|Copy handoff| AI[Cursor / AI chat]
-  PL -->|Copy| AI
-  CP -->|Copy| AI
+  CS[Code Sync] --> AC[AI Context folder]
+  SN[Snip] --> AC
+  SH -->|Copy handoff| CUR[Cursor chat]
 ```
 
-## Feature pages
-
-| Page | Read this if you want to… |
-|------|---------------------------|
-| [Prompt Library](./prompt-library) | Use or author stack-aware templates |
-| [Security Audit](./security-audit) | Scan, baseline risks, export SARIF |
-| [Session Hub](./session-hub) | Pin, filter, hand off session context |
-| [Context Packer](./context-packer) | Pack files with token estimates |
-| [Smart Terminal](./smart-terminal) | Run commands and copy fix prompts |
-| [Notes](./notes) | Keep project markdown with task lists |
-| [Code Sync](./code-sync) | Mirror folders for assistants |
-| [Snip to AI Context](./snip-to-ai-context) | Capture UI screenshots |
-| [Command palette](./command-palette) | Power-user shortcuts without clicking |
+Project detection runs quietly when you switch folders. It feeds the Prompt Library, Context Packer presets, and terminal project commands.
 
 ## Global hotkeys
 
 | Shortcut | Action |
 |----------|--------|
-| `Ctrl+Shift+H` | Hide/show toolbar |
+| `Ctrl+Shift+H` | Hide or show toolbar |
 | `Ctrl+Shift+P` | Command palette |
 | `Ctrl+Shift+T` | Toggle Smart Terminal |
 
-Hotkeys can be disabled in Settings but are **not rebindable**. Details: [Keyboard shortcuts](/reference/hotkeys).
+Toggle hotkeys in **Settings → Behavior**. They cannot be remapped in the app today. See [Keyboard shortcuts](/reference/hotkeys).
 
-## Data on disk
+## Tool documentation
 
-| Path | Purpose |
-|------|---------|
-| `.vibebar/session.json` | Session timeline and pins (git-ignored) |
-| `.vibebar-audit.json` | Audit baselines and rule toggles |
-| `<project>/Notes/` | Markdown notes |
-| `<project>/AI Context/` | Sync target, snips, assistant docs |
+| Page | When to read it |
+|------|-----------------|
+| [Prompt Library](./prompt-library) | Templates, categories, custom prompts |
+| [Security Audit](./security-audit) | Scanning, baselines, export |
+| [Session Hub](./session-hub) | Pins, handoffs, AI docs |
+| [Context Packer](./context-packer) | File bundles and presets |
+| [Smart Terminal](./smart-terminal) | Commands, failures, audit dock |
+| [Notes](./notes) | Project markdown notes |
+| [Code Sync](./code-sync) | Folder mirroring |
+| [Snip to AI Context](./snip-to-ai-context) | Screenshots |
+| [Command palette](./command-palette) | All palette actions |
+
+## Where data lives
+
+See [Files & storage](/reference/files-and-storage) for paths like `.vibebar/session.json`, `.vibebar-audit.json`, and `Notes/`.

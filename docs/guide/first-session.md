@@ -1,108 +1,108 @@
-# Your First Session
+# Your first session
 
-This walkthrough matches how VibeBar is actually built today — copy-to-clipboard prompts, not direct AI API calls.
+This walkthrough follows the real VibeBar workflow: copy a prompt, paste it in Cursor, implement, verify, and optionally hand off. VibeBar does not send prompts to an AI API for you.
 
-## The vibe coding loop
+## The loop
 
 ```mermaid
 flowchart LR
   A[Select project] --> B[Code in Cursor]
   B --> C{Need AI help?}
-  C -->|Prompt| D[Prompt Library]
-  C -->|Context| E[Context Packer / Git diff]
+  C -->|Template| D[Prompt Library]
+  C -->|Files| E[Context Packer]
   C -->|Security| F[Security Audit]
-  D --> G[Copy to clipboard]
+  D --> G[Copy]
   E --> G
   F --> G
-  G --> H[Paste in Cursor chat]
-  H --> I[Implement fix]
-  I --> J[Smart Terminal: verify]
+  G --> H[Paste in Cursor]
+  H --> I[Implement]
+  I --> J[Smart Terminal]
   J --> K[Pin in Session Hub]
-  K --> L[Copy handoff when switching tasks]
+  K --> L[Copy handoff]
 ```
 
-## Scenario: fix something before you commit
+## Before you commit: review auth code
 
-You're working on auth code. Something feels off, but you're not sure how to explain it to Cursor.
+You are working on authentication. Something feels wrong, but describing it in chat would take several messages.
 
-### 1. Select your project
+### 1. Select the project
 
-Click the folder icon or use **`Ctrl+Shift+P`** → **Switch project…**.
+Click the folder icon, or `Ctrl+Shift+P` → **Switch project…**.
 
-The toolbar shows your detected stack (e.g. `React · TypeScript · Vitest`).
+The Prompt Library header should show your stack (for example `React · TypeScript · Vitest`). If it says stack unknown, you may have opened a subfolder instead of the project root.
 
-### 2. Run a security audit
+### 2. Run Security Audit
 
-Click **Security Audit** (scan icon) on the toolbar.
+Click **Security Audit** on the toolbar.
 
-- VibeBar scans your repo with a read-only static engine.
-- Findings appear with severity, rule ID, and **Copy fix prompt** actions.
-- Optional: enable **npm audit** advisories for supply-chain issues.
+VibeBar runs a read-only static scan across your repo. Findings show severity, confidence, file path, and buttons to **Copy fix prompt** or **Copy test prompt**. You can also enable **npm audit** for supply-chain advisories when a lockfile is present.
 
-When you copy a fix prompt, guardrails and secret redaction apply automatically if **Harden prompts** is on.
+If **Harden prompts** is on (default), guardrails apply and secrets are redacted before copy.
 
-### 3. Paste into Cursor
+::: info Smart Terminal already open?
+If Smart Terminal is open, clicking **Security Audit** on the toolbar routes results to the terminal audit dock instead of opening the audit panel.
+:::
 
-Paste the copied prompt into Cursor chat. The prompt already includes relevant file paths, finding details, and project context — no back-and-forth to gather code.
+### 3. Paste in Cursor
 
-Use **Open Cursor** on the copy toast (if Quick Launch is configured) to jump back quickly.
+Paste the copied prompt into Cursor chat. It already includes finding details and file context.
+
+The copy toast may offer **Open Cursor** if Quick Launch is configured.
 
 ### 4. Verify in Smart Terminal
 
-Press **`Ctrl+Shift+T`** to open the Smart Terminal.
+Press `Ctrl+Shift+T` to open Smart Terminal, then run your tests:
 
 ```bash
 npm test
 ```
 
-If a command fails, the terminal dock surfaces the error. Click **Copy fix prompt** to get a debugging prompt with the failure output.
+If the command fails, the dock surfaces the issue. Click **Copy fix prompt** to get output formatted for Cursor.
 
 ### 5. Pin and hand off
 
-Open **Session Hub** (sparkles icon). Your copied prompts, audit findings, and terminal issues appear on the timeline.
+Open **Session Hub**. Copied prompts, audit fix copies, and terminal issues appear on the timeline.
 
-- **Pin** the items that matter for your current task.
-- When you're done or switching context, click **Copy handoff** for one structured markdown bundle.
-- Or use **`Ctrl+Shift+P`** → **Copy session handoff**.
+**Pin** the entries you want to keep. The sparkles badge on the toolbar shows your pin count.
 
-Handoffs include pinned items plus an AGENTS.md excerpt when present.
+When you are ready to wrap up, click **Copy handoff**. That bundles pinned items plus an `AGENTS.md` excerpt when the file exists. You need at least one pinned item; otherwise VibeBar shows a notice.
 
-## Scenario: pack context for a refactor
+You can also use `Ctrl+Shift+P` → **Copy session handoff**.
 
-1. Open **Context Packer** (package icon).
-2. Use the **Changed files** preset or expand the tree and select files.
-3. Click **Pack & copy** — token estimate shown before copy.
+## Pack files for a refactor
+
+1. Open **Context Packer**.
+2. Click the **Changed files** preset, or pick files in the tree.
+3. Check the token estimate, then **Pack & copy**.
 4. Paste into Cursor with your refactor instructions.
 
-**Faster path:** **`Ctrl+Shift+P`** → **Pack changed files**.
+Shortcut: `Ctrl+Shift+P` → **Pack changed files**.
 
-## Scenario: git diff as a prompt
+## Copy your git diff
 
-If you have uncommitted changes:
+When you have local changes:
 
-- Right-click the **GitHub** badge on the toolbar → **Copy git diff prompt**, or
-- **`Ctrl+Shift+P`** → **Copy git diff prompt**
+- **Right-click** the GitHub badge on the toolbar → copy git diff prompt (left-click opens GitHub Desktop).
+- Or `Ctrl+Shift+P` → **Copy git diff prompt**.
 
-Session Hub also logs diff events when you copy.
+Session Hub logs an entry when you copy.
 
-## Scenario: screenshot for UI bugs
+## Screenshot a UI bug
 
-1. Click **Snip to AI Context** (crop icon) or palette → **Snip to AI context**.
-2. Drag a box over the screen (display freezes briefly).
-3. PNG saves to `AI Context/` and a copy-ready prompt lands on your clipboard.
+1. Click **Snip to AI Context**, or `Ctrl+Shift+P` → **Snip to AI context**.
+2. Drag a box over the screen.
+3. A PNG saves to your AI Context folder and a vision prompt copies to the clipboard.
 
-This is a **screen capture**, not in-editor code selection.
+This captures the screen. It does not select code inside your editor.
 
 ## End of session
 
-Before you close VibeBar or switch projects:
+- Review pins in Session Hub.
+- **Copy handoff** if you are switching tasks or ending for the day.
+- Session data lives in `.vibebar/session.json` (git-ignored). See [Files & storage](/reference/files-and-storage).
 
-- Review pinned items in Session Hub.
-- **Copy handoff** if you're handing off to another agent or tomorrow-you.
-- Session data lives in `.vibebar/session.json` (git-ignored).
+## Continue reading
 
-## What's next
-
-- [Real-world workflows](/workflows/real-world-workflows) — deeper scenarios
-- [Feature map](/features/) — every toolbar tool explained
-- [What makes VibeBar different](/philosophy/whats-different) — the communication-layer philosophy
+- [Everyday patterns](/workflows/real-world-workflows)
+- [Toolbar & tools](/features/)
+- [Why VibeBar exists](/philosophy/whats-different)

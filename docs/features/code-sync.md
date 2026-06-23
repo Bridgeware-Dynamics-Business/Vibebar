@@ -1,40 +1,43 @@
 # Code Sync
 
-One-way folder mirroring into your AI Context folder so assistants always see up-to-date project slices.
+Code Sync mirrors folders from your project into an AI context directory so assistants always see fresh copies of the files you choose.
 
-## What it does
+## At a glance
 
-Code Sync watches a **source folder** in your project and mirrors files to a **destination** (typically `AI Context/` or a subfolder). Multiple sync instances can run per project.
-
-Open **Code Sync** from the toolbar (folder-sync icon).
+| | |
+|---|---|
+| **Opens as** | Floating window (toolbar toggle) |
+| **Direction** | One-way: source → destination |
+| **Instances** | Up to 16 sync pairs per project |
+| **Defaults** | 100 MB max file size, 350 ms debounce |
 
 ## Typical setup
 
 | Source | Destination | Why |
 |--------|-------------|-----|
 | `src/components/` | `AI Context/components/` | UI work with Cursor |
-| `docs/` | `AI Context/docs/` | Assistant-readable specs |
-| API route folder | `AI Context/api/` | Backend context |
+| `docs/` | `AI Context/docs/` | Specs and references |
+| API routes folder | `AI Context/api/` | Backend context |
 
-Sync is **one-way** — changes in the destination are overwritten on the next sync. Edit source files in your repo, not the mirror.
+Edit files in the **source** tree. The mirror overwrites destination copies on sync. Do not treat the mirror as the source of truth.
 
 ## Multiple instances
 
-Add separate sync pairs for different parts of a monorepo. Each instance runs independently.
+Add separate sync pairs for different parts of a monorepo. Each runs independently.
 
-## Pair with other context tools
+## Works well with
 
-- **[Snip to AI Context](./snip-to-ai-context)** saves screenshots into the same folder tree
-- **Session Hub → Sync / view AI docs** surfaces AGENTS.md and Cursor rules alongside synced files
-- **[Prompt Library](./prompt-library)** templates can reference paths under AI Context
+- **[Snip to AI Context](./snip-to-ai-context)** saving PNGs into the same folder tree
+- **Session Hub → Sync project context** for `AGENTS.md`, Cursor rules, and AI Context README
+- **[Prompt Library](./prompt-library)** templates that reference paths under AI Context
 
 ## Tips
 
-- Keep sync destinations out of production build paths.
-- Use `.gitignore` on `AI Context/` if screenshots and mirrors shouldn't be committed.
-- After large refactors, pause sync, clear destination, resume to avoid stale files.
+- Keep sync destinations out of production build output.
+- Use `.gitignore` on `AI Context/` if mirrors and snips should not be committed.
+- After large refactors, pause sync, clear stale destination files, then resume.
 
 ## Related
 
-- [Getting started — AI Context folder](/guide/getting-started#optional-ai-context-folder)
-- [Snip to AI Context](./snip-to-ai-context)
+- [Install & setup](/guide/getting-started#ai-context-folder-optional)
+- [Files & storage](/reference/files-and-storage)

@@ -1,42 +1,49 @@
 # Command palette
 
-Fuzzy-search every major action without reaching for toolbar buttons.
+The command palette is fuzzy search for almost every VibeBar action. Faster than hunting toolbar buttons once you learn a few names.
 
 ## Open
 
-Press **`Ctrl+Shift+P`** (global hotkey, works when toolbar is visible).
+Press `Ctrl+Shift+P` (also restores the toolbar if it was hidden).
 
-Type to filter. Navigate with **↑/↓**, run with **Enter**, close with **Esc**.
+Type to filter. Use ↑/↓ to move, Enter to run, Esc to close. Search debounces after 150 ms.
 
-Search debounces at 150ms for responsiveness on large project lists.
+Placeholder text: **Type a command…**
 
 ## Actions
 
-| Action | Description |
-|--------|-------------|
-| **Switch project: {recent}** | Open a recent project (dynamic list) |
+### Recent projects (dynamic)
+
+Up to 10 entries like **Switch project: my-app**, one per recent folder.
+
+### Fixed commands
+
+| Command | What it does |
+|---------|----------------|
 | **Switch project…** | Native folder picker |
 | **Open Session Hub** | Opens Session Hub panel |
-| **Copy session handoff** | Clipboard bundle of pinned items |
-| **Sync / view AI docs** | Session Hub AI docs section |
-| **Audit config** | Opens Security Audit configuration |
+| **Copy session handoff** | Copies handoff (needs ≥1 pinned item) |
+| **Sync / view AI docs** | Opens Session Hub (AI docs section) |
+| **Audit config** | Opens Security Audit panel at config section |
 | **Run security audit** | Opens Security Audit panel |
 | **Open Smart Terminal** | Toggles terminal window |
-| **Copy git diff prompt** | Staged + unstaged diff → clipboard |
-| **Pack changed files** | Git-changed files → clipboard |
+| **Copy git diff prompt** | Staged + unstaged diff as prompt |
+| **Pack changed files** | Git-changed files to clipboard |
 | **Open Prompt Library** | Opens library panel |
-| **Snip to AI context** | Starts screenshot snip |
+| **Snip to AI context** | Starts screen snip |
 | **Open Context Packer** | Opens packer panel |
 | **Open Notes** | Opens notes panel |
 | **Open Settings** | Opens settings panel |
 
-## Tips
+## Cursor conflict
 
-- **`Ctrl+Shift+P` opens the palette**, not Prompt Library directly — search "prompt" or "library" to open it.
-- Recent projects appear at the top when you type "switch" or a folder name.
-- If hotkeys conflict with Cursor, disable global hotkeys in [Settings](/reference/settings) and use the tray menu.
+Cursor also uses `Ctrl+Shift+P` for its own palette. If VibeBar's palette does not open, click the VibeBar toolbar first or adjust shortcuts in one of the apps. You can disable VibeBar global hotkeys in Settings and use the toolbar instead.
+
+## No global shortcut for these
+
+Prompt Library, Security Audit, Session Hub, Context Packer, Notes, and Snip have no dedicated hotkeys. Search the palette by name.
 
 ## Related
 
 - [Keyboard shortcuts](/reference/hotkeys)
-- [Feature map](/features/)
+- [Toolbar & tools](/features/)

@@ -1,86 +1,68 @@
-# What Makes VibeBar Different
+# Why VibeBar exists
 
-There are many AI coding tools — Copilot, Cursor, Claude Code, ChatGPT, local models. They're all useful. VibeBar exists for a different layer: **the communication between you and the model**.
+Cursor, Copilot, Claude Code, and local models are good at writing code. The hard part is often the conversation: getting the model to understand your project on the first message.
 
-## The prompting problem
+VibeBar focuses on that communication layer. It sits beside your editor and prepares context before you paste.
 
-Most developers are great at code and mediocre at prompting — not from lack of intelligence, but because prompting is a new skill nobody taught.
+## The back-and-forth problem
 
-The classic loop:
+A familiar pattern:
 
 ```
 You: "Can you fix this bug?"
 AI:  "What bug?"
-You: "The function returns null sometimes"
-AI:  "I need to see the code"
-You: [pastes code]
-AI:  "This looks okay to me"
-You: "But it breaks when the API is slow"
-AI:  [finally understands]
+You: "The function returns null sometimes."
+AI:  "Can I see the code?"
+You: [pastes a snippet]
+AI:  "This looks fine to me."
+You: "It breaks when the API is slow."
+AI:  [finally has enough to help]
 ```
 
-Three messages before the AI has enough context. VibeBar's job is to front-load that context so the first message works.
+None of those messages is unreasonable. Together they waste time. VibeBar front-loads file paths, stack hints, diffs, and scan results so the first paste is closer to complete.
 
-## How VibeBar solves it
+## What VibeBar does differently
 
-### Project awareness (automatic)
+### Background project detection
 
-When you select a project, VibeBar silently detects:
+When you pick a folder, VibeBar detects language, framework, test runner, and related signals. That feeds the Prompt Library, Context Packer presets, and terminal project commands. There is no separate "Analyze project" button.
 
-- Language and framework
-- Test runner and package manager signals
-- Monorepo layout
-- Common config files
+### Copy, then paste in Cursor
 
-This powers Prompt Library variables, Context Packer presets, and terminal project commands. You don't click "Analyze" — detection runs in the background.
+VibeBar does not replace your AI editor or hold API keys for you. It puts guardrailed text on the clipboard. You paste where you already work. Quick Launch can open Cursor on your project from the copy toast.
 
-### Copy-first, paste-in-Cursor workflow
+### Tools for specific jobs
 
-VibeBar does not replace your AI editor. It prepares **clipboard-ready prompts** with guardrails and redaction, then you paste into Cursor (or any chat). Quick Launch opens Cursor on your project when the copy toast offers it.
-
-That keeps you in control of what the model sees and avoids API key sprawl.
-
-### Purpose-built tools, not generic chat
-
-| Tool | Communication problem it solves |
-|------|----------------------------------|
-| **Prompt Library** | "I don't know how to ask for this" |
-| **Context Packer** | "The model needs these exact files" |
-| **Security Audit** | "Find issues and phrase fixes correctly" |
-| **Session Hub** | "I'm losing context across prompts" |
-| **Smart Terminal** | "Turn this error into a useful prompt" |
-| **Git diff prompt** | "Explain what changed without manual diff paste" |
+| Tool | Problem it targets |
+|------|-------------------|
+| Prompt Library | "I do not know how to ask for this." |
+| Context Packer | "The model needs these exact files." |
+| Security Audit | "Find issues and phrase fixes correctly." |
+| Session Hub | "I am losing thread across prompts." |
+| Smart Terminal | "Turn this error output into a useful prompt." |
+| Git diff prompt | "Summarize what changed without manual diff paste." |
 
 ### Guardrails by default
 
-Security-sensitive categories attach guardrails (`no-secrets`, `parameterized-queries`, etc.). Optional **Harden prompts** redacts secrets on copy. For a security-focused tool, that's non-negotiable.
+Security-related templates can attach rules like `no-secrets` and `parameterized-queries`. With **Harden prompts** on, secrets are redacted before copy. For a security-focused app, that is intentional.
 
-## Real comparison: fixing a vulnerability
+## A concrete example
 
-**Without VibeBar:** six messages to explain code, database setup, logging patterns, and constraints.
+Fixing a vulnerability without VibeBar often takes many messages: paste code, explain your DB layer, mention audit logging, clarify constraints.
 
-**With VibeBar:**
+With VibeBar:
 
-1. Run Security Audit
-2. Copy fix prompt on the finding
-3. Paste once — prompt includes file context, rule ID, and project-aware instructions
-4. Implement and verify in Smart Terminal
+1. Run Security Audit.
+2. Copy fix prompt on the finding.
+3. Paste once (file context and rule ID included).
+4. Verify in Smart Terminal.
 
-## Why this matters
+## Source-available, not open source
 
-Time saved isn't just fewer messages:
+VibeBar is **source-available** under the PolyForm Internal Use License. You can read the code, run it, and contribute improvements back. Forking to submit PRs is allowed. Distribution or competing products need written permission. See [Contributing](/contribute/contributing).
 
-- **Focus** — stay in code, not context-switching to explain
-- **Accuracy** — model gets the full picture immediately
-- **Consistency** — prompts follow your stack and guardrails
-- **Learning** — you see what good context looks like
+The goal is a tool shaped by real workflows, not a generic chat wrapper.
 
-## Source-available, community-shaped
+## Next
 
-VibeBar is **source-available** — you can read the code, use it, and contribute improvements back. See [Contributing](/contribute/contributing) and the [LICENSE](https://github.com/Bridgeware-Dynamics-Business/Vibebar/blob/main/LICENSE) for terms.
-
-The goal is a tool shaped by real vibe coding workflows, not a generic AI wrapper.
-
----
-
-Next: [Feature map](/features/) — everything you can do today
+[Toolbar & tools](/features/) · [Your first session](/guide/first-session)

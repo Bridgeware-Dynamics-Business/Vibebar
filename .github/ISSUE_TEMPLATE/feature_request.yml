@@ -8,6 +8,7 @@ body:
       value: |
         Have an idea? Great. Describing the problem first (not just the solution)
         helps us find the best approach together.
+        See the [docs](https://bridgeware-dynamics-business.github.io/Vibebar/features/) if you are unsure whether VibeBar already covers your use case.
   - type: textarea
     id: problem
     attributes:

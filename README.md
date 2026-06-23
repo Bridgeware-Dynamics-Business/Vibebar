@@ -1,8 +1,27 @@
 # VibeBar
 
-**[Wiki / documentation](https://bridgeware-dynamics-business.github.io/Vibebar/)** · [Releases](https://github.com/Bridgeware-Dynamics-Business/Vibebar/releases)
+[![Documentation](https://img.shields.io/badge/docs-read%20online-6366f1?style=for-the-badge)](https://bridgeware-dynamics-business.github.io/Vibebar/)
+[![Releases](https://img.shields.io/github/v/release/Bridgeware-Dynamics-Business/Vibebar?style=for-the-badge&label=download)](https://github.com/Bridgeware-Dynamics-Business/Vibebar/releases)
+[![Windows](https://img.shields.io/badge/platform-Windows%2010%2B-0078d4?style=for-the-badge)](https://github.com/Bridgeware-Dynamics-Business/Vibebar/releases)
 
-VibeBar is a floating Windows companion for **vibe coding** with AI assistants like Cursor. It sits at the edge of your screen and keeps your project context, prompts, security checks, and terminal workflow one click away.
+A floating Windows companion for **vibe coding** with AI assistants like Cursor. It sits at the edge of your screen and keeps your project context, prompts, security checks, and terminal workflow one click away.
+
+## Documentation
+
+**Read the docs:** [bridgeware-dynamics-business.github.io/Vibebar](https://bridgeware-dynamics-business.github.io/Vibebar/)
+
+| If you want to… | Start here |
+|-----------------|------------|
+| Install VibeBar | [Install & setup](https://bridgeware-dynamics-business.github.io/Vibebar/guide/getting-started) |
+| Learn the workflow | [Your first session](https://bridgeware-dynamics-business.github.io/Vibebar/guide/first-session) |
+| See every tool | [Toolbar & tools](https://bridgeware-dynamics-business.github.io/Vibebar/features/) |
+| Fix a problem | [Troubleshooting](https://bridgeware-dynamics-business.github.io/Vibebar/help/troubleshooting) |
+
+New users: [What is VibeBar?](https://bridgeware-dynamics-business.github.io/Vibebar/guide/what-is-vibebar)
+
+## Download
+
+Get the latest Windows installer from **[Releases](https://github.com/Bridgeware-Dynamics-Business/Vibebar/releases)**. Then follow the [install guide](https://bridgeware-dynamics-business.github.io/Vibebar/guide/getting-started).
 
 ## What it does
 
@@ -78,12 +97,18 @@ npm run build
 npm run dist
 ```
 
+Edit the docs site locally: `npm run docs:dev`
+
 ## Requirements
 
 - Windows 10+
 - Node.js 20+
 - Git (for git status, diff, and change tracking)
 - [Cursor](https://cursor.com) or another editor (optional, for Quick Launch)
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) and the [contributing guide](https://bridgeware-dynamics-business.github.io/Vibebar/contribute/contributing) on the docs site.
 
 ## License
 

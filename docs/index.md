@@ -3,37 +3,46 @@ layout: home
 
 hero:
   name: VibeBar
-  text: Bridge the gap between you and your AI
-  tagline: A floating Windows toolbar that keeps project context, prompts, security checks, and terminal workflow one click away while you vibe code in Cursor.
+  text: Your AI coding companion for Windows
+  tagline: A floating toolbar that sits beside your workflow. Copy project-aware prompts, run security scans, pack file context, and keep your session organized while you code with Cursor.
   actions:
     - theme: brand
       text: Get started
       link: /guide/getting-started
     - theme: alt
-      text: Explore features
+      text: See all tools
       link: /features/
     - theme: alt
-      text: Download latest release
+      text: Download for Windows
       link: https://github.com/Bridgeware-Dynamics-Business/Vibebar/releases
 
 features:
-  - title: Project-aware prompts
-    details: Built-in and custom prompt templates wired to your detected stack, with guardrails and secret redaction on copy.
+  - title: Prompt Library
+    details: Stack-aware templates for tests, refactors, reviews, and more. Guardrails and secret redaction run before anything hits your clipboard.
   - title: Security Audit
-    details: Read-only static scan with fix prompts, optional npm audit advisories, and SARIF or Markdown export.
+    details: Read-only static scan with fix and test prompts, optional npm audit, and SARIF or Markdown export.
   - title: Session Hub
-    details: Timeline of prompts, diffs, audit findings, and terminal issues — pin items and copy one structured handoff.
+    details: Pin what matters from your session and copy one structured handoff when you switch tasks or agents.
   - title: Context Packer
-    details: Bundle selected or git-changed files into a paste-ready AI prompt with token estimates.
+    details: Bundle changed or selected files into a paste-ready prompt with a token estimate.
   - title: Smart Terminal
-    details: Embedded shell with issue detection, audit mirroring, and copy-paste fix prompts.
+    details: Run commands in your project folder, catch failures, and copy fix prompts without leaving the toolbar.
   - title: AI Context folder
-    details: Code Sync, screenshot snips, and notes keep your assistant-readable context in one place.
+    details: Code Sync, screenshot snips, and notes give your assistant a readable home inside the repo.
 ---
 
-## Quick links
+## Start here
 
-- [Your first session](/guide/first-session) — walk through a realistic vibe coding loop
-- [Real-world workflows](/workflows/real-world-workflows) — security review, handoffs, debugging
-- [What makes VibeBar different](/philosophy/whats-different) — why the communication layer matters
-- [Contributing](/contribute/contributing) — report bugs, suggest features, open PRs
+| You are… | Go to |
+|----------|-------|
+| New to VibeBar | [What is VibeBar?](/guide/what-is-vibebar) → [Install & setup](/guide/getting-started) |
+| Installed and ready | [Your first session](/guide/first-session) |
+| Looking for a specific tool | [Toolbar & tools](/features/) |
+| Stuck on something | [Troubleshooting](/help/troubleshooting) |
+
+## Project links
+
+- [Download latest release](https://github.com/Bridgeware-Dynamics-Business/Vibebar/releases)
+- [GitHub repository](https://github.com/Bridgeware-Dynamics-Business/Vibebar)
+- [Report a bug](https://github.com/Bridgeware-Dynamics-Business/Vibebar/issues/new/choose)
+- [Contributing](/contribute/contributing)

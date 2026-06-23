@@ -1,5 +1,7 @@
 # Contributing to VibeBar
 
+**Documentation:** [bridgeware-dynamics-business.github.io/Vibebar](https://bridgeware-dynamics-business.github.io/Vibebar/) · [Contributing guide on the docs site](https://bridgeware-dynamics-business.github.io/Vibebar/contribute/contributing)
+
 Thanks for your interest in improving VibeBar! This project welcomes bug
 reports, feature ideas, and pull requests. This guide explains how to propose
 changes so they can be reviewed and merged smoothly.

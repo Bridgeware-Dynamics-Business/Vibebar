@@ -1,7 +1,8 @@
 name: Deploy wiki
 
-# Builds the VitePress site in docs/ and publishes to GitHub Pages.
-# Enable in repo Settings → Pages → Source: GitHub Actions (first time only).
+# FIRST-TIME SETUP (required or deploy fails with 404):
+# Repo Settings → Pages → Build and deployment → Source → GitHub Actions
+# Do NOT use "Deploy from a branch" for this workflow.
 
 on:
   push:
@@ -11,6 +12,7 @@ on:
       - '.github/workflows/wiki.yml'
       - 'package.json'
       - 'package-lock.json'
+      - 'README.md'
   workflow_dispatch:
 
 permissions:
@@ -30,10 +32,13 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v4
 
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v4
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
 
       - name: Install dependencies

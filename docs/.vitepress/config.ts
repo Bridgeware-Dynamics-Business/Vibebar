@@ -2,7 +2,8 @@ import { defineConfig } from 'vitepress'
 
 export default defineConfig({
   title: 'VibeBar',
-  description: 'Floating Windows companion for vibe coding with AI assistants like Cursor.',
+  description:
+    'Documentation for VibeBar, the floating Windows companion for vibe coding with Cursor and other AI assistants.',
   base: '/Vibebar/',
   head: [['link', { rel: 'icon', href: '/Vibebar/favicon.svg' }]],
   themeConfig: {
@@ -12,15 +13,19 @@ export default defineConfig({
       { text: 'Features', link: '/features/', activeMatch: '/features/' },
       { text: 'Workflows', link: '/workflows/real-world-workflows', activeMatch: '/workflows/' },
       { text: 'Reference', link: '/reference/hotkeys', activeMatch: '/reference/' },
-      { text: 'Contribute', link: '/contribute/contributing', activeMatch: '/contribute/' },
-      { text: 'GitHub', link: 'https://github.com/Bridgeware-Dynamics-Business/Vibebar' }
+      { text: 'Help', link: '/help/troubleshooting', activeMatch: '/help/' },
+      {
+        text: 'Download',
+        link: 'https://github.com/Bridgeware-Dynamics-Business/Vibebar/releases'
+      }
     ],
     sidebar: {
       '/guide/': [
         {
-          text: 'Getting started',
+          text: 'Introduction',
           items: [
-            { text: 'Installation & setup', link: '/guide/getting-started' },
+            { text: 'What is VibeBar?', link: '/guide/what-is-vibebar' },
+            { text: 'Install & setup', link: '/guide/getting-started' },
             { text: 'Your first session', link: '/guide/first-session' }
           ]
         }
@@ -28,10 +33,10 @@ export default defineConfig({
       '/features/': [
         {
           text: 'Overview',
-          items: [{ text: 'Feature map', link: '/features/' }]
+          items: [{ text: 'Toolbar & tools', link: '/features/' }]
         },
         {
-          text: 'Core tools',
+          text: 'Tools',
           items: [
             { text: 'Prompt Library', link: '/features/prompt-library' },
             { text: 'Security Audit', link: '/features/security-audit' },
@@ -48,7 +53,7 @@ export default defineConfig({
       '/workflows/': [
         {
           text: 'Workflows',
-          items: [{ text: 'Real-world workflows', link: '/workflows/real-world-workflows' }]
+          items: [{ text: 'Everyday patterns', link: '/workflows/real-world-workflows' }]
         }
       ],
       '/reference/': [
@@ -56,14 +61,15 @@ export default defineConfig({
           text: 'Reference',
           items: [
             { text: 'Keyboard shortcuts', link: '/reference/hotkeys' },
-            { text: 'Settings', link: '/reference/settings' }
+            { text: 'Settings', link: '/reference/settings' },
+            { text: 'Files & storage', link: '/reference/files-and-storage' }
           ]
         }
       ],
       '/philosophy/': [
         {
-          text: 'Philosophy',
-          items: [{ text: 'What makes VibeBar different', link: '/philosophy/whats-different' }]
+          text: 'Background',
+          items: [{ text: 'Why VibeBar exists', link: '/philosophy/whats-different' }]
         }
       ],
       '/contribute/': [
@@ -82,17 +88,21 @@ export default defineConfig({
     socialLinks: [
       { icon: 'github', link: 'https://github.com/Bridgeware-Dynamics-Business/Vibebar' }
     ],
+    siteTitle: 'VibeBar Docs',
     editLink: {
       pattern:
         'https://github.com/Bridgeware-Dynamics-Business/Vibebar/edit/main/docs/:path',
       text: 'Edit this page on GitHub'
     },
     footer: {
-      message: 'Built by Bridgeware Dynamics Business',
+      message: 'VibeBar by Bridgeware Dynamics Business',
       copyright: 'Copyright © 2026 Bridgeware Dynamics Business'
     },
     search: {
       provider: 'local'
+    },
+    outline: {
+      level: [2, 3]
     }
   }
 })

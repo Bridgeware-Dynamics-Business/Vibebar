@@ -1,59 +1,57 @@
 # Context Packer
 
-Bundle selected project files into a single paste-ready AI prompt with token estimates and secret redaction.
+Context Packer bundles project files into one markdown prompt on your clipboard, with a rough token estimate and optional secret redaction.
 
-## Opening the panel
+## At a glance
 
-Click **Context Packer** on the toolbar or **`Ctrl+Shift+P`** → **Open Context Packer**.
+| | |
+|---|---|
+| **Opens as** | Panel (detachable) |
+| **Presets** | Changed files, Tests, Config, Entry points |
+| **Token estimate** | Approximately `character count / 4` |
+| **Shortcut** | Palette → **Pack changed files** |
 
 ## File tree
 
-- Lazy-loaded directories with debounced expand
-- Loading indicators on large folders
-- Select individual files or folders
+Directories load lazily with a short debounce when you expand folders. Large trees show loading indicators.
+
+Select individual files or whole folders, then **Pack & copy**.
 
 ## Presets
 
-| Preset | Contents |
-|--------|----------|
-| **Changed files** | Git-modified files (staged + unstaged) |
+| Preset | Selects |
+|--------|---------|
+| **Changed files** | Git-modified paths (staged and unstaged) |
 | **Tests** | Test files detected in your project |
-| **Config** | Config files (package.json, tsconfig, etc.) |
+| **Config** | Config files (`package.json`, `tsconfig`, etc.) |
 | **Entry points** | Main application entry files |
 
-Presets respect your project layout — detection uses the same profile engine as Prompt Library.
+Detection uses the same project profile engine as the Prompt Library.
 
-## Pack & copy
-
-1. Select files or apply a preset.
-2. Review the **token estimate** (approximate).
-3. Click **Pack & copy**.
-
-Output is formatted markdown suitable for Cursor chat. Secrets are redacted when guardrails are on.
-
-## Fast path: pack changed only
+## Fast paths
 
 Without opening the panel:
 
-- **`Ctrl+Shift+P`** → **Pack changed files**
+- `Ctrl+Shift+P` → **Pack changed files**
 - Session Hub → **Pack changed**
 
-## When to use Packer vs Prompt Library
+## Packer vs Prompt Library
 
 | Use Context Packer when… | Use Prompt Library when… |
 |--------------------------|--------------------------|
-| You need raw file contents | You want a structured task template |
-| You're mid-refactor with specific files | You want guardrailed instructions |
-| Token budget matters (check estimate) | Variables should auto-fill from profile |
+| The model needs actual file contents | You want a structured task template |
+| You are mid-refactor with specific paths | Guardrailed instructions matter more |
+| You need to watch token budget | Variables should auto-fill from profile |
 
 ## Tips
 
-- Start with **Changed files** before commits — pairs well with git diff prompts.
-- Detach the panel to keep file selection visible while editing.
-- Large packs may exceed model context — trim selection using the token estimate.
+- **Changed files** pairs well with git diff prompts before a commit.
+- Trim selection if the token estimate is large. Models have context limits.
+- Detach the panel to keep file picks visible while editing.
+- Secrets redact when **Harden prompts** is enabled.
 
 ## Related
 
 - [Prompt Library](./prompt-library)
-- [Session Hub](./session-hub) — logs pack events
-- [Git diff workflow](/guide/first-session#scenario-git-diff-as-a-prompt)
+- [Session Hub](./session-hub)
+- [Your first session](/guide/first-session)
