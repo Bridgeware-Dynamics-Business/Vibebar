@@ -1,5 +1,7 @@
 # VibeBar
 
+**[Wiki / documentation](https://bridgeware-dynamics-business.github.io/Vibebar/)** · [Releases](https://github.com/Bridgeware-Dynamics-Business/Vibebar/releases)
+
 VibeBar is a floating Windows companion for **vibe coding** with AI assistants like Cursor. It sits at the edge of your screen and keeps your project context, prompts, security checks, and terminal workflow one click away.
 
 ## What it does
