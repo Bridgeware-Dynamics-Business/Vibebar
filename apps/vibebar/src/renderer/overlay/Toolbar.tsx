@@ -1,12 +1,13 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { Fragment } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { TOOL_DEFS, type ToolId } from '@shared/tools.js'
 import type {
   DockSide,
   GitStatus,
   Orientation,
   ProjectProfile,
-  QuickLaunchApp
+  QuickLaunchApp,
+  RecentProject
 } from '@shared/types.js'
 import { Icon } from '../shared/icons'
 
@@ -22,6 +23,7 @@ interface CircleButtonProps {
   /** "launch" gives the quick-launch buttons a distinct cyan-accent treatment so they stand out. */
   tone?: 'default' | 'launch'
   onClick: () => void
+  onContextMenu?: (e: React.MouseEvent<HTMLButtonElement>) => void
 }
 
 function CircleButton({
@@ -32,7 +34,8 @@ function CircleButton({
   success,
   badge,
   tone = 'default',
-  onClick
+  onClick,
+  onContextMenu
 }: CircleButtonProps): JSX.Element {
   const stateClass = success
     ? 'border-emerald-500/60 bg-emerald-500/15 text-emerald-300'
@@ -47,6 +50,7 @@ function CircleButton({
       title={label}
       aria-label={label}
       onClick={onClick}
+      onContextMenu={onContextMenu}
       whileHover={{ scale: 1.08 }}
       whileTap={{ scale: 0.95 }}
       transition={{ type: 'spring', stiffness: 400, damping: 22 }}
@@ -91,7 +95,9 @@ function gitButtonInfo(gitStatus: GitStatus | null): { label: string; badge?: nu
   parts.push(gitStatus.changeCount === 1 ? '1 change' : `${gitStatus.changeCount} changes`)
   if (gitStatus.ahead > 0) parts.push(`${gitStatus.ahead}↑`)
   if (gitStatus.behind > 0) parts.push(`${gitStatus.behind}↓`)
-  return { label: `GitHub Desktop — ${parts.join(' · ')}`, badge: gitStatus.changeCount }
+  const suffix =
+    gitStatus.changeCount > 0 ? ' · Right-click to copy diff prompt' : ''
+  return { label: `GitHub Desktop — ${parts.join(' · ')}${suffix}`, badge: gitStatus.changeCount }
 }
 
 // Round only the corners on the edge facing away from the monitor; the docked edge stays square
@@ -135,37 +141,137 @@ function PowerButton({ dock, onClick }: { dock: DockSide; onClick: () => void })
   )
 }
 
+function ProjectSwitcher({
+  profile,
+  recents,
+  dock,
+  orientation,
+  onBrowse,
+  onOpenRecent
+}: {
+  profile: ProjectProfile | null
+  recents: RecentProject[]
+  dock: DockSide
+  orientation: Orientation
+  onBrowse: () => void
+  onOpenRecent: (path: string) => void
+}): JSX.Element {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onDoc = (e: MouseEvent): void => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [open])
+
+  const popoverClass =
+    orientation === 'vertical'
+      ? dock === 'right'
+        ? 'right-full top-0 mr-2'
+        : 'left-full top-0 ml-2'
+      : 'left-0 top-full mt-2'
+
+  return (
+    <div ref={ref} className="relative shrink-0">
+      <CircleButton
+        icon="FolderOpen"
+        label={profile ? `Project: ${profile.folderName}` : 'Select a project'}
+        accent={Boolean(profile)}
+        active={open}
+        onClick={() => setOpen((v) => !v)}
+      />
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.96 }}
+            className={`vibe-no-drag vibe-glass is-solid absolute z-50 min-w-[200px] max-w-[260px] rounded-xl border border-vibe-border py-1 shadow-xl ${popoverClass}`}
+          >
+            {recents.length > 0 && (
+              <>
+                <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-vibe-muted">
+                  Recent
+                </p>
+                {recents.map((r) => (
+                  <button
+                    key={r.path}
+                    type="button"
+                    onClick={() => {
+                      setOpen(false)
+                      onOpenRecent(r.path)
+                    }}
+                    className={`flex w-full flex-col px-3 py-2 text-left text-sm hover:bg-white/10 ${
+                      profile?.rootPath === r.path ? 'text-vibe-accent-2' : 'text-vibe-text'
+                    }`}
+                  >
+                    <span className="truncate font-medium">{r.label}</span>
+                    <span className="truncate text-[10px] text-vibe-muted">{r.path}</span>
+                  </button>
+                ))}
+                <div className="my-1 h-px bg-vibe-border" />
+              </>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false)
+                onBrowse()
+              }}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-vibe-text hover:bg-white/10"
+            >
+              <Icon name="Search" size={14} className="text-vibe-muted" />
+              Browse…
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
 export function Toolbar({
   orientation,
   dock,
   profile,
+  recentProjects,
   activePanel,
   gitStatus,
   quickLaunchApps,
   onSelectProject,
+  onOpenRecent,
   onAddContextFolder,
   onOpenContextFolder,
   onTool,
   onQuickLaunch,
+  onCopyGitDiff,
+  sessionPinCount = 0,
   onPower
 }: {
   orientation: Orientation
   dock: DockSide
   profile: ProjectProfile | null
+  recentProjects: RecentProject[]
   activePanel: ToolId | null
   gitStatus: GitStatus | null
   quickLaunchApps: QuickLaunchApp[]
   onSelectProject: () => void
+  onOpenRecent: (path: string) => void
   onAddContextFolder: () => void
   onOpenContextFolder: () => void
   onTool: (id: ToolId) => void
   onQuickLaunch: (id: string) => void
+  /** Right-click the GitHub badge when there are changes to copy a git diff prompt. */
+  onCopyGitDiff?: () => void
+  /** Pin count for Session Hub toolbar badge. */
+  sessionPinCount?: number
   onPower: () => void
 }): JSX.Element {
   const isVertical = orientation === 'vertical'
-  // Hidden apps stay in Settings but drop out of the bar; an absent `visible` means shown. When
-  // every launcher is hidden this array empties, so the cluster (and its two dividers) condenses
-  // away via the length guard below.
   const visibleQuickLaunch = quickLaunchApps.filter((app) => app.visible !== false)
   const tools = TOOL_DEFS.filter((t) => !t.pinnedEnd)
   const pinned = TOOL_DEFS.filter((t) => t.pinnedEnd)
@@ -175,16 +281,18 @@ export function Toolbar({
 
   return (
     <div
-      className={`vibe-glass vibe-drag relative flex h-full w-full items-center gap-2 p-2.5 ${OUTWARD_CORNERS[dock]} ${
-        isVertical ? 'flex-col' : 'flex-row'
+      className={`vibe-glass is-solid vibe-drag relative flex min-h-0 shrink-0 items-center gap-2 p-2.5 ${OUTWARD_CORNERS[dock]} ${
+        isVertical ? 'h-fit w-full flex-col' : 'h-full w-fit flex-row'
       }`}
     >
       <PowerButton dock={dock} onClick={onPower} />
-      <CircleButton
-        icon="FolderOpen"
-        label={profile ? `Project: ${profile.folderName}` : 'Select a project'}
-        accent={Boolean(profile)}
-        onClick={onSelectProject}
+      <ProjectSwitcher
+        profile={profile}
+        recents={recentProjects}
+        dock={dock}
+        orientation={orientation}
+        onBrowse={onSelectProject}
+        onOpenRecent={onOpenRecent}
       />
       {profile && (
         <CircleButton
@@ -208,10 +316,11 @@ export function Toolbar({
           icon={tool.icon}
           label={tool.label}
           active={activePanel === tool.id}
+          badge={tool.id === 'session-hub' ? sessionPinCount : undefined}
           onClick={() => onTool(tool.id)}
         />
       ))}
-      <div className="flex-1" />
+      <div className={dividerClass} />
       {pinned.map((tool) => {
         const git = tool.id === 'github' ? gitButtonInfo(gitStatus) : null
         return (
@@ -222,9 +331,15 @@ export function Toolbar({
               active={activePanel === tool.id}
               badge={git?.badge}
               onClick={() => onTool(tool.id)}
+              onContextMenu={
+                tool.id === 'github' && gitStatus?.isRepo && gitStatus.changeCount > 0 && onCopyGitDiff
+                  ? (e) => {
+                      e.preventDefault()
+                      onCopyGitDiff()
+                    }
+                  : undefined
+              }
             />
-            {/* Quick Launch sits directly under GitHub, fenced by dividers so the cyan editor
-                launchers read as their own distinct cluster within the bar. */}
             {tool.id === 'github' && visibleQuickLaunch.length > 0 && (
               <>
                 <div className={dividerClass} />
@@ -247,8 +362,6 @@ export function Toolbar({
           </Fragment>
         )
       })}
-      {/* Reserve space past the Settings button for the power button, so the two sit side by side
-          (aligned on the cross-axis) rather than overlapping. */}
       <div
         aria-hidden
         className="shrink-0"

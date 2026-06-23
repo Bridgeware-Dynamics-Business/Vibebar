@@ -1,10 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { ResizeEdge, TerminalBridge } from '@shared/terminalApi.js'
 import type {
-  DetectedIssue,
   ProjectCommand,
   ShellReady,
   ShellType,
+  TerminalIssueUpdate,
   TerminalStatus
 } from '@shared/types.js'
 
@@ -24,6 +24,13 @@ const T = {
   resize: 'terminal:resize',
   clipboardWrite: 'clipboard:write',
   runAudit: 'audit:runInTerminal',
+  exportSarif: 'audit:exportSarif',
+  exportMarkdown: 'audit:exportMarkdown',
+  quickLaunchRun: 'quickLaunch:run',
+  sessionAppend: 'session:append',
+  notesGetState: 'notes:getState',
+  notesAppendMarkdown: 'notes:appendMarkdown',
+  notesFindSessionLog: 'notes:findSessionLog',
   data: 'terminal:data',
   status: 'terminal:status',
   issues: 'terminal:issues',
@@ -54,9 +61,19 @@ const api: TerminalBridge = {
     ipcRenderer.invoke(T.resize, { edge, dx, dy }),
   copy: (text: string) => ipcRenderer.invoke(T.clipboardWrite, { text }),
   runAudit: (quiet: boolean) => ipcRenderer.invoke(T.runAudit, { quiet }),
+  exportAuditSarif: () => ipcRenderer.invoke(T.exportSarif),
+  exportAuditMarkdown: () => ipcRenderer.invoke(T.exportMarkdown),
+  openCursor: () => ipcRenderer.invoke(T.quickLaunchRun, { id: 'cursor' }),
+  sessionAppend: (entry) => ipcRenderer.invoke(T.sessionAppend, entry),
+  notes: {
+    getState: () => ipcRenderer.invoke(T.notesGetState),
+    appendMarkdown: (id: string, markdown: string) =>
+      ipcRenderer.invoke(T.notesAppendMarkdown, { id, markdown }),
+    findSessionLog: () => ipcRenderer.invoke(T.notesFindSessionLog)
+  },
   onData: (cb: (chunk: string) => void) => subscribe<string>(T.data, cb),
   onStatus: (cb: (status: TerminalStatus) => void) => subscribe<TerminalStatus>(T.status, cb),
-  onIssues: (cb: (issues: DetectedIssue[]) => void) => subscribe<DetectedIssue[]>(T.issues, cb),
+  onIssues: (cb: (update: TerminalIssueUpdate) => void) => subscribe<TerminalIssueUpdate>(T.issues, cb),
   shell: {
     start: (shell: ShellType) => ipcRenderer.invoke(T.shellStart, { shell }),
     input: (line: string) => ipcRenderer.invoke(T.shellInput, { line }),

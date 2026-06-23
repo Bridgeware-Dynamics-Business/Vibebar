@@ -1,17 +1,25 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type { DetachablePanelId, ToolId } from '@shared/tools.js'
+import { isDetachablePanel } from '@shared/tools.js'
+import { inlinePanelDimensions } from '@shared/overlayMetrics.js'
 import type {
   GitStatus,
   OverlayLayout,
   ProjectProfile,
-  QuickLaunchApp
+  QuickLaunchApp,
+  RecentProject
 } from '@shared/types.js'
 import { ClipboardFallbackModal } from '../shared/ClipboardFallbackModal'
+import { CopyHandoffToast, useCopyHandoff } from '../shared/copyHandoff'
 import { useFillToggle } from '../shared/ui'
+import { buildPaletteActions, CommandPalette } from './CommandPalette'
+import { OnboardingWizard, useOnboarding } from './OnboardingWizard'
 import { Toolbar } from './Toolbar'
 import { ContextPackerPanel } from './panels/ContextPackerPanel'
+import { NotesPanel } from './panels/NotesPanel'
 import { PromptLibraryPanel } from './panels/PromptLibraryPanel'
+import { SessionHubPanel } from './panels/SessionHubPanel'
 import { SecurityAuditPanel } from './panels/SecurityAuditPanel'
 import { SettingsPanel } from './panels/SettingsPanel'
 
@@ -20,51 +28,85 @@ const DEFAULT_LAYOUT: OverlayLayout = { dock: 'left', orientation: 'vertical' }
 export function App(): JSX.Element {
   const [layout, setLayout] = useState<OverlayLayout>(DEFAULT_LAYOUT)
   const [profile, setProfile] = useState<ProjectProfile | null>(null)
+  const [recentProjects, setRecentProjects] = useState<RecentProject[]>([])
   const [gitStatus, setGitStatus] = useState<GitStatus | null>(null)
   const [quickLaunchApps, setQuickLaunchApps] = useState<QuickLaunchApp[]>([])
+  const [sessionPinCount, setSessionPinCount] = useState(0)
   const [activePanel, setActivePanel] = useState<ToolId | null>(null)
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [solid, toggleSolid] = useFillToggle('overlay.solid')
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  // Cross-window coordination for the audit: it lives in the side panel, but when the Smart
-  // Terminal is open it is directed there instead; closing the terminal brings the panel back.
   const terminalOpenRef = useRef(false)
   const auditDirectedRef = useRef(false)
   const activePanelRef = useRef<ToolId | null>(null)
-  const [fallback, setFallback] = useState<{ open: boolean; text: string }>({
-    open: false,
-    text: ''
-  })
+  const {
+    onCopyOutcome,
+    handoffNotice,
+    dismissHandoff,
+    fallback,
+    closeFallback
+  } = useCopyHandoff()
+  const { onboarding, dismiss: dismissOnboarding, refresh: refreshOnboarding } = useOnboarding()
+
+  const closeCommandPalette = useCallback(() => {
+    setCommandPaletteOpen(false)
+  }, [])
+
+  const onCommandPaletteClosed = useCallback(() => {
+    void window.vibebar.overlay.setCommandPalette(false)
+  }, [])
+
+  const openCommandPalette = useCallback(async () => {
+    await window.vibebar.overlay.setCommandPalette(true)
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+    setCommandPaletteOpen(true)
+  }, [])
+
+  const refreshRecents = useCallback(() => {
+    void window.vibebar.project.listRecents().then(setRecentProjects)
+  }, [])
 
   useEffect(() => {
+    // Sync renderer with main: collapse any stale expanded shell from a prior session.
+    void window.vibebar.overlay.collapsePanel()
+    void window.vibebar.overlay.setPanel(false)
     void window.vibebar.overlay.getState().then((state) => {
       setLayout(state.layout)
       setProfile(state.profile)
     })
+    refreshRecents()
     void window.vibebar.git.getStatus().then(setGitStatus)
     void window.vibebar.quickLaunch.list().then(setQuickLaunchApps)
+    void window.vibebar.session.getState().then((s) => setSessionPinCount(s.pinnedCount))
     void window.vibebar.terminal.isOpen().then(({ open }) => {
       terminalOpenRef.current = open
     })
     const offLayout = window.vibebar.overlay.onLayout(setLayout)
-    const offProject = window.vibebar.project.onChanged(setProfile)
+    const offProject = window.vibebar.project.onChanged((p) => {
+      setProfile(p)
+      refreshRecents()
+      refreshOnboarding()
+    })
     const offGit = window.vibebar.git.onStatusChanged(setGitStatus)
     const offQuickLaunch = window.vibebar.quickLaunch.onChanged(setQuickLaunchApps)
+    const offSession = window.vibebar.session.onChanged((s) => setSessionPinCount(s.pinnedCount))
+    const offPalette = window.vibebar.overlay.onCommandPalette(({ open }) => {
+      if (open) void openCommandPalette()
+      else setCommandPaletteOpen(false)
+    })
     const offTerminal = window.vibebar.terminal.onVisibility(({ visible }) => {
       terminalOpenRef.current = visible
       if (visible) {
-        // The terminal is now the home for the audit. Collapse the side panel to save space and
-        // hand the scan off so the terminal's audit dock fills in immediately.
         if (activePanelRef.current === 'security-audit') {
           auditDirectedRef.current = true
           setActivePanel(null)
           void window.vibebar.audit.scan()
         }
       } else if (auditDirectedRef.current) {
-        // Terminal closed while it held the audit — bring the side panel back.
         auditDirectedRef.current = false
         setActivePanel('security-audit')
-        void window.vibebar.overlay.setPanel(true)
+        void window.vibebar.overlay.setPanel(true, 'security-audit')
       }
     })
     return () => {
@@ -72,9 +114,11 @@ export function App(): JSX.Element {
       offProject()
       offGit()
       offQuickLaunch()
+      offSession()
+      offPalette()
       offTerminal()
     }
-  }, [])
+  }, [openCommandPalette, refreshOnboarding, refreshRecents])
 
   const showNotice = useCallback((text: string) => {
     setNotice(text)
@@ -82,17 +126,12 @@ export function App(): JSX.Element {
     noticeTimer.current = setTimeout(() => setNotice(null), 4000)
   }, [])
 
-  // Clear any pending notice timeout on teardown so a fired callback can't call setState after
-  // the window's React tree is gone (harmless today as the root rarely unmounts, but correct).
   useEffect(() => {
     return () => {
       if (noticeTimer.current) clearTimeout(noticeTimer.current)
     }
   }, [])
 
-  // Collapse only the React state here; the OS window stays expanded until the panel's exit
-  // animation finishes (see AnimatePresence onExitComplete) so the content never gets clipped
-  // mid-animation — which is what used to flash a scrollbar.
   const closePanel = useCallback(() => {
     setActivePanel(null)
   }, [])
@@ -103,7 +142,18 @@ export function App(): JSX.Element {
 
   const handleSelectProject = useCallback(async () => {
     setProfile(await window.vibebar.project.select())
-  }, [])
+    refreshRecents()
+    refreshOnboarding()
+  }, [refreshRecents, refreshOnboarding])
+
+  const handleOpenRecent = useCallback(
+    async (path: string) => {
+      setProfile(await window.vibebar.project.openRecent(path))
+      refreshRecents()
+      refreshOnboarding()
+    },
+    [refreshRecents, refreshOnboarding]
+  )
 
   const handleAddContextFolder = useCallback(async () => {
     setProfile(await window.vibebar.project.addContextFolder())
@@ -121,6 +171,50 @@ export function App(): JSX.Element {
     },
     [showNotice]
   )
+
+  const handleCopyGitDiff = useCallback(async () => {
+    const result = await window.vibebar.git.copyDiffPrompt()
+    if (result.noProject) {
+      showNotice('Select a project first.')
+      return
+    }
+    if (result.notRepo) {
+      showNotice('This folder is not a git repository.')
+      return
+    }
+    if (result.noChanges) {
+      showNotice('No changes to copy.')
+      return
+    }
+    onCopyOutcome(result.copied, result.text, result.findings.length)
+  }, [onCopyOutcome, showNotice])
+
+  const handlePackChanged = useCallback(async () => {
+    const preview = await window.vibebar.packer.previewChanged()
+    if (preview.noProject) {
+      showNotice('Select a project first.')
+      return
+    }
+    if (preview.noFiles || preview.paths.length === 0) {
+      showNotice('No changed files to pack.')
+      return
+    }
+    const result = await window.vibebar.packer.packChanged()
+    onCopyOutcome(result.copied, result.text, result.findings.length)
+  }, [onCopyOutcome, showNotice])
+
+  const handleCopySessionHandoff = useCallback(async () => {
+    const result = await window.vibebar.session.copyHandoff(true)
+    if (result.noProject) {
+      showNotice('Select a project first.')
+      return
+    }
+    if (result.pinnedCount === 0) {
+      showNotice('Pin items in Session Hub first.')
+      return
+    }
+    onCopyOutcome(result.copied, result.text, result.findings.length)
+  }, [onCopyOutcome, showNotice])
 
   const handleTool = useCallback(
     (id: ToolId) => {
@@ -144,8 +238,6 @@ export function App(): JSX.Element {
         })
         return
       }
-      // When the Smart Terminal is open, the audit lives there: focus it and run a scan rather
-      // than opening the (redundant) side panel. Closing the terminal reopens the panel.
       if (id === 'security-audit' && terminalOpenRef.current) {
         auditDirectedRef.current = true
         if (activePanel === 'security-audit') closePanel()
@@ -157,29 +249,36 @@ export function App(): JSX.Element {
         return
       }
       setActivePanel(id)
-      void window.vibebar.overlay.setPanel(true)
+      void window.vibebar.overlay.setPanel(true, isDetachablePanel(id) ? id : undefined)
     },
     [activePanel, closePanel, showNotice]
   )
 
-  const onCopyOutcome = useCallback(
-    (copied: boolean, text: string, redactedCount = 0) => {
-      if (!copied) {
-        setFallback({ open: true, text })
-        return
-      }
-      if (redactedCount > 0) {
-        showNotice(
-          `Copied with ${redactedCount} secret${redactedCount === 1 ? '' : 's'} redacted.`
-        )
-      }
-    },
-    [showNotice]
+  const paletteActions = useMemo(
+    () =>
+      buildPaletteActions({
+        onTool: handleTool,
+        onSelectProject: () => void handleSelectProject(),
+        onCopyGitDiff: () => void handleCopyGitDiff(),
+        onPackChanged: () => void handlePackChanged(),
+        onCopySessionHandoff: () => void handleCopySessionHandoff(),
+        onViewAiDocs: () => handleTool('session-hub'),
+        onAuditConfig: () => handleTool('security-audit'),
+        onSnip: () => handleTool('snip'),
+        recents: recentProjects,
+        onOpenRecent: (path) => void handleOpenRecent(path)
+      }),
+    [
+      handleTool,
+      handleSelectProject,
+      handleCopyGitDiff,
+      handlePackChanged,
+      handleCopySessionHandoff,
+      recentProjects,
+      handleOpenRecent
+    ]
   )
 
-  // Pop a panel out into its own floating window (like Code Sync) and collapse the inline panel
-  // so the two presentations don't overlap. The detached window is keyed by panel id, so this
-  // works uniformly for every detachable tool.
   const detachPanel = useCallback(
     (id: DetachablePanelId) => {
       closePanel()
@@ -189,12 +288,9 @@ export function App(): JSX.Element {
   )
 
   const isVertical = layout.orientation === 'vertical'
-  const toolbarOrderClass =
-    layout.dock === 'right' ? 'order-2' : 'order-1'
+  const toolbarOrderClass = layout.dock === 'right' ? 'order-2' : 'order-1'
   const panelOrderClass = layout.dock === 'right' ? 'order-1' : 'order-2'
 
-  // Anchor the panel's open/close animation to the toolbar edge so it reads as growing out of
-  // the bar (rather than popping from its own center), with a small directional slide.
   const panelTransformOrigin =
     layout.dock === 'right' ? 'right center' : layout.dock === 'top' ? 'center top' : 'left center'
   const panelEnterOffset =
@@ -223,6 +319,7 @@ export function App(): JSX.Element {
             profile={profile}
             onClose={closePanel}
             onCopyOutcome={onCopyOutcome}
+            onPackChanged={() => void handlePackChanged()}
             solid={solid}
             onToggleSolid={toggleSolid}
             onDetach={() => detachPanel('context-packer')}
@@ -236,6 +333,32 @@ export function App(): JSX.Element {
             solid={solid}
             onToggleSolid={toggleSolid}
             onDetach={() => detachPanel('security-audit')}
+          />
+        )
+      case 'session-hub':
+        return (
+          <SessionHubPanel
+            profile={profile}
+            gitStatus={gitStatus}
+            onClose={closePanel}
+            onCopyOutcome={onCopyOutcome}
+            onPackChanged={() => void handlePackChanged()}
+            onCopyGitDiff={() => void handleCopyGitDiff()}
+            onOpenTerminal={() => handleTool('terminal')}
+            onOpenPromptLibrary={() => handleTool('prompt-library')}
+            solid={solid}
+            onToggleSolid={toggleSolid}
+            onDetach={() => detachPanel('session-hub')}
+          />
+        )
+      case 'notes':
+        return (
+          <NotesPanel
+            profile={profile}
+            onClose={closePanel}
+            solid={solid}
+            onToggleSolid={toggleSolid}
+            onDetach={() => detachPanel('notes')}
           />
         )
       case 'settings':
@@ -252,54 +375,101 @@ export function App(): JSX.Element {
     }
   }
 
+  const panelShellStyle: CSSProperties = useMemo(() => {
+    if (!activePanel || !isDetachablePanel(activePanel)) return {}
+    const size = inlinePanelDimensions(activePanel)
+    return isVertical
+      ? { width: size.width, height: size.height, maxHeight: size.height }
+      : { height: size.height, width: '100%' }
+  }, [activePanel, isVertical])
+
+  const toolbarClusterStyle: CSSProperties = useMemo(() => {
+    if (layout.dock === 'top') return { top: 0, left: layout.anchorOffset ?? 0 }
+    if (layout.dock === 'right') return { top: layout.anchorOffset ?? 0, right: 0 }
+    return { top: layout.anchorOffset ?? 0, left: 0 }
+  }, [layout.anchorOffset, layout.dock])
+
+  const clusterClass = `absolute flex gap-2 ${isVertical ? 'flex-row items-start' : 'flex-col items-stretch'}`
+
   return (
-    <div className={`relative flex h-full w-full gap-2 ${isVertical ? 'flex-row' : 'flex-col'}`}>
+    <div className="fixed inset-0">
       <div
-        className={`${toolbarOrderClass} ${isVertical ? 'h-full w-16' : 'h-16 w-full'} shrink-0`}
+        className={clusterClass}
+        style={toolbarClusterStyle}
+        onPointerDown={() => void window.vibebar.overlay.setActive()}
       >
-        <Toolbar
+        <div
+          className={`${toolbarOrderClass} shrink-0 ${isVertical ? 'h-fit w-16' : 'h-16 w-fit'}`}
+        >
+          <Toolbar
           orientation={layout.orientation}
           dock={layout.dock}
           profile={profile}
+          recentProjects={recentProjects}
           activePanel={activePanel}
           gitStatus={gitStatus}
           quickLaunchApps={quickLaunchApps}
           onSelectProject={() => void handleSelectProject()}
+          onOpenRecent={(path) => void handleOpenRecent(path)}
           onAddContextFolder={() => void handleAddContextFolder()}
           onOpenContextFolder={() => void handleOpenContextFolder()}
           onTool={handleTool}
           onQuickLaunch={(id) => void handleQuickLaunch(id)}
+          onCopyGitDiff={() => void handleCopyGitDiff()}
+          sessionPinCount={sessionPinCount}
           onPower={() => void window.vibebar.app.confirmQuit()}
         />
+        </div>
+
+        <AnimatePresence
+          mode="wait"
+          onExitComplete={() => {
+            if (!activePanelRef.current) void window.vibebar.overlay.setPanel(false)
+          }}
+        >
+          {activePanel && (
+            <motion.div
+              key={activePanel}
+              initial={{ opacity: 0, scale: 0.97, x: panelEnterOffset.x, y: panelEnterOffset.y }}
+              animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
+              exit={{ opacity: 0, scale: 0.97, x: panelEnterOffset.x, y: panelEnterOffset.y }}
+              transition={{ type: 'spring', stiffness: 380, damping: 34, mass: 0.7 }}
+              style={{ transformOrigin: panelTransformOrigin, ...panelShellStyle }}
+              className={`${panelOrderClass} vibe-glass ${solid ? 'is-solid' : ''} flex min-h-0 shrink-0 flex-col overflow-hidden rounded-2xl`}
+            >
+              {renderPanel()}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
-      <AnimatePresence
-        mode="wait"
-        onExitComplete={() => {
-          // Only collapse the window once nothing is on screen — if a different panel is now
-          // active (a switch, not a close) we keep the window expanded for it.
-          if (!activePanelRef.current) void window.vibebar.overlay.setPanel(false)
+      <CommandPalette
+        open={commandPaletteOpen}
+        onClose={closeCommandPalette}
+        onClosed={onCommandPaletteClosed}
+        actions={paletteActions}
+      />
+
+      <OnboardingWizard
+        open={Boolean(onboarding?.show)}
+        onClose={dismissOnboarding}
+        onProjectSelected={() => {
+          refreshRecents()
+          refreshOnboarding()
         }}
-      >
-        {activePanel && (
-          <motion.div
-            key={activePanel}
-            initial={{ opacity: 0, scale: 0.97, x: panelEnterOffset.x, y: panelEnterOffset.y }}
-            animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
-            exit={{ opacity: 0, scale: 0.97, x: panelEnterOffset.x, y: panelEnterOffset.y }}
-            transition={{ type: 'spring', stiffness: 380, damping: 34, mass: 0.7 }}
-            style={{ transformOrigin: panelTransformOrigin }}
-            className={`${panelOrderClass} vibe-glass ${solid ? 'is-solid' : ''} min-h-0 flex-1 overflow-hidden rounded-2xl`}
-          >
-            {renderPanel()}
-          </motion.div>
-        )}
-      </AnimatePresence>
+        quickLaunchApps={quickLaunchApps}
+      />
 
       <ClipboardFallbackModal
         open={fallback.open}
         text={fallback.text}
-        onClose={() => setFallback({ open: false, text: '' })}
+        onClose={closeFallback}
+      />
+
+      <CopyHandoffToast
+        notice={handoffNotice}
+        onDismiss={dismissHandoff}
+        onOpenCursor={() => void window.vibebar.quickLaunch.run('cursor')}
       />
 
       <AnimatePresence>
@@ -308,7 +478,7 @@ export function App(): JSX.Element {
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 8 }}
-            className="vibe-glass vibe-no-drag pointer-events-none absolute bottom-3 left-1/2 z-50 -translate-x-1/2 rounded-xl px-3 py-2 text-xs text-vibe-text shadow-lg"
+            className="vibe-glass vibe-no-drag pointer-events-none absolute bottom-3 left-1/2 z-40 -translate-x-1/2 rounded-xl px-3 py-2 text-xs text-vibe-text shadow-lg"
           >
             {notice}
           </motion.div>

@@ -4,11 +4,15 @@ import { AuditService } from './audit/AuditService.js'
 import { CodeSyncController } from './codesync/CodeSyncController.js'
 import { ErrorConsoleController } from './errorconsole/ErrorConsoleController.js'
 import { GitStatusService } from './git/GitStatusService.js'
+import { GitDiffService } from './git/GitDiffService.js'
 import { GitHubService } from './github/GitHubService.js'
+import { HotkeyController } from './hotkeys/HotkeyController.js'
 import { registerIpc } from './ipc/registerIpc.js'
 import { ConfirmQuitController } from './overlay/ConfirmQuitController.js'
 import { DetachedPanelController } from './overlay/DetachedPanelController.js'
 import { OverlayManager } from './overlay/OverlayManager.js'
+import { NoteWindowController } from './notes/NoteWindowController.js'
+import { NotesService } from './notes/NotesService.js'
 import { ProjectService } from './project/ProjectService.js'
 import { PromptStore } from './prompts/PromptStore.js'
 import { QuickLaunchService } from './quicklaunch/QuickLaunchService.js'
@@ -16,6 +20,7 @@ import { AppStore } from './settings/store.js'
 import { SnipController } from './snip/SnipController.js'
 import { TerminalController } from './terminal/TerminalController.js'
 import { TrayController } from './tray/TrayController.js'
+import { SessionService } from './session/SessionService.js'
 
 const store = new AppStore()
 const projects = new ProjectService(store)
@@ -33,9 +38,14 @@ const github = new GitHubService(store)
 const gitStatus = new GitStatusService(projects, (status) =>
   overlay.broadcast(CH.gitStatusChanged, status)
 )
+const gitDiff = new GitDiffService(projects)
 const quickLaunch = new QuickLaunchService(store)
+const hotkeys = new HotkeyController(store, overlay, terminal)
 const snip = new SnipController(projects)
 const errorConsole = new ErrorConsoleController(store)
+const notes = new NotesService(projects)
+const sessionService = new SessionService(projects)
+const noteWindows = new NoteWindowController(store)
 
 // A rejected promise with no handler would otherwise vanish silently; log it so a failure in any
 // background task (a mirror pass, a git refresh) is at least diagnosable rather than invisible.
@@ -72,18 +82,39 @@ async function bootstrap(): Promise<void> {
     audit,
     github,
     gitStatus,
+    gitDiff,
     quickLaunch,
     snip,
-    errorConsole
+    errorConsole,
+    notes,
+    noteWindows,
+    session: sessionService,
+    hotkeys
   })
   overlay.start()
+  overlay.collapseAllPanels()
+  overlay.restoreAndFocus()
+  const winCount = overlay.windowCount()
+  console.log(`[VibeBar] Toolbar windows: ${winCount}`)
+  if (winCount === 0) {
+    console.error('[VibeBar] No overlay windows created — check display settings.')
+  }
   tray.start()
+  hotkeys.start()
   gitStatus.setProject(projects.getProfile())
 }
 
-if (!app.requestSingleInstanceLock()) {
+const gotLock = app.requestSingleInstanceLock()
+if (!gotLock) {
   app.quit()
 } else {
+  // Dev relaunch: the prior instance may have hidden the toolbar or be on a stale vite port.
+  app.on('second-instance', () => {
+    overlay.collapseAllPanels()
+    overlay.restoreAndFocus()
+    if (!app.isPackaged) overlay.reloadAll()
+  })
+
   app.whenReady()
     .then(bootstrap)
     .catch((err: unknown) => {
@@ -109,7 +140,9 @@ if (!app.requestSingleInstanceLock()) {
     tray.dispose()
     terminal.dispose()
     gitStatus.dispose()
+    hotkeys.dispose()
     snip.dispose()
     errorConsole.dispose()
+    noteWindows.dispose()
   })
 }

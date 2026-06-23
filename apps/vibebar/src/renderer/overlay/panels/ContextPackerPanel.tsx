@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import type { PackNode, PackResult, ProjectProfile } from '@shared/types.js'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import type { PackChangedPreview, PackNode, PackResult, ProjectProfile } from '@shared/types.js'
 import { Icon } from '../../shared/icons'
 import { DetachButton, PanelHeader } from '../../shared/ui'
 
@@ -7,6 +7,7 @@ export function ContextPackerPanel({
   profile,
   onClose,
   onCopyOutcome,
+  onPackChanged,
   solid,
   onToggleSolid,
   onDetach
@@ -14,6 +15,7 @@ export function ContextPackerPanel({
   profile: ProjectProfile | null
   onClose: () => void
   onCopyOutcome: (copied: boolean, text: string) => void
+  onPackChanged?: () => void
   solid?: boolean
   onToggleSolid?: () => void
   /** When provided, shows a Detach button that pops the panel out into a floating window. */
@@ -24,26 +26,54 @@ export function ContextPackerPanel({
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [result, setResult] = useState<PackResult | null>(null)
   const [busy, setBusy] = useState(false)
+  const [changedPreview, setChangedPreview] = useState<PackChangedPreview | null>(null)
+  const [loadingDirs, setLoadingDirs] = useState<Set<string>>(new Set())
+  const expandTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   async function loadDir(dir: string): Promise<void> {
-    const nodes = await window.vibebar.packer.tree(dir)
-    setChildrenByDir((prev) => ({ ...prev, [dir]: nodes }))
+    setLoadingDirs((prev) => new Set(prev).add(dir))
+    try {
+      const nodes = await window.vibebar.packer.tree(dir)
+      setChildrenByDir((prev) => ({ ...prev, [dir]: nodes }))
+    } finally {
+      setLoadingDirs((prev) => {
+        const next = new Set(prev)
+        next.delete(dir)
+        return next
+      })
+    }
   }
 
   useEffect(() => {
-    if (profile?.rootPath) void loadDir('')
+    if (profile?.rootPath) {
+      void loadDir('')
+      void window.vibebar.packer.previewChanged().then(setChangedPreview)
+    } else {
+      setChangedPreview(null)
+    }
   }, [profile?.rootPath])
 
   async function toggleDir(path: string): Promise<void> {
     const next = new Set(expanded)
     if (next.has(path)) {
       next.delete(path)
-    } else {
-      next.add(path)
-      if (!childrenByDir[path]) await loadDir(path)
+      setExpanded(next)
+      return
     }
+    next.add(path)
     setExpanded(next)
+    if (childrenByDir[path]) return
+    if (expandTimer.current) clearTimeout(expandTimer.current)
+    expandTimer.current = setTimeout(() => {
+      void loadDir(path)
+    }, 150)
   }
+
+  useEffect(() => {
+    return () => {
+      if (expandTimer.current) clearTimeout(expandTimer.current)
+    }
+  }, [])
 
   function toggleFile(path: string): void {
     const next = new Set(selected)
@@ -62,6 +92,36 @@ export function ContextPackerPanel({
     } finally {
       setBusy(false)
     }
+  }
+
+  async function applyPreset(preset: 'changed' | 'tests' | 'config' | 'entry'): Promise<void> {
+    if (preset === 'changed') {
+      if (onPackChanged) {
+        onPackChanged()
+        return
+      }
+      const paths = await window.vibebar.git.changedFiles()
+      setSelected(new Set(paths))
+      setResult(null)
+      return
+    }
+    const { paths } = await window.vibebar.packer.presetPaths(preset)
+    setSelected(new Set(paths))
+    setResult(null)
+    if (paths.length === 0) return
+    for (const dir of [...new Set(paths.map((p) => p.split('/').slice(0, -1).join('/')).filter(Boolean))]) {
+      if (!childrenByDir[dir]) await loadDir(dir)
+    }
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      for (const p of paths) {
+        const parts = p.split('/')
+        for (let i = 0; i < parts.length - 1; i++) {
+          next.add(parts.slice(0, i + 1).join('/'))
+        }
+      }
+      return next
+    })
   }
 
   function renderNodes(dir: string, depth: number): JSX.Element[] {
@@ -96,6 +156,17 @@ export function ContextPackerPanel({
         </div>
       ]
       if (node.isDir && expanded.has(node.path)) {
+        if (loadingDirs.has(node.path) && !childrenByDir[node.path]?.length) {
+          rows.push(
+            <div
+              key={`${node.path}-loading`}
+              className="py-1 pr-2 text-xs text-vibe-muted"
+              style={{ paddingLeft: `${(depth + 1) * 14 + 4}px` }}
+            >
+              Loading…
+            </div>
+          )
+        }
         rows.push(...renderNodes(node.path, depth + 1))
       }
       return rows
@@ -123,6 +194,26 @@ export function ContextPackerPanel({
             Pick files to bundle into a clipboard-ready context block. Secrets are stripped
             automatically; dependencies and build output are ignored.
           </p>
+          <div className="flex flex-wrap gap-1.5 px-4 pt-2">
+            {(
+              [
+                { id: 'changed' as const, label: 'Changed files', icon: 'GitBranch' },
+                { id: 'tests' as const, label: 'Tests', icon: 'FlaskConical' },
+                { id: 'config' as const, label: 'Config', icon: 'Settings' },
+                { id: 'entry' as const, label: 'Entry points', icon: 'Play' }
+              ] as const
+            ).map((preset) => (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={() => void applyPreset(preset.id)}
+                className="flex items-center gap-1 rounded-full bg-white/5 px-2.5 py-1 text-[10px] font-medium text-vibe-muted hover:bg-white/10 hover:text-vibe-text"
+              >
+                <Icon name={preset.icon} size={11} />
+                {preset.label}
+              </button>
+            ))}
+          </div>
           <div className="vibe-scroll flex-1 overflow-y-auto px-3 py-2">
             {renderNodes('', 0)}
           </div>
@@ -133,9 +224,20 @@ export function ContextPackerPanel({
               {result.findings.length > 0 ? ` \u00b7 ${result.findings.length} secret(s) redacted` : ''}
             </p>
           )}
-          <div className="flex items-center gap-2 border-t border-vibe-border p-3">
+          <div className="flex flex-wrap items-center gap-2 border-t border-vibe-border p-3">
             <span className="text-xs text-vibe-muted">{selected.size} selected</span>
             <div className="flex-1" />
+            {onPackChanged && changedPreview && !changedPreview.noProject && !changedPreview.noFiles && (
+              <button
+                type="button"
+                onClick={onPackChanged}
+                className="flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium text-vibe-text hover:bg-white/15"
+                title={`${changedPreview.fileCount} changed file(s), ~${changedPreview.tokenEstimate.toLocaleString()} tokens`}
+              >
+                <Icon name="GitBranch" size={13} />
+                Pack changed (~{changedPreview.tokenEstimate.toLocaleString()} tok)
+              </button>
+            )}
             <button
               type="button"
               onClick={() => void pack()}

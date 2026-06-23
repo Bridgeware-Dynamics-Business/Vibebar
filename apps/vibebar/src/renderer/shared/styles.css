@@ -23,10 +23,14 @@ html,
 body {
   margin: 0;
   padding: 0;
-  background: transparent;
-  /* The overlay window resizes as panels open/close; never let a transient layout overflow
-     flash a document scrollbar during those animations. */
+  background: #0d0f14;
   overflow: hidden;
+}
+
+/* Overlay windows are transparent Electron frames — page background must stay clear. */
+html.vibe-overlay-root,
+html.vibe-overlay-root body {
+  background: transparent;
 }
 
 #root {
@@ -73,6 +77,117 @@ body {
 }
 .vibe-scroll::-webkit-scrollbar-corner {
   background: transparent;
+}
+
+/* Notes rich editor (TipTap / ProseMirror). Kept minimal and on-theme so a note reads like an
+   advanced sticky note rather than a document editor. */
+.note-editor .ProseMirror {
+  outline: none;
+  min-height: 100%;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-vibe-text);
+}
+.note-editor .ProseMirror > * + * {
+  margin-top: 0.5rem;
+}
+.note-editor .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: var(--color-vibe-muted);
+}
+.note-editor .ProseMirror strong {
+  font-weight: 700;
+  color: #fff;
+}
+.note-editor .ProseMirror ul,
+.note-editor .ProseMirror ol {
+  padding-left: 1.25rem;
+}
+.note-editor .ProseMirror ul {
+  list-style: disc;
+}
+.note-editor .ProseMirror ol {
+  list-style: decimal;
+}
+/* Task lists: clickable square that strikes through the completed item. */
+.note-editor .ProseMirror ul[data-type='taskList'] {
+  list-style: none;
+  padding-left: 0.25rem;
+}
+.note-editor .ProseMirror ul[data-type='taskList'] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+.note-editor .ProseMirror ul[data-type='taskList'] li > label {
+  flex: 0 0 auto;
+  margin-top: 0.15rem;
+  user-select: none;
+}
+.note-editor .ProseMirror ul[data-type='taskList'] li > div {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.note-editor .ProseMirror ul[data-type='taskList'] input[type='checkbox'] {
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  accent-color: var(--color-vibe-accent);
+}
+.note-editor .ProseMirror ul[data-type='taskList'] li[data-checked='true'] > div {
+  text-decoration: line-through;
+  color: var(--color-vibe-muted);
+}
+
+/* Per-item copy button: a small affordance that copies just that bullet/checklist item's text.
+   Rendered as a ProseMirror widget (view-only) anchored to the right edge of each list item. */
+.note-editor .ProseMirror li {
+  position: relative;
+}
+.note-editor .note-item-copy {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 1px solid var(--color-vibe-border);
+  background: color-mix(in srgb, var(--color-vibe-bg) 88%, transparent);
+  color: var(--color-vibe-muted);
+  cursor: pointer;
+  /* Always visible so the affordance is never missed; emphasized on hover. */
+  opacity: 0.65;
+  transition: opacity 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+.note-editor .ProseMirror li:hover > .note-item-copy,
+.note-editor .ProseMirror li:hover .note-item-copy,
+.note-editor .note-item-copy:hover,
+.note-editor .note-item-copy:focus-visible {
+  opacity: 1;
+}
+.note-editor .note-item-copy:hover {
+  color: var(--color-vibe-text);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+.note-editor .note-item-copy.is-copied {
+  opacity: 1;
+  color: #34d399;
+  border-color: rgba(52, 211, 153, 0.5);
+}
+
+/* Optional separator lines between items (toggled from the editor toolbar). A line is drawn
+   above every block and list item after the first, so each thought reads as its own row. */
+.note-editor.show-dividers .ProseMirror > * + *,
+.note-editor.show-dividers .ProseMirror li + li {
+  border-top: 1px solid var(--color-vibe-border);
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
 }
 
 /* Style the xterm.js viewport scrollbar to match the toolbar's thin scrollbars. */

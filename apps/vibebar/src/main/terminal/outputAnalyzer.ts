@@ -77,7 +77,8 @@ const RULES: Rule[] = [
   {
     id: 'missing-node-module',
     severity: 'error',
-    title: 'Missing module / import',
+    // Avoid "…import" immediately before a quote — electron-vite's esm-shim regex false-matches it as an ESM import.
+    title: 'Missing module or dependency',
     summary: 'A required package or local module could not be resolved.',
     match: (t) =>
       firstMatchLines(t, /Cannot find module|Module not found|ERR_MODULE_NOT_FOUND/i) ??

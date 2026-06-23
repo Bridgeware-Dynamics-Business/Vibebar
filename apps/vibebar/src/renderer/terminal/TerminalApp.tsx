@@ -1,20 +1,32 @@
 import { FitAddon } from '@xterm/addon-fit'
 import { Terminal } from '@xterm/xterm'
 import { AnimatePresence, motion } from 'framer-motion'
-import { type KeyboardEvent, useCallback, useEffect, useRef, useState } from 'react'
-import type { AuditSeverity, DetectedIssue, IssueSeverity, TerminalStatus } from '@shared/types.js'
+import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type {
+  AuditConfidence,
+  AuditSeverity,
+  DetectedIssue,
+  IssueSeverity,
+  TerminalAuditSummary,
+  TerminalStatus
+} from '@shared/types.js'
 import type { ResizeEdge } from '@shared/terminalApi.js'
+import { AUDIT_CONFIDENCE_STYLE, AUDIT_SEVERITY_STYLE, AuditScoreRing } from '../shared/auditUi'
+import { AuditExportMenu } from '../shared/auditPanel/ExportMenu'
+import { AuditFindingFilters, type AuditGroupBy } from '../shared/auditPanel/FindingFilters'
+import { buildHandoffNotice, CopyHandoffToast, type CopyHandoffNotice } from '../shared/copyHandoff'
 import { Icon } from '../shared/icons'
+import { buildNoteBullet, SaveToNotePicker } from '../shared/saveToNote'
 import { FillToggle, Toggle, useFillToggle } from '../shared/ui'
 import { ShellPanel } from './ShellPanel'
 
 type SevStyle = { chip: string; dot: string; label: string }
 
 const AUDIT_STYLE: Record<AuditSeverity, SevStyle> = {
-  critical: { chip: 'bg-red-500/15 text-red-300', dot: 'bg-red-400', label: 'Critical' },
-  high: { chip: 'bg-orange-500/15 text-orange-300', dot: 'bg-orange-400', label: 'High' },
-  medium: { chip: 'bg-amber-500/10 text-amber-200', dot: 'bg-amber-300', label: 'Medium' },
-  low: { chip: 'bg-sky-500/10 text-sky-200', dot: 'bg-sky-300', label: 'Low' }
+  critical: AUDIT_SEVERITY_STYLE.critical,
+  high: AUDIT_SEVERITY_STYLE.high,
+  medium: AUDIT_SEVERITY_STYLE.medium,
+  low: AUDIT_SEVERITY_STYLE.low
 }
 
 const ISSUE_STYLE: Record<IssueSeverity, SevStyle> = {
@@ -87,11 +99,13 @@ const THEME = {
 }
 
 /** Builds one consolidated, deeply-contextual prompt covering every finding, ready to paste. */
-function buildConsolidatedPrompt(issues: DetectedIssue[]): string {
+function buildConsolidatedPrompt(issues: DetectedIssue[], audit: TerminalAuditSummary | null): string {
+  const project = audit?.projectName ?? 'my project'
+  const files = audit?.scannedFiles
   const lines: string[] = [
-    `You are a senior application-security engineer. VibeBar found ${issues.length} issue(s) in my project.`,
+    `You are a senior application-security engineer. VibeBar ran a read-only static audit of ${project}${files ? ` across ${files} scanned files` : ''} and found ${issues.length} issue(s).`,
     '',
-    'Each finding below includes its severity, the mapped CWE/OWASP entry where known, the file and line, and a code frame. Work through them strictly in severity order (critical first). For each one: confirm it is real, explain the concrete attack or failure it enables, apply the minimal fix without weakening any other control, then describe a behavioral test that fails before the fix and passes after.',
+    'Each finding below includes its severity, confidence, the mapped CWE/OWASP entry where known, the file and line, and a code frame. Work through them strictly in severity order (critical first). For each one: confirm it is real, explain the concrete attack or failure it enables, apply the minimal fix without weakening any other control, then describe a behavioral test that fails before the fix and passes after.',
     '',
     'Do not print secret values, environment variables, or full file paths back to me. Keep each change scoped to its single finding.',
     '',
@@ -99,7 +113,9 @@ function buildConsolidatedPrompt(issues: DetectedIssue[]): string {
   ]
   issues.forEach((f, i) => {
     lines.push('')
-    lines.push(`#${i + 1} [${(f.auditSeverity ?? f.severity).toUpperCase()}] ${f.title}`)
+    const sev = (f.auditSeverity ?? f.severity).toUpperCase()
+    const conf = f.confidence ? ` (confidence: ${f.confidence})` : ''
+    lines.push(`#${i + 1} [${sev}]${conf} ${f.title}`)
     if (f.category) lines.push(`Category: ${f.category}`)
     if (f.cwe) lines.push(`Weakness: ${f.cwe}`)
     if (f.references && f.references.length > 0) lines.push(`Standards: ${f.references.join('; ')}`)
@@ -117,18 +133,40 @@ function buildConsolidatedPrompt(issues: DetectedIssue[]): string {
   return lines.join('\n')
 }
 
+function ExportMenu(): JSX.Element {
+  return (
+    <AuditExportMenu
+      compact
+      onExport={async (format) => {
+        if (format === 'sarif') await window.terminal.exportAuditSarif()
+        else await window.terminal.exportAuditMarkdown()
+      }}
+    />
+  )
+}
+
 function FindingCard({
   issue,
   onCopy,
-  copiedId
+  copiedId,
+  onDismiss
 }: {
   issue: DetectedIssue
   onCopy: (issue: DetectedIssue, kind: 'fix' | 'test') => void
   copiedId: string | null
+  onDismiss?: (id: string) => void
 }): JSX.Element {
   const [expanded, setExpanded] = useState(false)
+  const [saveOpen, setSaveOpen] = useState(false)
   const s = styleFor(issue)
+  const conf = issue.confidence ? AUDIT_CONFIDENCE_STYLE[issue.confidence] : null
   const hasDetail = Boolean(issue.codeContext || issue.evidence || issue.cwe || issue.references?.length)
+
+  const noteMarkdown = buildNoteBullet({
+    title: issue.title,
+    fileLine: issue.file ? `${issue.file}${issue.line ? `:${issue.line}` : ''}` : undefined,
+    excerpt: issue.prompt.slice(0, 400)
+  })
 
   return (
     <div className="rounded-xl border border-vibe-border bg-white/[0.03] transition-colors hover:border-white/15">
@@ -148,6 +186,16 @@ function FindingCard({
             <span className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${s.chip}`}>
               <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} /> {s.label}
             </span>
+            {conf && (
+              <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${conf.chip}`} title={conf.title}>
+                {conf.label}
+              </span>
+            )}
+            {issue.status === 'new' && (
+              <span className="rounded-full bg-vibe-accent/20 px-2 py-0.5 text-[10px] font-semibold text-vibe-accent-2">
+                new
+              </span>
+            )}
             <span className="text-xs font-medium text-vibe-text">{issue.title}</span>
           </span>
           <span className="mt-1 block text-[11px] leading-snug text-vibe-muted">{issue.summary}</span>
@@ -173,11 +221,19 @@ function FindingCard({
             className="overflow-hidden"
           >
             <div className="border-t border-vibe-border px-2.5 py-2.5">
-              {issue.cwe && (
-                <p className="mb-1 text-[11px] text-vibe-text">{issue.cwe}</p>
-              )}
-              {issue.references && issue.references.length > 0 && (
-                <p className="mb-2 text-[11px] text-vibe-muted">{issue.references.join(' \u00b7 ')}</p>
+              {(issue.cwe || (issue.references && issue.references.length > 0)) && (
+                <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                  {issue.cwe && (
+                    <span className="rounded-md bg-white/5 px-2 py-0.5 text-[10px] font-medium text-vibe-text">
+                      {issue.cwe}
+                    </span>
+                  )}
+                  {issue.references?.map((ref) => (
+                    <span key={ref} className="rounded-md bg-white/5 px-2 py-0.5 text-[10px] text-vibe-muted">
+                      {ref}
+                    </span>
+                  ))}
+                </div>
               )}
               {issue.codeContext ? (
                 <pre className="vibe-scroll mb-2 max-h-44 overflow-auto whitespace-pre rounded-lg bg-black/40 p-2.5 font-mono text-[11px] leading-relaxed text-vibe-text">
@@ -214,13 +270,33 @@ function FindingCard({
             {copiedId === `${issue.id}:test` ? 'Copied' : 'Copy test'}
           </button>
         )}
+        {onDismiss && (
+          <button
+            type="button"
+            onClick={() => onDismiss(issue.id)}
+            title="Mark resolved"
+            className="flex items-center justify-center rounded-md border border-vibe-border px-2 py-1.5 text-[11px] text-vibe-muted hover:bg-white/10 hover:text-vibe-text"
+          >
+            <Icon name="ListChecks" size={12} />
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => setSaveOpen(true)}
+          title="Save to note"
+          className="flex items-center justify-center rounded-md bg-white/5 px-2 py-1.5 text-[11px] text-vibe-muted hover:bg-white/10 hover:text-vibe-text"
+        >
+          <Icon name="StickyNote" size={12} />
+        </button>
       </div>
+      <SaveToNotePicker open={saveOpen} onClose={() => setSaveOpen(false)} markdown={noteMarkdown} />
     </div>
   )
 }
 
 function AuditDock({
   issues,
+  audit,
   scanning,
   autoScan,
   setAutoScan,
@@ -233,9 +309,11 @@ function AuditDock({
   onCopy,
   onCopyAll,
   copiedId,
-  copiedAll
+  copiedAll,
+  onDismiss
 }: {
   issues: DetectedIssue[]
+  audit: TerminalAuditSummary | null
   scanning: boolean
   autoScan: boolean
   setAutoScan: (v: boolean) => void
@@ -246,18 +324,61 @@ function AuditDock({
   onRun: () => void
   onClose: () => void
   onCopy: (issue: DetectedIssue, kind: 'fix' | 'test') => void
-  onCopyAll: () => void
+  onCopyAll: (issues: DetectedIssue[]) => void
   copiedId: string | null
   copiedAll: boolean
+  onDismiss?: (id: string) => void
 }): JSX.Element {
-  const fromAudit = issues.some((i) => i.source === 'audit')
+  const fromAudit = audit !== null || issues.some((i) => i.source === 'audit')
+  const [query, setQuery] = useState('')
+  const [sevFilter, setSevFilter] = useState<Set<AuditSeverity>>(new Set())
+  const [confFilter, setConfFilter] = useState<Set<AuditConfidence>>(new Set())
+  const [onlyNew, setOnlyNew] = useState(false)
+  const [groupBy, setGroupBy] = useState<AuditGroupBy>('none')
+  const [showFilters, setShowFilters] = useState(false)
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return issues.filter((i) => {
+      if (sevFilter.size > 0 && (!i.auditSeverity || !sevFilter.has(i.auditSeverity))) return false
+      if (confFilter.size > 0 && (!i.confidence || !confFilter.has(i.confidence))) return false
+      if (onlyNew && i.status !== 'new') return false
+      if (q) {
+        const hay = `${i.title} ${i.summary} ${i.file ?? ''} ${i.category ?? ''} ${i.cwe ?? ''}`.toLowerCase()
+        if (!hay.includes(q)) return false
+      }
+      return true
+    })
+  }, [issues, query, sevFilter, confFilter, onlyNew])
+
   const counts = AUDIT_ORDER.map((sev) => ({
     sev,
     n: issues.filter((i) => i.auditSeverity === sev).length
   })).filter((c) => c.n > 0)
 
+  const hasActiveFilters = sevFilter.size > 0 || confFilter.size > 0 || onlyNew || query.trim().length > 0
+
+  const groups = useMemo(() => {
+    if (groupBy === 'none') return null
+    const map = new Map<string, DetectedIssue[]>()
+    for (const i of filtered) {
+      const key =
+        groupBy === 'severity'
+          ? i.auditSeverity
+            ? AUDIT_STYLE[i.auditSeverity].label
+            : ISSUE_STYLE[i.severity].label
+          : groupBy === 'category'
+            ? i.category ?? 'Uncategorized'
+            : i.file ?? 'Project-level'
+      const arr = map.get(key) ?? []
+      arr.push(i)
+      map.set(key, arr)
+    }
+    return [...map.entries()]
+  }, [filtered, groupBy])
+
   return (
-    <div className="vibe-no-drag flex w-[22rem] shrink-0 flex-col border-l border-vibe-border bg-black/30">
+    <div className="vibe-no-drag flex w-[24rem] shrink-0 flex-col border-l border-vibe-border bg-black/30">
       {/* Header */}
       <div className="flex items-center gap-2 border-b border-vibe-border px-3 py-2">
         <Icon name="ShieldAlert" size={15} className="text-vibe-accent" />
@@ -313,13 +434,107 @@ function AuditDock({
         )}
       </div>
 
-      {/* Summary */}
+      {/* Posture summary */}
+      {fromAudit && (
+        <div className="flex items-center gap-2.5 border-b border-vibe-border px-3 py-2.5">
+          {audit && !audit.noProject && audit.score && <AuditScoreRing score={audit.score} />}
+          <div className="min-w-0 flex-1">
+            {audit?.noProject ? (
+              <p className="text-[11px] text-amber-300">Select a project from the toolbar, then run the audit.</p>
+            ) : audit ? (
+              <>
+                <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                  <span className="font-medium text-vibe-text">
+                    {issues.length === 0
+                      ? `No risk signals in ${audit.scannedFiles} files`
+                      : `${issues.length} issue(s) in ${audit.scannedFiles} files`}
+                  </span>
+                  {audit.delta && (audit.delta.new > 0 || audit.delta.resolved > 0) && (
+                    <span className="flex items-center gap-1">
+                      {audit.delta.new > 0 && (
+                        <span className="rounded-full bg-vibe-accent/20 px-1.5 py-0.5 text-[10px] font-semibold text-vibe-accent-2">
+                          +{audit.delta.new} new
+                        </span>
+                      )}
+                      {audit.delta.resolved > 0 && (
+                        <span className="rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-300">
+                          -{audit.delta.resolved} resolved
+                        </span>
+                      )}
+                    </span>
+                  )}
+                </div>
+                <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-vibe-muted">
+                  {counts.map((c) => (
+                    <span key={c.sev} className={`flex items-center gap-1 rounded-full px-1.5 py-0.5 ${AUDIT_STYLE[c.sev].chip}`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${AUDIT_STYLE[c.sev].dot}`} />
+                      {c.n} {AUDIT_STYLE[c.sev].label.toLowerCase()}
+                    </span>
+                  ))}
+                  {typeof audit.durationMs === 'number' && (
+                    <span className="text-vibe-muted/70">{audit.durationMs}ms</span>
+                  )}
+                  <span className="ml-auto text-vibe-muted/80">{new Date(audit.ranAt).toLocaleTimeString()}</span>
+                </div>
+              </>
+            ) : (
+              <p className="text-[11px] text-vibe-muted">Run an audit to see posture score and grading.</p>
+            )}
+          </div>
+          {audit && !audit.noProject && issues.length > 0 && <ExportMenu />}
+        </div>
+      )}
+
+      {audit?.truncated && (
+        <div className="flex items-start gap-2 border-b border-amber-500/20 bg-amber-500/5 px-3 py-2 text-[10px] text-amber-300">
+          <Icon name="AlertTriangle" size={12} className="mt-0.5 shrink-0" />
+          <span>
+            Scanned the first {audit.scannedFiles} of {audit.totalCandidates} source files — results are partial.
+          </span>
+        </div>
+      )}
+
+      {/* Filter toggle */}
+      {fromAudit && issues.length > 0 && (
+        <div className="border-b border-vibe-border px-3 py-1.5">
+          <button
+            type="button"
+            onClick={() => setShowFilters((v) => !v)}
+            className={`flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] ${
+              showFilters || hasActiveFilters ? 'bg-white/10 text-vibe-text' : 'text-vibe-muted hover:text-vibe-text'
+            }`}
+          >
+            <Icon name="Filter" size={12} /> Filter
+            {hasActiveFilters && <span className="h-1.5 w-1.5 rounded-full bg-vibe-accent" />}
+          </button>
+        </div>
+      )}
+
+      {showFilters && issues.length > 0 && (
+        <AuditFindingFilters
+          compact
+          query={query}
+          onQueryChange={setQuery}
+          sevFilter={sevFilter}
+          onSevFilterChange={setSevFilter}
+          confFilter={confFilter}
+          onConfFilterChange={setConfFilter}
+          onlyNew={onlyNew}
+          onOnlyNewChange={setOnlyNew}
+          groupBy={groupBy}
+          onGroupByChange={setGroupBy}
+          showNewFilter={Boolean(audit?.delta && audit.delta.new > 0)}
+        />
+      )}
+
+      {/* Summary (command-output issues only) */}
+      {!fromAudit && (
       <div className="flex flex-wrap items-center gap-1.5 border-b border-vibe-border px-3 py-2 text-[11px] text-vibe-muted">
-        <Icon name={fromAudit ? 'ShieldAlert' : 'ScanSearch'} size={13} />
+        <Icon name="ScanSearch" size={13} />
         <span className="text-vibe-text">
           {issues.length === 0
             ? 'No issues'
-            : `${issues.length} ${fromAudit ? 'finding' : 'issue'}${issues.length === 1 ? '' : 's'}`}
+            : `${issues.length} issue${issues.length === 1 ? '' : 's'}`}
         </span>
         {counts.map((c) => (
           <span key={c.sev} className={`flex items-center gap-1 rounded-full px-2 py-0.5 ${AUDIT_STYLE[c.sev].chip}`}>
@@ -328,6 +543,7 @@ function AuditDock({
           </span>
         ))}
       </div>
+      )}
 
       {/* Findings */}
       <div className="vibe-scroll flex-1 space-y-2 overflow-y-auto p-3">
@@ -341,23 +557,48 @@ function AuditDock({
               auth and object-level authorization.
             </p>
           </div>
+        ) : filtered.length === 0 ? (
+          <p className="px-1 py-4 text-center text-[11px] text-vibe-muted">No findings match the current filters.</p>
+        ) : groups ? (
+          groups.map(([key, items]) => (
+            <div key={key} className="space-y-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-vibe-muted">
+                {key} <span className="text-vibe-muted/70">({items.length})</span>
+              </p>
+              {items.map((issue) => (
+                <FindingCard
+                  key={issue.id}
+                  issue={issue}
+                  onCopy={onCopy}
+                  copiedId={copiedId}
+                  onDismiss={onDismiss}
+                />
+              ))}
+            </div>
+          ))
         ) : (
-          issues.map((issue) => (
-            <FindingCard key={issue.id} issue={issue} onCopy={onCopy} copiedId={copiedId} />
+          filtered.map((issue) => (
+            <FindingCard
+              key={issue.id}
+              issue={issue}
+              onCopy={onCopy}
+              copiedId={copiedId}
+              onDismiss={onDismiss}
+            />
           ))
         )}
       </div>
 
       {/* Footer */}
-      {issues.length > 0 && (
+      {filtered.length > 0 && (
         <div className="border-t border-vibe-border p-2.5">
           <button
             type="button"
-            onClick={onCopyAll}
+            onClick={() => onCopyAll(filtered)}
             className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-[11px] font-medium text-vibe-text hover:bg-white/15"
           >
             <Icon name={copiedAll ? 'Check' : 'Copy'} size={13} />
-            {copiedAll ? 'Copied all findings' : 'Copy all as one prompt'}
+            {copiedAll ? 'Copied all findings' : `Copy ${hasActiveFilters ? 'filtered' : 'all'} as one prompt`}
           </button>
         </div>
       )}
@@ -380,9 +621,12 @@ export function TerminalApp(): JSX.Element {
     lastCommand: null
   })
   const [issues, setIssues] = useState<DetectedIssue[]>([])
+  const [audit, setAudit] = useState<TerminalAuditSummary | null>(null)
   const [projectName, setProjectName] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [copiedAll, setCopiedAll] = useState(false)
+  const [handoffNotice, setHandoffNotice] = useState<CopyHandoffNotice | null>(null)
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(() => new Set())
   const [solid, toggleSolid] = useFillToggle('terminal.solid')
 
   const [dockOpen, setDockOpen] = useState(false)
@@ -413,9 +657,10 @@ export function TerminalApp(): JSX.Element {
 
     const offData = window.terminal.onData((chunk) => term.write(chunk))
     const offStatus = window.terminal.onStatus(setStatus)
-    const offIssues = window.terminal.onIssues((next) => {
-      setIssues(next)
-      if (next.length > 0) setDockOpen(true)
+    const offIssues = window.terminal.onIssues((update) => {
+      setIssues(update.issues)
+      setAudit(update.audit)
+      if (update.audit !== null || update.issues.length > 0) setDockOpen(true)
     })
     void window.terminal.getState().then((s) => {
       setStatus(s.status)
@@ -465,6 +710,15 @@ export function TerminalApp(): JSX.Element {
 
   const intervalMs = Math.max(3000, intervalValue * (intervalUnit === 'minutes' ? 60_000 : 1000))
 
+  const visibleIssues = useMemo(
+    () => issues.filter((i) => !dismissedIds.has(i.id)),
+    [issues, dismissedIds]
+  )
+
+  const dismissIssue = useCallback((id: string) => {
+    setDismissedIds((prev) => new Set(prev).add(id))
+  }, [])
+
   useEffect(() => {
     if (!autoScan) return
     const id = window.setInterval(() => void runAudit(true), intervalMs)
@@ -477,6 +731,7 @@ export function TerminalApp(): JSX.Element {
     historyRef.current = [cmd, ...historyRef.current.filter((c) => c !== cmd)].slice(0, 100)
     historyIdxRef.current = -1
     setIssues([])
+    setAudit(null)
     void window.terminal.run(cmd)
     setCommand('')
   }, [command])
@@ -508,22 +763,51 @@ export function TerminalApp(): JSX.Element {
   function clear(): void {
     xtermRef.current?.clear()
     setIssues([])
+    setAudit(null)
     void window.terminal.clear()
   }
 
   async function copyIssue(issue: DetectedIssue, kind: 'fix' | 'test'): Promise<void> {
     const text = kind === 'test' && issue.testPrompt ? issue.testPrompt : issue.prompt
     const key = `${issue.id}:${kind}`
-    await window.terminal.copy(text)
+    const { copied } = await window.terminal.copy(text)
+    if (copied) {
+      setHandoffNotice(buildHandoffNotice(true))
+      if (kind === 'fix') {
+        void window.terminal.sessionAppend({
+          type: issue.source === 'audit' ? 'audit-finding' : 'terminal-issue',
+          title: issue.title,
+          fullText: text,
+          ...(issue.source === 'audit'
+            ? {
+                fingerprint: issue.id,
+                severity: issue.auditSeverity ?? issue.severity,
+                file: issue.file ? `${issue.file}${issue.line ? `:${issue.line}` : ''}` : undefined,
+                fixExcerpt: issue.prompt.slice(0, 400)
+              }
+            : {
+                issueId: issue.id,
+                command: status.lastCommand ?? undefined
+              })
+        })
+      }
+    }
     setCopiedId(key)
     window.setTimeout(() => setCopiedId((id) => (id === key ? null : id)), 1600)
   }
 
-  async function copyAll(): Promise<void> {
-    if (issues.length === 0) return
-    await window.terminal.copy(buildConsolidatedPrompt(issues))
+  async function copyAll(toCopy: DetectedIssue[]): Promise<void> {
+    if (toCopy.length === 0) return
+    const { copied } = await window.terminal.copy(buildConsolidatedPrompt(toCopy, audit))
+    if (copied) setHandoffNotice(buildHandoffNotice(true))
     setCopiedAll(true)
     window.setTimeout(() => setCopiedAll(false), 1600)
+  }
+
+  function rerunLast(): void {
+    const cmd = status.lastCommand?.trim()
+    if (!cmd || status.running) return
+    void window.terminal.run(cmd)
   }
 
   return (
@@ -602,7 +886,8 @@ export function TerminalApp(): JSX.Element {
         <div ref={termRef} className="min-w-0 flex-1 p-2" />
         {dockOpen && (
           <AuditDock
-            issues={issues}
+            issues={visibleIssues}
+            audit={audit}
             scanning={scanning}
             autoScan={autoScan}
             setAutoScan={setAutoScan}
@@ -613,9 +898,10 @@ export function TerminalApp(): JSX.Element {
             onRun={() => void runAudit(false)}
             onClose={() => setDockOpen(false)}
             onCopy={(i, kind) => void copyIssue(i, kind)}
-            onCopyAll={() => void copyAll()}
+            onCopyAll={(list) => void copyAll(list)}
             copiedId={copiedId}
             copiedAll={copiedAll}
+            onDismiss={dismissIssue}
           />
         )}
       </div>
@@ -639,7 +925,23 @@ export function TerminalApp(): JSX.Element {
         >
           <Icon name="Play" size={13} /> Run
         </button>
+        {status.lastCommand && !status.running && (
+          <button
+            type="button"
+            onClick={rerunLast}
+            title={`Re-run: ${status.lastCommand}`}
+            className="flex items-center gap-1 rounded-lg border border-vibe-border px-2.5 py-1.5 text-xs text-vibe-muted hover:bg-white/10 hover:text-vibe-text"
+          >
+            <Icon name="RotateCcw" size={13} /> Re-run
+          </button>
+        )}
       </div>
+
+      <CopyHandoffToast
+        notice={handoffNotice}
+        onDismiss={() => setHandoffNotice(null)}
+        onOpenCursor={() => void window.terminal.openCursor()}
+      />
 
       {shellOpen && (
         <ShellPanel cwd={status.cwd} projectName={projectName} onClose={() => setShellOpen(false)} />

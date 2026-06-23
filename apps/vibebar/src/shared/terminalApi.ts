@@ -1,8 +1,11 @@
 import type {
-  DetectedIssue,
+  NotesState,
   ProjectCommand,
+  SessionAppendInput,
+  SessionState,
   ShellReady,
   ShellType,
+  TerminalIssueUpdate,
   TerminalState,
   TerminalStatus
 } from './types.js'
@@ -36,12 +39,24 @@ export interface TerminalBridge {
   copy: (text: string) => Promise<{ copied: boolean }>
   /** Runs the full security audit and presents findings in this terminal. */
   runAudit: (quiet: boolean) => Promise<{ findings: number; noProject: boolean }>
+  /** Export the latest audit report (requires a prior scan). */
+  exportAuditSarif: () => Promise<{ saved: boolean; path?: string; reason?: string; fromCache?: boolean }>
+  exportAuditMarkdown: () => Promise<{ saved: boolean; path?: string; reason?: string; fromCache?: boolean }>
+  /** Opens Cursor on the active project via the main-process quick launcher. */
+  openCursor: () => Promise<{ ok: boolean; error?: string }>
+  /** Append a session timeline event (terminal runs in a separate window). */
+  sessionAppend: (entry: SessionAppendInput) => Promise<SessionState>
+  notes: {
+    getState: () => Promise<NotesState>
+    appendMarkdown: (id: string, markdown: string) => Promise<NotesState>
+    findSessionLog: () => Promise<{ id: string; state: NotesState }>
+  }
   /** Streamed stdout/stderr chunks for the running command. */
   onData: (cb: (chunk: string) => void) => () => void
   /** Status updates: a command started, finished (with exit code), or the cwd changed. */
   onStatus: (cb: (status: TerminalStatus) => void) => () => void
   /** Issues detected in the most recent command's output, or findings from an audit. */
-  onIssues: (cb: (issues: DetectedIssue[]) => void) => () => void
+  onIssues: (cb: (update: TerminalIssueUpdate) => void) => () => void
 
   /**
    * The built-in interactive shell — a persistent cmd/PowerShell process rooted at the active

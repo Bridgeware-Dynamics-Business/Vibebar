@@ -1,6 +1,6 @@
 import { filterTemplates, PROMPT_CATEGORIES } from '@vibebar/prompt-engine'
 import { useEffect, useMemo, useState } from 'react'
-import type { ProjectProfile, PromptListResult, PromptTemplate } from '@shared/types.js'
+import type { ProjectProfile, PromptListResult, PromptTemplate, HistoryEntry } from '@shared/types.js'
 import { Icon } from '../../shared/icons'
 import { Chip, DetachButton, PanelHeader, Toggle } from '../../shared/ui'
 import { PromptCard } from './PromptCard'
@@ -33,12 +33,14 @@ export function PromptLibraryPanel({
   onDetach?: () => void
 }): JSX.Element {
   const [data, setData] = useState<PromptListResult | null>(null)
+  const [history, setHistory] = useState<HistoryEntry[]>([])
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState<string>('All')
   const [draft, setDraft] = useState<PromptTemplate | null>(null)
 
   async function reload(): Promise<void> {
     setData(await window.vibebar.prompts.list())
+    setHistory(await window.vibebar.prompts.history())
   }
 
   useEffect(() => {
@@ -143,6 +145,25 @@ export function PromptLibraryPanel({
           />
         </div>
       </div>
+
+      {history.length > 0 && (
+        <div className="border-b border-vibe-border px-4 py-2">
+          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-vibe-muted">
+            Recent
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {history.slice(0, 8).map((entry) => (
+              <Chip
+                key={`${entry.promptId}-${entry.at}`}
+                active={false}
+                onClick={() => void handleCopy(entry.promptId)}
+              >
+                {entry.title || 'Untitled'}
+              </Chip>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="vibe-scroll border-b border-vibe-border px-4 py-2">
         <div className="flex flex-wrap gap-1.5">

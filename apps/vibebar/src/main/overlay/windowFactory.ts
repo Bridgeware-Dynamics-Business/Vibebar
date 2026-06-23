@@ -40,7 +40,14 @@ function loadEntry(win: BrowserWindow, entry: string, query?: Record<string, str
 }
 
 /** Creates a frameless, transparent, always-on-top toolbar window for one display. */
-export function createOverlayWindow(bounds: Rect): BrowserWindow {
+export function createOverlayWindow(
+  bounds: Rect,
+  onReady: (win: BrowserWindow) => void = (win) => {
+    win.show()
+  }
+): BrowserWindow {
+  // MUST stay transparent on Windows so -webkit-app-region: drag works (movable toolbar).
+  // Visibility comes from the solid toolbar surface in the renderer (vibe-glass is-solid).
   const win = new BrowserWindow({
     ...bounds,
     frame: false,
@@ -53,7 +60,6 @@ export function createOverlayWindow(bounds: Rect): BrowserWindow {
     fullscreenable: false,
     skipTaskbar: true,
     show: false,
-    type: 'toolbar',
     backgroundColor: '#00000000',
     webPreferences: {
       preload: resolvePreload('overlay'),
@@ -68,8 +74,21 @@ export function createOverlayWindow(bounds: Rect): BrowserWindow {
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
 
   hardenWindow(win)
+
+  // Attach before navigation — ready-to-show must not fire before we listen.
+  let readyFired = false
+  const fireReady = (): void => {
+    if (readyFired || win.isDestroyed()) return
+    readyFired = true
+    onReady(win)
+  }
+  win.once('ready-to-show', fireReady)
+  win.webContents.once('did-finish-load', () => {
+    // Some Windows/GPU configs skip or early-fire ready-to-show; ensure we still appear.
+    if (!win.isVisible()) fireReady()
+  })
+
   loadEntry(win, 'overlay')
-  win.once('ready-to-show', () => win.show())
   return win
 }
 
@@ -250,6 +269,44 @@ export function createConfirmWindow(bounds: Rect): BrowserWindow {
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   hardenWindow(win)
   loadEntry(win, 'confirm')
+  return win
+}
+
+/**
+ * Creates a sticky note pop-out as a floating overlay: frameless, transparent, and always-on-top
+ * so a note hovers over the desktop like a Microsoft Sticky Note, independent of the main Notes
+ * panel. Resizable + movable; its drag bar, fill toggle, and close button live in the renderer.
+ * The target note is selected via the `note` query param read by the `note` renderer entry.
+ * Reuses the overlay preload, which exposes the full `window.vibebar` bridge (incl. `notes`).
+ */
+export function createNoteWindow(noteId: string, bounds: Rect): BrowserWindow {
+  const win = new BrowserWindow({
+    ...bounds,
+    minWidth: 320,
+    minHeight: 280,
+    frame: false,
+    transparent: true,
+    hasShadow: false,
+    resizable: true,
+    movable: true,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    skipTaskbar: true,
+    show: false,
+    type: 'toolbar',
+    backgroundColor: '#00000000',
+    webPreferences: {
+      preload: resolvePreload('overlay'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true
+    }
+  })
+  win.setAlwaysOnTop(true, 'screen-saver')
+  win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+  hardenWindow(win)
+  loadEntry(win, 'note', { note: noteId })
   return win
 }
 

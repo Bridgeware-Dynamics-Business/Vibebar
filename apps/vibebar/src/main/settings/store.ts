@@ -7,8 +7,11 @@ import type {
   DockSide,
   HistoryEntry,
   QuickLaunchApp,
-  VibeSettings
+  RecentProject,
+  VibeSettings,
+  WindowBounds
 } from '@shared/types.js'
+import { pruneRecentProjects, pushRecentProject } from '../project/recentProjects.js'
 
 interface StoreSchema {
   settings: VibeSettings
@@ -23,6 +26,14 @@ interface StoreSchema {
   displayLayouts: Record<string, DisplayLayout>
   /** One-click toolbar launchers; seeded with Cursor + Codex on first run. */
   quickLaunch: QuickLaunchApp[]
+  /** Last opened project folders (most recent first). */
+  recentProjects: RecentProject[]
+  /** Persisted bounds per detached panel id. */
+  panelBounds: Record<string, WindowBounds>
+  /** Persisted Smart Terminal window bounds. */
+  terminalBounds: WindowBounds | null
+  /** When true, the first-run onboarding wizard is suppressed. */
+  onboardingComplete: boolean
 }
 
 const DEFAULT_SETTINGS: VibeSettings = {
@@ -30,7 +41,8 @@ const DEFAULT_SETTINGS: VibeSettings = {
   enabledDisplayIds: [],
   errorConsoleDisplayIds: [],
   guardrailsEnabled: true,
-  launchOnStartup: false
+  launchOnStartup: false,
+  hotkeysEnabled: true
 }
 
 /**
@@ -68,7 +80,11 @@ export class AppStore {
         },
         github: { desktopPath: '' },
         displayLayouts: {},
-        quickLaunch: DEFAULT_QUICK_LAUNCH
+        quickLaunch: DEFAULT_QUICK_LAUNCH,
+        recentProjects: [],
+        panelBounds: {},
+        terminalBounds: null,
+        onboardingComplete: false
       }
     })
   }
@@ -97,6 +113,10 @@ export class AppStore {
 
   setDisplayLayout(id: string, layout: DisplayLayout): void {
     this.store.set('displayLayouts', { ...this.getDisplayLayouts(), [id]: layout })
+  }
+
+  clearDisplayLayouts(): void {
+    this.store.set('displayLayouts', {})
   }
 
   getActiveProjectPath(): string {
@@ -187,5 +207,49 @@ export class AppStore {
 
   removeQuickLaunchApp(id: string): QuickLaunchApp[] {
     return this.setQuickLaunchApps(this.getQuickLaunchApps().filter((app) => app.id !== id))
+  }
+
+  getRecentProjects(): RecentProject[] {
+    return this.store.get('recentProjects') ?? []
+  }
+
+  /** Returns recents with missing paths pruned from persistence. */
+  getRecentProjectsValid(exists: (path: string) => boolean): RecentProject[] {
+    const pruned = pruneRecentProjects(this.getRecentProjects(), exists)
+    if (pruned.length !== this.getRecentProjects().length) {
+      this.store.set('recentProjects', pruned)
+    }
+    return pruned
+  }
+
+  pushRecentProject(path: string, label: string): RecentProject[] {
+    const next = pushRecentProject(this.getRecentProjects(), { path, label })
+    this.store.set('recentProjects', next)
+    return next
+  }
+
+  getPanelBounds(panelId: string): WindowBounds | null {
+    return this.store.get('panelBounds')?.[panelId] ?? null
+  }
+
+  setPanelBounds(panelId: string, bounds: WindowBounds): void {
+    const all = this.store.get('panelBounds') ?? {}
+    this.store.set('panelBounds', { ...all, [panelId]: bounds })
+  }
+
+  getTerminalBounds(): WindowBounds | null {
+    return this.store.get('terminalBounds') ?? null
+  }
+
+  setTerminalBounds(bounds: WindowBounds): void {
+    this.store.set('terminalBounds', bounds)
+  }
+
+  isOnboardingComplete(): boolean {
+    return Boolean(this.store.get('onboardingComplete'))
+  }
+
+  setOnboardingComplete(complete: boolean): void {
+    this.store.set('onboardingComplete', complete)
   }
 }

@@ -2,12 +2,16 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type { PromptCategory, PromptTemplate } from '@vibebar/prompt-engine'
 import type { ErrorReport, VibeBarApi } from '@shared/api.js'
 import { CH } from '@shared/channels.js'
+import type { DetachablePanelId } from '@shared/tools.js'
 import type {
   DockSide,
   GitStatus,
+  NotesState,
   OverlayLayout,
   ProjectProfile,
   QuickLaunchApp,
+  SessionAppendInput,
+  SessionState,
   VibeSettings
 } from '@shared/types.js'
 
@@ -21,14 +25,26 @@ const api: VibeBarApi = {
   overlay: {
     getState: () => ipcRenderer.invoke(CH.overlayGetState),
     setDock: (dock: DockSide) => ipcRenderer.invoke(CH.overlaySetDock, { dock }),
-    setPanel: (open: boolean) => ipcRenderer.invoke(CH.overlaySetPanel, { open }),
-    onLayout: (cb: (layout: OverlayLayout) => void) => subscribe(CH.overlayLayout, cb)
+    setPanel: (open: boolean, panelId?: DetachablePanelId) =>
+      ipcRenderer.invoke(CH.overlaySetPanel, { open, panelId }),
+    resetToolbar: () => ipcRenderer.invoke(CH.overlayResetToolbar),
+    collapsePanel: () => ipcRenderer.invoke(CH.overlayCollapsePanel),
+    setCommandPalette: (open: boolean) =>
+      ipcRenderer.invoke(CH.overlaySetCommandPalette, { open }),
+    setActive: () => ipcRenderer.invoke(CH.overlaySetActive),
+    onLayout: (cb: (layout: OverlayLayout) => void) => subscribe(CH.overlayLayout, cb),
+    onCommandPalette: (cb: (state: { open: boolean }) => void) =>
+      subscribe(CH.overlayCommandPalette, cb)
   },
   project: {
     select: () => ipcRenderer.invoke(CH.projectSelect),
     get: () => ipcRenderer.invoke(CH.projectGet),
+    listRecents: () => ipcRenderer.invoke(CH.projectListRecents),
+    openRecent: (path: string) => ipcRenderer.invoke(CH.projectOpenRecent, { path }),
     addContextFolder: () => ipcRenderer.invoke(CH.projectAddContextFolder),
     openContextFolder: () => ipcRenderer.invoke(CH.projectOpenContextFolder),
+    getAiDocs: () => ipcRenderer.invoke(CH.projectGetAiDocs),
+    appendAgentsMd: (markdown: string) => ipcRenderer.invoke(CH.projectAppendAgentsMd, { markdown }),
     onChanged: (cb: (profile: ProjectProfile | null) => void) => subscribe(CH.projectChanged, cb)
   },
   prompts: {
@@ -50,7 +66,11 @@ const api: VibeBarApi = {
   },
   packer: {
     tree: (dir: string) => ipcRenderer.invoke(CH.packerTree, { dir }),
-    pack: (paths: string[]) => ipcRenderer.invoke(CH.packerPack, { paths })
+    pack: (paths: string[]) => ipcRenderer.invoke(CH.packerPack, { paths }),
+    previewChanged: () => ipcRenderer.invoke(CH.packerPreviewChanged),
+    packChanged: () => ipcRenderer.invoke(CH.packerPackChanged),
+    presetPaths: (preset: 'tests' | 'config' | 'entry') =>
+      ipcRenderer.invoke(CH.packerPresetPaths, { preset })
   },
   clipboard: {
     write: (text: string) => ipcRenderer.invoke(CH.clipboardWrite, { text })
@@ -69,12 +89,19 @@ const api: VibeBarApi = {
   terminal: {
     toggle: () => ipcRenderer.invoke(CH.terminalToggle),
     isOpen: () => ipcRenderer.invoke(CH.terminalIsOpen),
+    getHints: () => ipcRenderer.invoke(CH.terminalGetHints),
     onVisibility: (cb: (state: { visible: boolean }) => void) =>
       subscribe(CH.terminalVisibility, cb)
   },
   audit: {
     run: () => ipcRenderer.invoke(CH.auditRun),
-    scan: () => ipcRenderer.invoke(CH.auditScan)
+    scan: () => ipcRenderer.invoke(CH.auditScan),
+    exportSarif: () => ipcRenderer.invoke(CH.auditExportSarif),
+    exportMarkdown: () => ipcRenderer.invoke(CH.auditExportMarkdown),
+    getConfig: () => ipcRenderer.invoke(CH.auditGetConfig),
+    acceptRisk: (fingerprint: string) => ipcRenderer.invoke(CH.auditAcceptRisk, { fingerprint }),
+    setRuleDisabled: (ruleId: string, disabled: boolean) =>
+      ipcRenderer.invoke(CH.auditSetRuleDisabled, { ruleId, disabled })
   },
   github: {
     open: () => ipcRenderer.invoke(CH.githubOpen)
@@ -88,7 +115,36 @@ const api: VibeBarApi = {
   },
   git: {
     getStatus: () => ipcRenderer.invoke(CH.gitStatus),
-    onStatusChanged: (cb: (status: GitStatus) => void) => subscribe(CH.gitStatusChanged, cb)
+    onStatusChanged: (cb: (status: GitStatus) => void) => subscribe(CH.gitStatusChanged, cb),
+    copyDiffPrompt: () => ipcRenderer.invoke(CH.gitCopyDiffPrompt),
+    changedFiles: () => ipcRenderer.invoke(CH.gitChangedFiles)
+  },
+  notes: {
+    getState: () => ipcRenderer.invoke(CH.notesGetState),
+    init: (projectName: string, addToGitignore: boolean) =>
+      ipcRenderer.invoke(CH.notesInit, { projectName, addToGitignore }),
+    create: (title: string) => ipcRenderer.invoke(CH.notesCreate, { title }),
+    read: (id: string) => ipcRenderer.invoke(CH.notesRead, { id }),
+    save: (id: string, title: string, markdown: string) =>
+      ipcRenderer.invoke(CH.notesSave, { id, title, markdown }),
+    remove: (id: string) => ipcRenderer.invoke(CH.notesDelete, { id }),
+    setProjectName: (projectName: string) =>
+      ipcRenderer.invoke(CH.notesSetProjectName, { projectName }),
+    popOut: (id: string) => ipcRenderer.invoke(CH.notesPopOut, { id }),
+    appendMarkdown: (id: string, markdown: string) =>
+      ipcRenderer.invoke(CH.notesAppendMarkdown, { id, markdown }),
+    findSessionLog: () => ipcRenderer.invoke(CH.notesFindSessionLog),
+    onChanged: (cb: (state: NotesState) => void) => subscribe(CH.notesChanged, cb)
+  },
+  session: {
+    getState: () => ipcRenderer.invoke(CH.sessionGetState),
+    append: (entry: SessionAppendInput) => ipcRenderer.invoke(CH.sessionAppend, entry),
+    togglePin: (id: string) => ipcRenderer.invoke(CH.sessionTogglePin, { id }),
+    clear: () => ipcRenderer.invoke(CH.sessionClear),
+    copyHandoff: (includeGitDiff?: boolean) =>
+      ipcRenderer.invoke(CH.sessionCopyHandoff, { includeGitDiff }),
+    copyFixPrompts: () => ipcRenderer.invoke(CH.sessionCopyFixPrompts),
+    onChanged: (cb: (state: SessionState) => void) => subscribe(CH.sessionChanged, cb)
   },
   errors: {
     report: (report: ErrorReport) => ipcRenderer.invoke(CH.errorsReport, { report }),
@@ -108,6 +164,8 @@ const api: VibeBarApi = {
   },
   app: {
     quit: () => ipcRenderer.invoke(CH.appQuit),
+    getOnboardingState: () => ipcRenderer.invoke(CH.appGetOnboardingState),
+    completeOnboarding: () => ipcRenderer.invoke(CH.appCompleteOnboarding),
     confirmQuit: () => ipcRenderer.invoke(CH.appConfirmQuit),
     cancelQuit: () => ipcRenderer.invoke(CH.appCancelQuit)
   }

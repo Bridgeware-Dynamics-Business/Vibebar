@@ -31,7 +31,13 @@ const promptIdPayload = z.object({ promptId: z.string().min(1).max(128) })
 /** Payload schemas per channel. Channels with no entry take no payload. */
 const SCHEMAS: Partial<Record<ChannelName, z.ZodTypeAny>> = {
   [CH.overlaySetDock]: z.object({ dock: dockSchema }),
-  [CH.overlaySetPanel]: z.object({ open: z.boolean() }),
+  [CH.overlaySetPanel]: z.object({
+    open: z.boolean(),
+    panelId: z.enum(DETACHABLE_PANEL_IDS).optional()
+  }),
+  [CH.overlaySetCommandPalette]: z.object({ open: z.boolean() }),
+
+  [CH.projectOpenRecent]: z.object({ path: z.string().min(1).max(4096) }),
 
   [CH.promptsPreview]: z.object({
     promptId: z.string().min(1).max(128),
@@ -50,6 +56,9 @@ const SCHEMAS: Partial<Record<ChannelName, z.ZodTypeAny>> = {
   [CH.packerTree]: z.object({ dir: z.string().max(2048) }),
   [CH.packerPack]: z.object({
     paths: z.array(z.string().min(1).max(2048)).max(5000)
+  }),
+  [CH.packerPresetPaths]: z.object({
+    preset: z.enum(['tests', 'config', 'entry'])
   }),
 
   [CH.clipboardWrite]: z.object({ text: z.string().max(1_000_000) }),
@@ -86,6 +95,74 @@ const SCHEMAS: Partial<Record<ChannelName, z.ZodTypeAny>> = {
       .strict()
   }),
 
+  // Notes — ids are server-generated UUIDs; titles/names are bounded, and the body is bounded so
+  // a runaway paste can't balloon the IPC payload. The id is never used to build a path on its
+  // own (the service resolves it through the folder's index), so no traversal is possible.
+  [CH.notesInit]: z.object({
+    projectName: z.string().max(120),
+    addToGitignore: z.boolean()
+  }),
+  [CH.notesCreate]: z.object({ title: z.string().max(200) }),
+  [CH.notesRead]: z.object({ id: z.string().min(1).max(64) }),
+  [CH.notesSave]: z.object({
+    id: z.string().min(1).max(64),
+    title: z.string().max(200),
+    markdown: z.string().max(500_000)
+  }),
+  [CH.notesDelete]: z.object({ id: z.string().min(1).max(64) }),
+  [CH.notesSetProjectName]: z.object({ projectName: z.string().max(120) }),
+  [CH.notesPopOut]: z.object({ id: z.string().min(1).max(64) }),
+  [CH.notesAppendMarkdown]: z.object({
+    id: z.string().min(1).max(64),
+    markdown: z.string().max(50_000)
+  }),
+
+  [CH.sessionAppend]: z.discriminatedUnion('type', [
+    z.object({
+      type: z.literal('prompt'),
+      title: z.string().max(200),
+      promptId: z.string().min(1).max(128),
+      fullText: z.string().max(8192).optional()
+    }),
+    z.object({
+      type: z.literal('terminal-issue'),
+      title: z.string().max(200),
+      issueId: z.string().min(1).max(64),
+      command: z.string().max(8000).optional(),
+      fullText: z.string().max(8192).optional()
+    }),
+    z.object({
+      type: z.literal('audit-finding'),
+      title: z.string().max(200),
+      fingerprint: z.string().min(1).max(128),
+      severity: z.string().max(32),
+      file: z.string().max(2048).optional(),
+      fixExcerpt: z.string().max(2000).optional(),
+      fullText: z.string().max(8192).optional()
+    }),
+    z.object({
+      type: z.literal('note'),
+      title: z.string().max(200),
+      noteId: z.string().min(1).max(64),
+      text: z.string().max(2000),
+      fullText: z.string().max(8192).optional()
+    }),
+    z.object({
+      type: z.literal('git-diff'),
+      title: z.string().max(200),
+      fullText: z.string().max(8192).optional()
+    })
+  ]),
+  [CH.sessionTogglePin]: z.object({ id: z.string().min(1).max(64) }),
+  [CH.sessionCopyHandoff]: z.object({ includeGitDiff: z.boolean().optional() }),
+  [CH.sessionCopyFixPrompts]: z.object({}),
+  [CH.projectAppendAgentsMd]: z.object({ markdown: z.string().max(50_000) }),
+  [CH.auditAcceptRisk]: z.object({ fingerprint: z.string().min(1).max(128) }),
+  [CH.auditSetRuleDisabled]: z.object({
+    ruleId: z.string().min(1).max(64),
+    disabled: z.boolean()
+  }),
+
   [CH.terminalRun]: z.object({ command: z.string().min(1).max(8000) }),
   // Resize deltas are bounded to a sane screen-pixel range so a malformed payload can't drive
   // the window to an absurd size; the controller also clamps to min dimensions.
@@ -116,7 +193,8 @@ const SCHEMAS: Partial<Record<ChannelName, z.ZodTypeAny>> = {
       enabledDisplayIds: z.array(z.string().min(1).max(64)).max(16).optional(),
       errorConsoleDisplayIds: z.array(z.string().min(1).max(64)).max(16).optional(),
       guardrailsEnabled: z.boolean().optional(),
-      launchOnStartup: z.boolean().optional()
+      launchOnStartup: z.boolean().optional(),
+      hotkeysEnabled: z.boolean().optional()
     })
     .strict()
 }

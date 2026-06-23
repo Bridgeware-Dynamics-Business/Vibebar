@@ -1,17 +1,22 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { DetachablePanelId } from '@shared/tools.js'
-import type { ProjectProfile } from '@shared/types.js'
+import type { GitStatus, ProjectProfile } from '@shared/types.js'
 import { ClipboardFallbackModal } from '../shared/ClipboardFallbackModal'
+import { CopyHandoffToast, useCopyHandoff } from '../shared/copyHandoff'
 import { useFillToggle } from '../shared/ui'
 import { ContextPackerPanel } from '../overlay/panels/ContextPackerPanel'
+import { NotesPanel } from '../overlay/panels/NotesPanel'
 import { PromptLibraryPanel } from '../overlay/panels/PromptLibraryPanel'
 import { SecurityAuditPanel } from '../overlay/panels/SecurityAuditPanel'
+import { SessionHubPanel } from '../overlay/panels/SessionHubPanel'
 import { SettingsPanel } from '../overlay/panels/SettingsPanel'
 
 const PANEL_TITLES: Record<DetachablePanelId, string> = {
   'prompt-library': 'Prompt Library',
   'security-audit': 'Security Audit',
+  'session-hub': 'Session Hub',
   'context-packer': 'Context Packer',
+  notes: 'Notes',
   settings: 'Settings'
 }
 
@@ -23,27 +28,43 @@ const PANEL_TITLES: Record<DetachablePanelId, string> = {
  */
 export function DetachedPanelApp({ panelId }: { panelId: DetachablePanelId }): JSX.Element {
   const [profile, setProfile] = useState<ProjectProfile | null>(null)
+  const [gitStatus, setGitStatus] = useState<GitStatus | null>(null)
   const [solid, toggleSolid] = useFillToggle(`detached.${panelId}.solid`)
-  const [fallback, setFallback] = useState<{ open: boolean; text: string }>({
-    open: false,
-    text: ''
-  })
+  const {
+    onCopyOutcome,
+    handoffNotice,
+    dismissHandoff,
+    fallback,
+    closeFallback
+  } = useCopyHandoff()
 
   useEffect(() => {
     document.title = `${PANEL_TITLES[panelId]} — VibeBar`
     void window.vibebar.project.get().then(setProfile)
+    void window.vibebar.git.getStatus().then(setGitStatus)
     const offProject = window.vibebar.project.onChanged(setProfile)
-    return offProject
+    const offGit = window.vibebar.git.onStatusChanged(setGitStatus)
+    return () => {
+      offProject()
+      offGit()
+    }
   }, [panelId])
 
-  const onCopyOutcome = useCallback((copied: boolean, text: string) => {
-    if (!copied) setFallback({ open: true, text })
-  }, [])
-
-  // The window's close button hides it back into the toolbar (toggle off).
   const hide = useCallback(() => {
     void window.vibebar.panel.detach(panelId)
   }, [panelId])
+
+  const handleCopyGitDiff = useCallback(async () => {
+    const result = await window.vibebar.git.copyDiffPrompt()
+    if (result.copied) onCopyOutcome(result.copied, result.text, result.findings.length)
+  }, [onCopyOutcome])
+
+  const handlePackChanged = useCallback(async () => {
+    const preview = await window.vibebar.packer.previewChanged()
+    if (preview.noProject || preview.noFiles || preview.paths.length === 0) return
+    const result = await window.vibebar.packer.packChanged()
+    onCopyOutcome(result.copied, result.text, result.findings.length)
+  }, [onCopyOutcome])
 
   const shellClass = solid
     ? 'bg-vibe-bg/95 backdrop-blur-xl backdrop-saturate-150'
@@ -60,12 +81,36 @@ export function DetachedPanelApp({ panelId }: { panelId: DetachablePanelId }): J
             onToggleSolid={toggleSolid}
           />
         )
+      case 'session-hub':
+        return (
+          <SessionHubPanel
+            profile={profile}
+            gitStatus={gitStatus}
+            onClose={hide}
+            onCopyOutcome={onCopyOutcome}
+            onPackChanged={() => void handlePackChanged()}
+            onCopyGitDiff={() => void handleCopyGitDiff()}
+            onOpenTerminal={() => void window.vibebar.terminal.toggle()}
+            solid={solid}
+            onToggleSolid={toggleSolid}
+          />
+        )
       case 'context-packer':
         return (
           <ContextPackerPanel
             profile={profile}
             onClose={hide}
             onCopyOutcome={onCopyOutcome}
+            onPackChanged={() => void handlePackChanged()}
+            solid={solid}
+            onToggleSolid={toggleSolid}
+          />
+        )
+      case 'notes':
+        return (
+          <NotesPanel
+            profile={profile}
+            onClose={hide}
             solid={solid}
             onToggleSolid={toggleSolid}
           />
@@ -87,17 +132,13 @@ export function DetachedPanelApp({ panelId }: { panelId: DetachablePanelId }): J
   }
 
   return (
-    <div className="relative flex h-screen w-screen flex-col p-2 text-vibe-text">
-      <div
-        className={`flex h-full w-full flex-col overflow-hidden rounded-2xl border border-vibe-border shadow-2xl shadow-black/50 ring-1 ring-white/5 ${shellClass}`}
-      >
-        {renderPanel()}
-      </div>
-
-      <ClipboardFallbackModal
-        open={fallback.open}
-        text={fallback.text}
-        onClose={() => setFallback({ open: false, text: '' })}
+    <div className={`relative flex h-full w-full flex-col ${shellClass}`}>
+      {renderPanel()}
+      <ClipboardFallbackModal open={fallback.open} text={fallback.text} onClose={closeFallback} />
+      <CopyHandoffToast
+        notice={handoffNotice}
+        onDismiss={dismissHandoff}
+        onOpenCursor={() => void window.vibebar.quickLaunch.run('cursor')}
       />
     </div>
   )
