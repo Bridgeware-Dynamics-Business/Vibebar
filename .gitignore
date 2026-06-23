@@ -133,8 +133,8 @@ desktop.ini
 **/AI Context/**/dist/
 **/AI Context/**/release/
 
-# VibeBar notes (local only)
-Notes/
+# VibeBar user notes folder at repo root (local project data — not app source)
+/Notes/
 
 # VibeBar session timeline (local only)
 .vibebar/
