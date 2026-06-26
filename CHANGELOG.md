@@ -23,5 +23,5 @@ All notable changes to **vibebar::** (VibeBar) are documented here. Versions fol
 
 - Floating Windows overlay toolbar with Prompt Library, Security Audit, Context Packer, Session Hub, Smart Terminal, Code Sync, and related tools.
 
-[1.1.0]: https://github.com/Bridgeware-Dynamics-Business/Vibebar/releases/tag/v1.1.0
+[1.1.0]: https://github.com/Bridgeware-Dynamics-Business/Vibebar/releases/tag/1.1.0-pr
 [1.0.0]: https://github.com/Bridgeware-Dynamics-Business/Vibebar/releases

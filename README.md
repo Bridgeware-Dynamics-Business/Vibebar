@@ -1,12 +1,12 @@
 # vibebar::
 
 [![Documentation](https://img.shields.io/badge/docs-read%20online-6366f1?style=for-the-badge)](https://bridgeware-dynamics-business.github.io/Vibebar/)
-[![Releases](https://img.shields.io/github/v/release/Bridgeware-Dynamics-Business/Vibebar?style=for-the-badge&label=download)](https://github.com/Bridgeware-Dynamics-Business/Vibebar/releases)
-[![Windows](https://img.shields.io/badge/platform-Windows%2010%2B-0078d4?style=for-the-badge)](https://github.com/Bridgeware-Dynamics-Business/Vibebar/releases)
+[![Releases](https://img.shields.io/github/v/release/Bridgeware-Dynamics-Business/Vibebar?include_prereleases&style=for-the-badge&label=download)](https://github.com/Bridgeware-Dynamics-Business/Vibebar/releases/tag/1.1.0-pr)
+[![Windows](https://img.shields.io/badge/platform-Windows%2010%2B-0078d4?style=for-the-badge)](https://github.com/Bridgeware-Dynamics-Business/Vibebar/releases/tag/1.1.0-pr)
 
 A floating Windows companion for **vibe coding** with AI assistants like Cursor. It docks to the edge of your screen and keeps your project context, prompts, security checks, terminal workflow, and Cursor Agent connection one click away — so you stay in flow instead of hunting for context to paste.
 
-**Current release:** [v1.1.0](https://github.com/Bridgeware-Dynamics-Business/Vibebar/releases/tag/v1.1.0) · See [CHANGELOG](CHANGELOG.md) and [VERSIONING](VERSIONING.md) for release policy.
+**Current release:** [1.1.0 pre-release](https://github.com/Bridgeware-Dynamics-Business/Vibebar/releases/tag/1.1.0-pr) · See [CHANGELOG](CHANGELOG.md) and [VERSIONING](VERSIONING.md) for release policy.
 
 ## Documentation
 
@@ -24,7 +24,7 @@ New users: [What is VibeBar?](https://bridgeware-dynamics-business.github.io/Vib
 
 ## Download
 
-Get the latest Windows installer from **[Releases](https://github.com/Bridgeware-Dynamics-Business/Vibebar/releases/latest)** (currently **v1.1.0**). Then follow the [install guide](https://bridgeware-dynamics-business.github.io/Vibebar/guide/getting-started).
+Get the latest Windows installer from **[Releases](https://github.com/Bridgeware-Dynamics-Business/Vibebar/releases/tag/1.1.0-pr)** (currently **1.1.0 pre-release**). Then follow the [install guide](https://bridgeware-dynamics-business.github.io/Vibebar/guide/getting-started).
 
 ## The toolbar
 

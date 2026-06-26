@@ -16,7 +16,7 @@ export default defineConfig({
       { text: 'Help', link: '/help/troubleshooting', activeMatch: '/help/' },
       {
         text: 'Download',
-        link: 'https://github.com/Bridgeware-Dynamics-Business/Vibebar/releases'
+        link: 'https://github.com/Bridgeware-Dynamics-Business/Vibebar/releases/tag/1.1.0-pr'
       }
     ],
     sidebar: {

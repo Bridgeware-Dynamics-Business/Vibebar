@@ -17,7 +17,7 @@ hero:
       link: /features/mcp-server
     - theme: alt
       text: Download for Windows
-      link: https://github.com/Bridgeware-Dynamics-Business/Vibebar/releases/latest
+      link: https://github.com/Bridgeware-Dynamics-Business/Vibebar/releases/tag/1.1.0-pr
 
 features:
   - title: Cursor Agent (MCP)
@@ -50,7 +50,7 @@ features:
 
 ## Project links
 
-- [Download latest release](https://github.com/Bridgeware-Dynamics-Business/Vibebar/releases/latest) (v1.1.0)
+- [Download latest release](https://github.com/Bridgeware-Dynamics-Business/Vibebar/releases/tag/1.1.0-pr) (1.1.0 pre-release)
 - [GitHub repository](https://github.com/Bridgeware-Dynamics-Business/Vibebar)
 - [Report a bug](https://github.com/Bridgeware-Dynamics-Business/Vibebar/issues/new/choose)
 - [Contributing](/contribute/contributing)

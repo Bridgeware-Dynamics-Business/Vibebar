@@ -49,7 +49,7 @@ No separate hardcoded version strings should remain outside `package.json` (MCP/
 
 ## Git tags
 
-Release tags use a **`v` prefix**: `v1.1.0`, `v1.2.0`. Issue templates and support docs refer to the tag or commit SHA.
+Release tags use a **`v` prefix** for stable builds (`v1.1.0`, `v1.2.0`). Pre-releases may use a `-pr` suffix (e.g. `1.1.0-pr`) until the stable tag is published. GitHub **`/releases/latest`** skips pre-releases — link to the tag or `/releases` page instead.
 
 ## What we do not version-lock
 
