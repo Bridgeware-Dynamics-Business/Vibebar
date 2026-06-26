@@ -178,6 +178,7 @@ export function buildPaletteActions(handlers: {
   onSnip: () => void
   onSetCurrentTask?: () => void
   onPrepareCursor?: () => void
+  onToggleAgentDrawer?: () => void
   recents?: RecentProject[]
   onOpenRecent?: (path: string) => void
 }): CommandPaletteAction[] {
@@ -211,6 +212,13 @@ export function buildPaletteActions(handlers: {
       keywords: 'cursor agent bootstrap mcp intent ready check open',
       icon: 'MousePointer2',
       run: () => handlers.onPrepareCursor?.()
+    },
+    {
+      id: 'agent-companion',
+      label: 'Toggle Agent Companion',
+      keywords: 'agent companion chat drawer cursor acp sidebar',
+      icon: 'MessageSquare',
+      run: () => handlers.onToggleAgentDrawer?.()
     },
     {
       id: 'session-hub',

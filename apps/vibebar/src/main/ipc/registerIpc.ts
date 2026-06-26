@@ -43,6 +43,7 @@ import type { SnipController } from '../snip/SnipController.js'
 import type { HotkeyController } from '../hotkeys/HotkeyController.js'
 import type { ReadyCheckService } from '../readyCheck/ReadyCheckService.js'
 import type { McpServerController } from '../mcp/McpServerController.js'
+import type { AcpAgentController } from '../agent/AcpAgentController.js'
 import type { ResourceMonitorController } from '../resourcemonitor/ResourceMonitorController.js'
 import { buildPrepareCursorBootstrap } from '../quicklaunch/prepareCursor.js'
 
@@ -71,6 +72,7 @@ export interface IpcDeps {
   verifyLoop: VerifyLoopService
   hotkeys?: HotkeyController
   mcp: McpServerController
+  agentCompanion: AcpAgentController
 }
 
 function headerLabel(deps: IpcDeps): string {
@@ -113,7 +115,8 @@ export function registerIpc(deps: IpcDeps): void {
     flightRecorder,
     verifyLoop,
     hotkeys,
-    mcp
+    mcp,
+    agentCompanion
   } = deps
 
   function trackClipboardCopy(copied: boolean): void {
@@ -200,6 +203,7 @@ export function registerIpc(deps: IpcDeps): void {
     noteWindows.broadcast(CH.projectChanged, profile)
     terminal.setProject(profile)
     gitStatus.setProject(profile)
+    agentCompanion.setProject(profile)
     return profile
   }
 
@@ -852,6 +856,50 @@ export function registerIpc(deps: IpcDeps): void {
   })
 
   handle(CH.mcpGetStatus, () => mcp.getStatus())
+
+  handle(CH.agentCompanionGetState, () => agentCompanion.getState())
+  handleEvent(CH.agentCompanionToggleDrawer, (event) => agentCompanion.toggleDrawer(event.sender))
+  handleEvent(CH.agentCompanionSetDrawerOpen, (event, p) => {
+    const { open } = p as { open: boolean }
+    return agentCompanion.setDrawerOpen(open, event.sender)
+  })
+  handle(CH.agentCompanionConnect, () => agentCompanion.connect())
+  handle(CH.agentCompanionDisconnect, () => agentCompanion.disconnect())
+  handle(CH.agentCompanionSendPrompt, async (p) => {
+    const { text } = p as { text: string }
+    return agentCompanion.sendPrompt(text)
+  })
+  handle(CH.agentCompanionCancel, () => agentCompanion.cancel())
+  handle(CH.agentCompanionSetMode, (p) => {
+    const { mode } = p as { mode: import('@shared/agentCompanionApi.js').AgentCompanionMode }
+    return agentCompanion.setMode(mode)
+  })
+  handle(CH.agentCompanionSetModel, (p) => {
+    const { modelId } = p as { modelId: string }
+    return agentCompanion.setModel(modelId)
+  })
+  handle(CH.agentCompanionListModels, () => agentCompanion.listModels())
+  handle(CH.agentCompanionNewChat, () => agentCompanion.newChat())
+  handle(CH.agentCompanionSelectChat, (p) => {
+    const { chatId } = p as { chatId: string }
+    return agentCompanion.selectChat(chatId)
+  })
+  handle(CH.agentCompanionDeleteChat, (p) => {
+    const { chatId } = p as { chatId: string }
+    return agentCompanion.deleteChat(chatId)
+  })
+  handle(CH.agentCompanionPickHistoryDir, () => agentCompanion.pickChatHistoryDirectory())
+  handle(CH.agentCompanionRespondPermission, (p) => {
+    const { optionId } = p as { optionId: string }
+    return agentCompanion.respondPermission(optionId)
+  })
+  handle(CH.agentCompanionRespondQuestion, (p) => {
+    const { answers } = p as {
+      answers: Array<{ questionId: string; selectedOptionIds: string[] }>
+    }
+    return agentCompanion.respondQuestion(answers)
+  })
+  handle(CH.agentCompanionSkipQuestion, () => agentCompanion.skipQuestion())
 
   // Lifecycle — the overlay has no taskbar entry, so the renderer needs an explicit quit. The
   // power button opens a centered confirmation popup; its Yes reuses appQuit, its No cancels.

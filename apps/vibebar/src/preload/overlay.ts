@@ -199,6 +199,31 @@ const api: VibeBarApi = {
     getStatus: () => ipcRenderer.invoke(CH.mcpGetStatus),
     onChanged: (cb: (status: McpServerStatus) => void) => subscribe(CH.mcpChanged, cb)
   },
+  agentCompanion: {
+    getState: () => ipcRenderer.invoke(CH.agentCompanionGetState),
+    toggleDrawer: () => ipcRenderer.invoke(CH.agentCompanionToggleDrawer),
+    setDrawerOpen: (open: boolean) =>
+      ipcRenderer.invoke(CH.agentCompanionSetDrawerOpen, { open }),
+    connect: () => ipcRenderer.invoke(CH.agentCompanionConnect),
+    disconnect: () => ipcRenderer.invoke(CH.agentCompanionDisconnect),
+    sendPrompt: (text: string) => ipcRenderer.invoke(CH.agentCompanionSendPrompt, { text }),
+    cancel: () => ipcRenderer.invoke(CH.agentCompanionCancel),
+    setMode: (mode: import('@shared/agentCompanionApi.js').AgentCompanionMode) =>
+      ipcRenderer.invoke(CH.agentCompanionSetMode, { mode }),
+    setModel: (modelId: string) => ipcRenderer.invoke(CH.agentCompanionSetModel, { modelId }),
+    listModels: () => ipcRenderer.invoke(CH.agentCompanionListModels),
+    newChat: () => ipcRenderer.invoke(CH.agentCompanionNewChat),
+    selectChat: (chatId: string) => ipcRenderer.invoke(CH.agentCompanionSelectChat, { chatId }),
+    deleteChat: (chatId: string) => ipcRenderer.invoke(CH.agentCompanionDeleteChat, { chatId }),
+    pickChatHistoryDirectory: () => ipcRenderer.invoke(CH.agentCompanionPickHistoryDir),
+    respondPermission: (optionId: string) =>
+      ipcRenderer.invoke(CH.agentCompanionRespondPermission, { optionId }),
+    respondQuestion: (answers: Array<{ questionId: string; selectedOptionIds: string[] }>) =>
+      ipcRenderer.invoke(CH.agentCompanionRespondQuestion, { answers }),
+    skipQuestion: () => ipcRenderer.invoke(CH.agentCompanionSkipQuestion),
+    onState: (cb: (state: import('@shared/agentCompanionApi.js').AgentCompanionState) => void) =>
+      subscribe(CH.agentCompanionState, cb)
+  },
   app: {
     quit: () => ipcRenderer.invoke(CH.appQuit),
     getOnboardingState: () => ipcRenderer.invoke(CH.appGetOnboardingState),

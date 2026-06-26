@@ -62,6 +62,7 @@ export function CursorAgentPanel({
   profile,
   onClose,
   onPrepareCursor,
+  onOpenAgentCompanion,
   solid,
   onToggleSolid,
   onDetach
@@ -69,6 +70,7 @@ export function CursorAgentPanel({
   profile: ProjectProfile | null
   onClose: () => void
   onPrepareCursor?: () => void
+  onOpenAgentCompanion?: () => void
   solid?: boolean
   onToggleSolid?: () => void
   /** When provided, shows a Detach button that pops the panel out into a floating window. */
@@ -156,7 +158,7 @@ export function CursorAgentPanel({
           <div className="min-w-0">
             <span className="text-sm text-vibe-text">Enable MCP server for Cursor</span>
             <p className="text-[11px] text-vibe-muted">
-              Read-only VibeBar state on localhost — no API keys, no chat UI.
+              Read-only VibeBar state on localhost — use Agent Companion chat for agent UI.
             </p>
           </div>
           <Toggle
@@ -309,7 +311,17 @@ export function CursorAgentPanel({
       </div>
 
       {onPrepareCursor && (
-        <div className="border-t border-vibe-border p-3">
+        <div className="space-y-2 border-t border-vibe-border p-3">
+          {onOpenAgentCompanion && (
+            <button
+              type="button"
+              onClick={onOpenAgentCompanion}
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-vibe-accent-2/40 bg-vibe-accent-2/10 px-3 py-2 text-sm font-medium text-vibe-accent-2 transition-colors hover:bg-vibe-accent-2/20"
+            >
+              <Icon name="MessageSquare" size={15} />
+              Open Agent Companion
+            </button>
+          )}
           <button
             type="button"
             onClick={onPrepareCursor}

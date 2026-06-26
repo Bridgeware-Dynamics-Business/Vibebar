@@ -222,6 +222,24 @@ const SCHEMAS: Partial<Record<ChannelName, z.ZodTypeAny>> = {
     visible: z.boolean()
   }),
 
+  [CH.overlaySetAgentDrawer]: z.object({ open: z.boolean() }),
+
+  [CH.agentCompanionSetDrawerOpen]: z.object({ open: z.boolean() }),
+  [CH.agentCompanionSendPrompt]: z.object({ text: z.string().min(1).max(32_000) }),
+  [CH.agentCompanionSetMode]: z.object({ mode: z.enum(['agent', 'plan', 'ask']) }),
+  [CH.agentCompanionSetModel]: z.object({ modelId: z.string().min(1).max(256) }),
+  [CH.agentCompanionSelectChat]: z.object({ chatId: z.string().min(1).max(128) }),
+  [CH.agentCompanionDeleteChat]: z.object({ chatId: z.string().min(1).max(128) }),
+  [CH.agentCompanionRespondPermission]: z.object({ optionId: z.string().min(1).max(64) }),
+  [CH.agentCompanionRespondQuestion]: z.object({
+    answers: z.array(
+      z.object({
+        questionId: z.string().min(1).max(64),
+        selectedOptionIds: z.array(z.string().min(1).max(64)).max(32)
+      })
+    ).max(16)
+  }),
+
   [CH.settingsSave]: z
     .object({
       dock: dockSchema.optional(),

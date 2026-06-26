@@ -144,3 +144,35 @@ describe('orientationChanges', () => {
     expect(orientationChanges('left', 'right')).toBe(false)
   })
 })
+
+describe('dockedRect panel expansion', () => {
+  const panelExtent = 440
+  const anchor = 20
+
+  it('keeps the left dock edge fixed when expanding inward', () => {
+    const collapsed = dockedRect('left', primaryWork, 64, BAR_LENGTH, 0, anchor)
+    const expanded = dockedRect('left', primaryWork, 64, BAR_LENGTH, panelExtent, anchor)
+    expect(expanded.x).toBe(collapsed.x)
+    expect(expanded.x).toBe(primaryWork.x)
+    expect(expanded.width).toBe(collapsed.width + panelExtent)
+  })
+
+  it('keeps the right dock edge fixed when expanding inward', () => {
+    const collapsed = dockedRect('right', primaryWork, 64, BAR_LENGTH, 0, anchor)
+    const expanded = dockedRect('right', primaryWork, 64, BAR_LENGTH, panelExtent, anchor)
+    expect(expanded.x + expanded.width).toBe(collapsed.x + collapsed.width)
+    expect(expanded.x + expanded.width).toBe(primaryWork.x + primaryWork.width)
+    expect(expanded.width).toBe(collapsed.width + panelExtent)
+  })
+
+  it('keeps the top dock edge fixed when expanding downward', () => {
+    const topAnchor = centerAnchor('top', primaryWork, BAR_LENGTH)
+    const collapsed = dockedRect('top', primaryWork, 64, BAR_LENGTH, 0, topAnchor)
+    const expanded = dockedRect('top', primaryWork, 64, BAR_LENGTH, 720, topAnchor)
+    expect(expanded.y).toBe(collapsed.y)
+    expect(expanded.y).toBe(primaryWork.y)
+    expect(expanded.height).toBe(collapsed.height + 720)
+    expect(expanded.x).toBe(collapsed.x)
+    expect(expanded.width).toBe(collapsed.width)
+  })
+})

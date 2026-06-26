@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { Fragment, useEffect, useRef, useState } from 'react'
-import { TOOL_DEFS, type ToolId } from '@shared/tools.js'
+import { TOOL_DEFS, type DetachablePanelId, type ToolId } from '@shared/tools.js'
 import type {
   DockSide,
   GitStatus,
@@ -11,6 +11,7 @@ import type {
   RecentProject
 } from '@shared/types.js'
 import { Icon } from '../shared/icons'
+import { LaunchButtonWithDrawer } from './components/LaunchButtonWithDrawer'
 
 interface CircleButtonProps {
   icon: string
@@ -288,6 +289,8 @@ export function Toolbar({
   onOpenContextFolder,
   onTool,
   onQuickLaunch,
+  agentDrawerOpen = false,
+  onToggleAgentDrawer,
   sessionPinCount = 0,
   onPower
 }: {
@@ -295,7 +298,7 @@ export function Toolbar({
   dock: DockSide
   profile: ProjectProfile | null
   recentProjects: RecentProject[]
-  activePanel: ToolId | null
+  activePanel: DetachablePanelId | null
   gitStatus: GitStatus | null
   mcpStatus: McpServerStatus | null
   quickLaunchApps: QuickLaunchApp[]
@@ -305,6 +308,8 @@ export function Toolbar({
   onOpenContextFolder: () => void
   onTool: (id: ToolId) => void
   onQuickLaunch: (id: string) => void
+  agentDrawerOpen?: boolean
+  onToggleAgentDrawer?: () => void
   /** Pin count for Session Hub toolbar badge. */
   sessionPinCount?: number
   onPower: () => void
@@ -377,19 +382,33 @@ export function Toolbar({
             {tool.id === 'github' && visibleQuickLaunch.length > 0 && (
               <>
                 <div className={dividerClass} />
-                {visibleQuickLaunch.map((app) => (
-                  <CircleButton
-                    key={app.id}
-                    icon={app.icon}
-                    label={
-                      app.path
-                        ? `Launch ${app.name}${profile ? ` on ${profile.folderName}` : ''}`
-                        : `${app.name} — set its path in Settings`
-                    }
-                    tone="launch"
-                    onClick={() => onQuickLaunch(app.id)}
-                  />
-                ))}
+                {visibleQuickLaunch.map((app) =>
+                  app.id === 'cursor' && onToggleAgentDrawer ? (
+                    <LaunchButtonWithDrawer
+                      key={app.id}
+                      label={
+                        app.path
+                          ? `Launch ${app.name}${profile ? ` on ${profile.folderName}` : ''}`
+                          : `${app.name} — set its path in Settings`
+                      }
+                      drawerOpen={agentDrawerOpen}
+                      onLaunch={() => onQuickLaunch(app.id)}
+                      onToggleDrawer={onToggleAgentDrawer}
+                    />
+                  ) : (
+                    <CircleButton
+                      key={app.id}
+                      icon={app.icon}
+                      label={
+                        app.path
+                          ? `Launch ${app.name}${profile ? ` on ${profile.folderName}` : ''}`
+                          : `${app.name} — set its path in Settings`
+                      }
+                      tone="launch"
+                      onClick={() => onQuickLaunch(app.id)}
+                    />
+                  )
+                )}
                 <div className={dividerClass} />
               </>
             )}

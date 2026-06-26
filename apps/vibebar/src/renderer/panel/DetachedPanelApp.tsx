@@ -12,6 +12,8 @@ import { SecurityAuditPanel } from '../overlay/panels/SecurityAuditPanel'
 import { SessionHubPanel } from '../overlay/panels/SessionHubPanel'
 import { SettingsPanel } from '../overlay/panels/SettingsPanel'
 import { ReadyCheckPanel } from '../overlay/panels/ReadyCheckPanel'
+import { AgentCompanionDrawer } from '../overlay/drawers/AgentCompanionDrawer'
+import type { AgentCompanionState } from '@shared/agentCompanionApi.js'
 
 const PANEL_TITLES: Record<DetachablePanelId, string> = {
   'prompt-library': 'Prompt Library',
@@ -21,6 +23,7 @@ const PANEL_TITLES: Record<DetachablePanelId, string> = {
   'ready-check': 'Ready Check',
   notes: 'Notes',
   'cursor-agent': 'Cursor Agent',
+  'agent-companion': 'Agent Companion',
   settings: 'Settings'
 }
 
@@ -146,6 +149,14 @@ export function DetachedPanelApp({ panelId }: { panelId: DetachablePanelId }): J
             onToggleSolid={toggleSolid}
           />
         )
+      case 'agent-companion':
+        return (
+          <AgentCompanionDetachedHost
+            solid={solid}
+            onToggleSolid={toggleSolid}
+            onClose={hide}
+          />
+        )
       case 'settings':
         return (
           <SettingsPanel
@@ -179,5 +190,36 @@ export function DetachedPanelApp({ panelId }: { panelId: DetachablePanelId }): J
         onOpenCursor={() => void window.vibebar.quickLaunch.run('cursor')}
       />
     </div>
+  )
+}
+
+function AgentCompanionDetachedHost({
+  solid,
+  onToggleSolid,
+  onClose
+}: {
+  solid: boolean
+  onToggleSolid: () => void
+  onClose: () => void
+}): JSX.Element {
+  const [state, setState] = useState<AgentCompanionState | null>(null)
+
+  useEffect(() => {
+    void window.vibebar.agentCompanion.getState().then(setState)
+    return window.vibebar.agentCompanion.onState(setState)
+  }, [])
+
+  if (!state) {
+    return <p className="p-6 text-center text-xs text-vibe-muted">Loading…</p>
+  }
+
+  return (
+    <AgentCompanionDrawer
+      state={state}
+      onClose={onClose}
+      solid={solid}
+      onToggleSolid={onToggleSolid}
+      detached
+    />
   )
 }

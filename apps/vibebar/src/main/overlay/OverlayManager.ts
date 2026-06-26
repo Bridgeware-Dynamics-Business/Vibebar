@@ -38,6 +38,8 @@ interface OverlayEntry {
   paletteOpen: boolean
   /** True while the user is actively dragging this toolbar (renderer dragBegin → dragEnd). */
   dragging: boolean
+  /** Ignore move events from programmatic setBounds (drawer/panel resize) so snap logic does not run. */
+  suppressMoveSnapUntil: number
   /** Waiting for renderer to paint the new dock orientation before resizing the window. */
   awaitingLayoutReady: boolean
   layoutReadyTimer: ReturnType<typeof setTimeout> | null
@@ -85,7 +87,7 @@ export class OverlayManager {
         dock: entry.dock,
         workArea,
         toolbarBounds: entry.win.isDestroyed()
-          ? this.currentBounds(id, entry.dock, workArea, entry.anchor, false, 0)
+          ? this.currentBounds(id, entry.dock, workArea, entry.anchor, entry)
           : entry.win.getBounds()
       })
     }
@@ -304,7 +306,13 @@ export class OverlayManager {
   layoutReadyForSender(sender: Electron.WebContents): void {
     for (const [id, entry] of this.byDisplay) {
       if (entry.win.webContents.id !== sender.id) continue
-      this.finishLayoutReady(id, entry)
+      if (entry.awaitingLayoutReady) {
+        this.finishLayoutReady(id, entry)
+      } else if (entry.panelOpen) {
+        // setPanel IPC can arrive after layoutReady when the renderer acks on the next frame.
+        this.positionWindow(id)
+        this.notifyToolbarLayoutChanged()
+      }
       return
     }
   }
@@ -318,6 +326,15 @@ export class OverlayManager {
     }
     this.positionWindow(id)
     this.notifyToolbarLayoutChanged()
+  }
+
+  private cancelLayoutReady(entry: OverlayEntry): void {
+    if (!entry.awaitingLayoutReady) return
+    entry.awaitingLayoutReady = false
+    if (entry.layoutReadyTimer) {
+      clearTimeout(entry.layoutReadyTimer)
+      entry.layoutReadyTimer = null
+    }
   }
 
   private scheduleLayoutReady(id: string, entry: OverlayEntry): void {
@@ -371,16 +388,19 @@ export class OverlayManager {
     }
   }
 
+  private inwardExtent(entry: OverlayEntry): number {
+    return entry.panelOpen ? entry.panelInward : 0
+  }
+
   private currentBounds(
     id: string,
     dock: DockSide,
     workArea: Rect,
     anchor: number,
-    panelOpen: boolean,
-    panelInward: number
+    entry: OverlayEntry
   ): Rect {
     const length = this.toolbarLengthFor()
-    const extent = panelOpen ? panelInward : 0
+    const extent = this.inwardExtent(entry)
     return dockedRect(dock, workArea, TOOLBAR_THICKNESS, length, extent, anchor)
   }
 
@@ -416,7 +436,14 @@ export class OverlayManager {
       const saved = this.store.getDisplayLayout(id)
       const dock = saved?.dock ?? settings.dock
       const anchor = saved?.anchor ?? this.centerAnchorFor(id, dock, d.workArea)
-      const bounds = this.currentBounds(id, dock, d.workArea, anchor, false, 0)
+      const bounds = dockedRect(
+        dock,
+        d.workArea,
+        TOOLBAR_THICKNESS,
+        this.toolbarLengthFor(),
+        0,
+        anchor
+      )
       const win = createOverlayWindow(bounds, (w) => {
         if (this.visible) {
           w.show()
@@ -431,6 +458,7 @@ export class OverlayManager {
         panelInward: 0,
         paletteOpen: false,
         dragging: false,
+        suppressMoveSnapUntil: 0,
         awaitingLayoutReady: false,
         layoutReadyTimer: null,
         moveTimer: null
@@ -463,9 +491,10 @@ export class OverlayManager {
     if (!entry || !workArea) return
     const bounds = entry.paletteOpen
       ? { ...workArea }
-      : this.currentBounds(id, entry.dock, workArea, entry.anchor, entry.panelOpen, entry.panelInward)
+      : this.currentBounds(id, entry.dock, workArea, entry.anchor, entry)
     this.repositioning = true
-    entry.win.setBounds(bounds)
+    entry.suppressMoveSnapUntil = Date.now() + (entry.panelOpen ? 900 : 700)
+    entry.win.setBounds(bounds, false)
     this.repositioning = false
   }
 
@@ -475,7 +504,7 @@ export class OverlayManager {
 
   private attachMoveHandler(id: string, entry: OverlayEntry): void {
     entry.win.on('move', () => {
-      if (this.repositioning || entry.dragging) return
+      if (this.repositioning || entry.dragging || Date.now() < entry.suppressMoveSnapUntil) return
       // Fallback when dragEnd IPC is missed (rare); never snap during an active drag.
       if (entry.moveTimer) clearTimeout(entry.moveTimer)
       entry.moveTimer = setTimeout(() => this.handleMoveEnd(id), MOVE_SETTLE_MS)
@@ -545,9 +574,18 @@ export class OverlayManager {
   ): OverlayLayout {
     for (const [id, entry] of this.byDisplay) {
       if (entry.win.webContents.id === sender.id) {
-        entry.panelOpen = open
-        entry.panelInward = open && panelId ? panelInwardExtent(panelId, entry.dock) : 0
-        this.positionWindow(id)
+        if (open) {
+          entry.panelOpen = true
+          entry.panelInward = panelId ? panelInwardExtent(panelId, entry.dock) : 0
+          // Defer setBounds until the renderer paints the panel (layoutReady) so the toolbar
+          // does not reflow inside a resized window before the panel shell exists.
+          this.scheduleLayoutReady(id, entry)
+        } else {
+          entry.panelOpen = false
+          entry.panelInward = 0
+          this.cancelLayoutReady(entry)
+          this.positionWindow(id)
+        }
         return this.layoutForEntry(id, entry)
       }
     }

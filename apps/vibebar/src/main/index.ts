@@ -27,6 +27,7 @@ import { FlightRecorderService } from './session/FlightRecorderService.js'
 import { VerifyLoopService } from './session/VerifyLoopService.js'
 import { ReadyCheckService } from './readyCheck/ReadyCheckService.js'
 import { McpServerController } from './mcp/McpServerController.js'
+import { AcpAgentController } from './agent/AcpAgentController.js'
 
 const store = new AppStore()
 const projects = new ProjectService(store)
@@ -85,6 +86,7 @@ const mcp = new McpServerController({
   store,
   terminal
 })
+const agentCompanion = new AcpAgentController(projects, overlay, store)
 const noteWindows = new NoteWindowController(store)
 
 // A rejected promise with no handler would otherwise vanish silently; log it so a failure in any
@@ -134,7 +136,8 @@ async function bootstrap(): Promise<void> {
     flightRecorder,
     verifyLoop,
     hotkeys,
-    mcp
+    mcp,
+    agentCompanion
   })
   try {
     await mcp.syncFromSettings()
@@ -197,5 +200,6 @@ if (!gotLock) {
     errorConsole.dispose()
     resourceMonitor.dispose()
     noteWindows.dispose()
+    agentCompanion.dispose()
   })
 }

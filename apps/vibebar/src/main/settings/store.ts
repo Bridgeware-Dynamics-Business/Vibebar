@@ -1,4 +1,7 @@
 import type { CodeSyncConfig } from '@vibebar/codesync'
+import { DEFAULT_AGENT_COMPANION_MODEL_ID } from '@shared/agentCompanionModels.js'
+import type { AgentCompanionChat } from '@shared/agentCompanionChats.js'
+import { pruneAgentCompanionChats } from '@shared/agentCompanionChats.js'
 import { DEFAULT_DEBOUNCE_MS, DEFAULT_MAX_FILE_BYTES } from '@vibebar/codesync'
 import type { PromptTemplate } from '@vibebar/prompt-engine'
 import Store from 'electron-store'
@@ -45,6 +48,15 @@ interface StoreSchema {
   projectMemorySnapshots: Record<string, { cursorRulesCount: number; updatedAt: number }>
   /** Per-project manual stack overrides when detection is unknown. */
   stackOverrides: Record<string, ProjectStackOverrides>
+  /** Cursor CLI model id for Agent Companion (`agent --model`). */
+  agentCompanionModel: string
+  /** Saved Agent Companion threads, grouped by project path (empty string = no project). */
+  agentCompanionProjects: Record<
+    string,
+    { activeChatId: string | null; chats: AgentCompanionChat[] }
+  >
+  /** When set, Agent Companion chat history is stored under this folder instead of electron-store. */
+  agentCompanionHistoryDir: string
 }
 
 const DEFAULT_SETTINGS: VibeSettings = {
@@ -110,9 +122,16 @@ export class AppStore {
         onboardingComplete: false,
         onboardingReplayRequested: false,
         projectMemorySnapshots: {},
-        stackOverrides: {}
+        stackOverrides: {},
+        agentCompanionModel: DEFAULT_AGENT_COMPANION_MODEL_ID,
+        agentCompanionProjects: {},
+        agentCompanionHistoryDir: ''
       }
     })
+  }
+
+  getStoreFilePath(): string {
+    return this.store.path
   }
 
   getSettings(): VibeSettings {
@@ -346,5 +365,84 @@ export class AppStore {
     const all = { ...(this.store.get('stackOverrides') ?? {}) }
     delete all[projectPath]
     this.store.set('stackOverrides', all)
+  }
+
+  getAgentCompanionModel(): string {
+    return this.store.get('agentCompanionModel') ?? DEFAULT_AGENT_COMPANION_MODEL_ID
+  }
+
+  setAgentCompanionModel(modelId: string): string {
+    this.store.set('agentCompanionModel', modelId)
+    return modelId
+  }
+
+  getAgentCompanionProjectState(projectPath: string): {
+    activeChatId: string | null
+    chats: AgentCompanionChat[]
+  } {
+    const key = projectPath || ''
+    const entry = this.store.get('agentCompanionProjects')?.[key]
+    return {
+      activeChatId: entry?.activeChatId ?? null,
+      chats: entry?.chats?.map((chat) => ({
+        ...chat,
+        messages: chat.messages.map((message) => ({ ...message }))
+      })) ?? []
+    }
+  }
+
+  setAgentCompanionProjectState(
+    projectPath: string,
+    state: { activeChatId: string | null; chats: AgentCompanionChat[] }
+  ): void {
+    const key = projectPath || ''
+    const all = { ...(this.store.get('agentCompanionProjects') ?? {}) }
+    all[key] = {
+      activeChatId: state.activeChatId,
+      chats: pruneAgentCompanionChats(
+        state.chats.map((chat) => ({
+          ...chat,
+          messages: chat.messages.map((message) => ({ ...message }))
+        }))
+      )
+    }
+    this.store.set('agentCompanionProjects', all)
+  }
+
+  getAllAgentCompanionProjects(): Record<
+    string,
+    { activeChatId: string | null; chats: AgentCompanionChat[] }
+  > {
+    const all = this.store.get('agentCompanionProjects') ?? {}
+    return Object.fromEntries(
+      Object.entries(all).map(([key, entry]) => [
+        key,
+        {
+          activeChatId: entry?.activeChatId ?? null,
+          chats:
+            entry?.chats?.map((chat) => ({
+              ...chat,
+              messages: chat.messages.map((message) => ({ ...message }))
+            })) ?? []
+        }
+      ])
+    )
+  }
+
+  clearAgentCompanionProjects(): void {
+    this.store.set('agentCompanionProjects', {})
+  }
+
+  getAgentCompanionHistoryDir(): string {
+    return this.store.get('agentCompanionHistoryDir') ?? ''
+  }
+
+  setAgentCompanionHistoryDir(dir: string): string {
+    this.store.set('agentCompanionHistoryDir', dir)
+    return dir
+  }
+
+  clearAgentCompanionHistoryDir(): void {
+    this.store.set('agentCompanionHistoryDir', '')
   }
 }

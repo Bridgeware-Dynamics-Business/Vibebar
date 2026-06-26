@@ -60,6 +60,7 @@ export const DETACHABLE_PANEL_IDS = [
   'ready-check',
   'notes',
   'cursor-agent',
+  'agent-companion',
   'settings'
 ] as const
 
@@ -67,4 +68,8 @@ export type DetachablePanelId = (typeof DETACHABLE_PANEL_IDS)[number]
 
 export function isDetachablePanel(id: ToolId): id is DetachablePanelId {
   return (DETACHABLE_PANEL_IDS as readonly string[]).includes(id)
+}
+
+export function isDetachablePanelId(id: string | null | undefined): id is DetachablePanelId {
+  return id != null && (DETACHABLE_PANEL_IDS as readonly string[]).includes(id)
 }

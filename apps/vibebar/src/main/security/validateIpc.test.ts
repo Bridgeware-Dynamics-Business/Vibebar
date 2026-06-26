@@ -67,4 +67,26 @@ describe('parsePayload', () => {
     })
     expect(() => parsePayload(CH.projectOpenRecent, {})).toThrow()
   })
+
+  it('validates agent companion permission response payload', () => {
+    expect(parsePayload(CH.agentCompanionRespondPermission, { optionId: 'allow-once' })).toEqual({
+      optionId: 'allow-once'
+    })
+    expect(() => parsePayload(CH.agentCompanionRespondPermission, {})).toThrow()
+    expect(() => parsePayload(CH.agentCompanionRespondPermission, { optionId: '' })).toThrow()
+  })
+
+  it('validates agent companion model selection payload', () => {
+    expect(parsePayload(CH.agentCompanionSetModel, { modelId: 'composer-2.5-fast' })).toEqual({
+      modelId: 'composer-2.5-fast'
+    })
+    expect(() => parsePayload(CH.agentCompanionSetModel, {})).toThrow()
+  })
+
+  it('validates agent companion delete chat payload', () => {
+    expect(parsePayload(CH.agentCompanionDeleteChat, { chatId: 'chat-1' })).toEqual({
+      chatId: 'chat-1'
+    })
+    expect(() => parsePayload(CH.agentCompanionDeleteChat, {})).toThrow()
+  })
 })

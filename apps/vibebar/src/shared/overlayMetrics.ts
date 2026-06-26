@@ -74,6 +74,9 @@ export function orientationForDock(dock: DockSide): 'vertical' | 'horizontal' {
   return dock === 'top' ? 'horizontal' : 'vertical'
 }
 
+/** Default Agent Companion drawer size (sidebar proportions). */
+export const AGENT_DRAWER_SIZE = { width: 440, height: 680 }
+
 /** Default window size for each panel — shared by detached pop-outs and in-toolbar menus. */
 export const PANEL_SIZES: Record<DetachablePanelId, { width: number; height: number }> = {
   'prompt-library': { width: 460, height: 720 },
@@ -83,6 +86,7 @@ export const PANEL_SIZES: Record<DetachablePanelId, { width: number; height: num
   'ready-check': { width: 480, height: 640 },
   notes: { width: 460, height: 720 },
   'cursor-agent': { width: 420, height: 680 },
+  'agent-companion': { width: AGENT_DRAWER_SIZE.width, height: AGENT_DRAWER_SIZE.height },
   settings: { width: 440, height: 640 }
 }
 
@@ -94,4 +98,9 @@ export function inlinePanelDimensions(panelId: DetachablePanelId): { width: numb
 export function panelInwardExtent(panelId: DetachablePanelId, dock: DockSide): number {
   const size = PANEL_SIZES[panelId]
   return dock === 'top' ? size.height : size.width
+}
+
+/** Inward expansion when the agent drawer is open (width for side dock, height for top). */
+export function drawerInwardExtent(dock: DockSide): number {
+  return dock === 'top' ? AGENT_DRAWER_SIZE.height : AGENT_DRAWER_SIZE.width
 }

@@ -1,8 +1,17 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties
+} from 'react'
 import type { DetachablePanelId, ToolId } from '@shared/tools.js'
-import { isDetachablePanel } from '@shared/tools.js'
+import { isDetachablePanel, isDetachablePanelId } from '@shared/tools.js'
 import { inlinePanelDimensions, orientationForDock } from '@shared/overlayMetrics.js'
+import type { AgentCompanionState } from '@shared/agentCompanionApi.js'
 import type {
   GitStatus,
   McpServerStatus,
@@ -25,6 +34,7 @@ import { SessionHubPanel } from './panels/SessionHubPanel'
 import { SecurityAuditPanel } from './panels/SecurityAuditPanel'
 import { SettingsPanel } from './panels/SettingsPanel'
 import { ReadyCheckPanel } from './panels/ReadyCheckPanel'
+import { AgentCompanionDrawer } from './drawers/AgentCompanionDrawer'
 
 const DEFAULT_LAYOUT: OverlayLayout = { dock: 'left', orientation: 'vertical' }
 
@@ -37,14 +47,15 @@ export function App(): JSX.Element {
   const [quickLaunchApps, setQuickLaunchApps] = useState<QuickLaunchApp[]>([])
   const [sessionPinCount, setSessionPinCount] = useState(0)
   const [intentEditorOpen, setIntentEditorOpen] = useState(false)
-  const [activePanel, setActivePanel] = useState<ToolId | null>(null)
+  const [activePanel, setActivePanel] = useState<DetachablePanelId | null>(null)
+  const [agentCompanion, setAgentCompanion] = useState<AgentCompanionState | null>(null)
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [solid, toggleSolid] = useFillToggle('overlay.solid')
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const terminalOpenRef = useRef(false)
   const auditDirectedRef = useRef(false)
-  const activePanelRef = useRef<ToolId | null>(null)
+  const activePanelRef = useRef<DetachablePanelId | null>(null)
   const {
     onCopyOutcome,
     handoffNotice,
@@ -88,6 +99,8 @@ export function App(): JSX.Element {
     void window.vibebar.terminal.isOpen().then(({ open }) => {
       terminalOpenRef.current = open
     })
+    void window.vibebar.agentCompanion.getState().then(setAgentCompanion)
+    const offAgent = window.vibebar.agentCompanion.onState(setAgentCompanion)
     const offLayout = window.vibebar.overlay.onLayout(setLayout)
     const offProject = window.vibebar.project.onChanged((p) => {
       setProfile(p)
@@ -113,7 +126,6 @@ export function App(): JSX.Element {
       } else if (auditDirectedRef.current) {
         auditDirectedRef.current = false
         setActivePanel('security-audit')
-        void window.vibebar.overlay.setPanel(true, 'security-audit')
       }
     })
     return () => {
@@ -125,6 +137,7 @@ export function App(): JSX.Element {
       offSession()
       offPalette()
       offTerminal()
+      offAgent()
     }
   }, [openCommandPalette, refreshOnboarding, refreshRecents])
 
@@ -147,6 +160,14 @@ export function App(): JSX.Element {
   useEffect(() => {
     activePanelRef.current = activePanel
   }, [activePanel])
+
+  const toggleAgentCompanion = useCallback(() => {
+    if (activePanel === 'agent-companion') {
+      closePanel()
+      return
+    }
+    setActivePanel('agent-companion')
+  }, [activePanel, closePanel])
 
   const handleSelectProject = useCallback(async () => {
     setProfile(await window.vibebar.project.select())
@@ -305,8 +326,8 @@ export function App(): JSX.Element {
         closePanel()
         return
       }
+      if (!isDetachablePanel(id)) return
       setActivePanel(id)
-      void window.vibebar.overlay.setPanel(true, isDetachablePanel(id) ? id : undefined)
     },
     [activePanel, closePanel, showNotice]
   )
@@ -314,7 +335,6 @@ export function App(): JSX.Element {
   const handleSetCurrentTask = useCallback(() => {
     setIntentEditorOpen(true)
     setActivePanel('session-hub')
-    void window.vibebar.overlay.setPanel(true, 'session-hub')
   }, [])
 
   const paletteActions = useMemo(
@@ -330,6 +350,7 @@ export function App(): JSX.Element {
         onSnip: () => handleTool('snip'),
         onSetCurrentTask: handleSetCurrentTask,
         onPrepareCursor: () => void handlePrepareCursor(),
+        onToggleAgentDrawer: () => toggleAgentCompanion(),
         recents: recentProjects,
         onOpenRecent: (path) => void handleOpenRecent(path)
       }),
@@ -341,6 +362,7 @@ export function App(): JSX.Element {
       handleCopySessionHandoff,
       handleSetCurrentTask,
       handlePrepareCursor,
+      toggleAgentCompanion,
       recentProjects,
       handleOpenRecent
     ]
@@ -353,6 +375,11 @@ export function App(): JSX.Element {
     },
     [closePanel]
   )
+
+  const detachAgentCompanion = useCallback(() => {
+    closePanel()
+    void window.vibebar.panel.detach('agent-companion')
+  }, [closePanel])
 
   const isVertical = layout.dock !== 'top'
   const toolbarOrientation = orientationForDock(layout.dock)
@@ -368,7 +395,21 @@ export function App(): JSX.Element {
         ? { x: 0, y: -10 }
         : { x: -10, y: 0 }
 
+  const agentDrawerOpen = activePanel === 'agent-companion'
+
   function renderPanel(): JSX.Element | null {
+    if (activePanel === 'agent-companion') {
+      if (!agentCompanion) return null
+      return (
+        <AgentCompanionDrawer
+          state={agentCompanion}
+          onClose={closePanel}
+          onDetach={detachAgentCompanion}
+          solid={solid}
+          onToggleSolid={toggleSolid}
+        />
+      )
+    }
     switch (activePanel) {
       case 'prompt-library':
         return (
@@ -451,6 +492,7 @@ export function App(): JSX.Element {
             profile={profile}
             onClose={closePanel}
             onPrepareCursor={() => void handlePrepareCursor()}
+            onOpenAgentCompanion={toggleAgentCompanion}
             solid={solid}
             onToggleSolid={toggleSolid}
             onDetach={() => detachPanel('cursor-agent')}
@@ -473,11 +515,27 @@ export function App(): JSX.Element {
   }
 
   const panelShellStyle: CSSProperties = useMemo(() => {
-    if (!activePanel || !isDetachablePanel(activePanel)) return {}
+    if (!isDetachablePanelId(activePanel)) return {}
     const size = inlinePanelDimensions(activePanel)
     return isVertical
-      ? { width: size.width, height: size.height, maxHeight: size.height }
-      : { height: size.height, width: '100%' }
+      ? {
+          width: size.width,
+          minWidth: size.width,
+          height: size.height,
+          minHeight: size.height,
+          maxHeight: size.height
+        }
+      : { height: size.height, minHeight: size.height, width: '100%' }
+  }, [activePanel, isVertical])
+
+  /** Reserve flex space before main resizes the overlay window — keeps the toolbar from reflowing. */
+  const clusterReserveStyle: CSSProperties = useMemo(() => {
+    if (!isDetachablePanelId(activePanel)) return {}
+    const size = inlinePanelDimensions(activePanel)
+    const gap = 8
+    return isVertical
+      ? { minWidth: 64 + gap + size.width }
+      : { minHeight: 64 + gap + size.height }
   }, [activePanel, isVertical])
 
   /** Main already positions the tight overlay window at anchor — cluster stays flush in-window. */
@@ -506,13 +564,32 @@ export function App(): JSX.Element {
     }
   }, [layout.dock, layout.orientation, layout.anchorOffset])
 
+  /**
+   * Panel state → main immediately; bounds resize only after one paint (layoutReady).
+   * Fire-and-forget setPanel so IPC does not block the post-paint ack.
+   */
+  useLayoutEffect(() => {
+    if (!activePanel) return
+    void window.vibebar.overlay.setPanel(true, activePanel)
+    let cancelled = false
+    const id = requestAnimationFrame(() => {
+      if (!cancelled && activePanelRef.current === activePanel) {
+        void window.vibebar.overlay.layoutReady()
+      }
+    })
+    return () => {
+      cancelled = true
+      cancelAnimationFrame(id)
+    }
+  }, [activePanel])
+
   const clusterClass = `absolute flex gap-2 ${isVertical ? 'flex-row items-start' : 'flex-col items-stretch'}`
 
   return (
     <div className="fixed inset-0">
       <div
         className={clusterClass}
-        style={toolbarClusterStyle}
+        style={{ ...toolbarClusterStyle, ...clusterReserveStyle }}
         onPointerDown={() => void window.vibebar.overlay.setActive()}
       >
         <div
@@ -533,6 +610,8 @@ export function App(): JSX.Element {
           onOpenContextFolder={() => void handleOpenContextFolder()}
           onTool={handleTool}
           onQuickLaunch={(id) => void handleQuickLaunch(id)}
+          agentDrawerOpen={agentDrawerOpen}
+          onToggleAgentDrawer={toggleAgentCompanion}
           sessionPinCount={sessionPinCount}
           onPower={() => void window.vibebar.app.confirmQuit()}
         />
@@ -547,10 +626,10 @@ export function App(): JSX.Element {
           {activePanel && (
             <motion.div
               key={activePanel}
-              initial={{ opacity: 0, scale: 0.97, x: panelEnterOffset.x, y: panelEnterOffset.y }}
-              animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
-              exit={{ opacity: 0, scale: 0.97, x: panelEnterOffset.x, y: panelEnterOffset.y }}
-              transition={{ type: 'spring', stiffness: 380, damping: 34, mass: 0.7 }}
+              initial={{ opacity: 0, x: panelEnterOffset.x, y: panelEnterOffset.y }}
+              animate={{ opacity: 1, x: 0, y: 0 }}
+              exit={{ opacity: 0, x: panelEnterOffset.x, y: panelEnterOffset.y }}
+              transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
               style={{ transformOrigin: panelTransformOrigin, ...panelShellStyle }}
               className={`${panelOrderClass} vibe-glass ${solid ? 'is-solid' : ''} flex min-h-0 shrink-0 flex-col overflow-hidden rounded-2xl`}
             >

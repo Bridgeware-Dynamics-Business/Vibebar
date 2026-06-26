@@ -1,5 +1,5 @@
 import type { PromptCategory, PromptTemplate } from '@vibebar/prompt-engine'
-import type { DetachablePanelId } from './tools.js'
+import type { AgentCompanionBridge } from './agentCompanionApi.js'
 import type {
   AuditExportResult,
   AuditAcceptRiskResult,
@@ -308,6 +308,7 @@ export interface VibeBarApi {
     getStatus: () => Promise<McpServerStatus>
     onChanged: (cb: (status: McpServerStatus) => void) => () => void
   }
+  agentCompanion: AgentCompanionBridge
   app: {
     quit: () => Promise<{ ok: boolean }>
     /** First-run onboarding visibility state. */
