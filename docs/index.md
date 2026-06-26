@@ -2,7 +2,7 @@
 layout: home
 
 hero:
-  name: vibebar::
+  name: "vibebar::"
   text: Your AI coding companion for Windows
   tagline: A floating toolbar that sits beside your workflow. Copy project-aware prompts, run security scans, pack file context, and connect Cursor Agent to your live session state — all while you code.
   actions:
