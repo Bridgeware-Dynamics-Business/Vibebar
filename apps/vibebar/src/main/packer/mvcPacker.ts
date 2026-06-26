@@ -1,18 +1,19 @@
 import { readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import fg from 'fast-glob'
-import { parseUserIgnoreLines } from '@vibebar/codesync'
+import { compileIgnoreMatchers, getIgnoreGlobList, isIgnoredRel, parseUserIgnoreLines } from '@vibebar/codesync'
 import type { ProjectProfile } from '@vibebar/project-detector'
 import { readChangedFilePaths } from '../git/gitDiff.js'
 import {
   type PackPathCategory,
-  PACK_CHAR_BUDGET,
   PRESET_GLOBS,
   packContext,
   relativeWithin,
   resolveWithinRoot,
   trimPathsToCharBudget
 } from './contextPacker.js'
+import type { ContextPackTier } from '@shared/contextPackTier.js'
+import { DEFAULT_CONTEXT_PACK_TIER } from '@shared/contextPackTier.js'
 
 const MAX_IMPORT_HOP_FILES = 20
 
@@ -26,6 +27,7 @@ export interface MvcPackInput {
   seedPaths?: string[]
   ignoreText?: string
   charBudget?: number
+  tier?: ContextPackTier
 }
 
 export interface MvcPackResult {
@@ -35,6 +37,9 @@ export interface MvcPackResult {
   paths: string[]
   trimmedPaths: string[]
   categories: Record<string, PackPathCategory>
+  charBudget: number
+  usedChars: number
+  tier: ContextPackTier
 }
 
 function ignorePatterns(ignoreText?: string): string[] {
@@ -84,14 +89,18 @@ export async function expandImportNeighbors(
 
 /** Finds test files related to a source path via basename matching and preset globs. */
 export async function findRelatedTests(rootPath: string, paths: string[], ignore: string[]): Promise<string[]> {
+  const match = compileIgnoreMatchers(ignore)
   const tests = new Set<string>()
   const allTests = await fg(PRESET_GLOBS.tests, {
     cwd: rootPath,
     onlyFiles: true,
     followSymbolicLinks: false,
-    suppressErrors: true
+    suppressErrors: true,
+    ignore: getIgnoreGlobList(ignore)
   })
-  const testList = allTests.map((p) => p.replace(/\\/g, '/'))
+  const testList = allTests
+    .map((p) => p.replace(/\\/g, '/'))
+    .filter((rel) => !isIgnoredRel(rel, match))
 
   for (const src of paths) {
     const base = src.replace(/\\/g, '/').replace(/\.[^.]+$/, '')
@@ -150,7 +159,8 @@ export async function packMvcContext(input: MvcPackInput): Promise<MvcPackResult
     relPaths: kept,
     headerLabel: input.headerLabel,
     ignorePatterns: ignore,
-    pathCategories: categories
+    pathCategories: categories,
+    charBudget: budget
   })
 
   return {
@@ -159,7 +169,10 @@ export async function packMvcContext(input: MvcPackInput): Promise<MvcPackResult
     skipped: out.skipped,
     paths: kept,
     trimmedPaths: trimmed,
-    categories
+    categories,
+    charBudget: budget,
+    usedChars: out.redactedText.length,
+    tier: input.tier ?? DEFAULT_CONTEXT_PACK_TIER
   }
 }
 

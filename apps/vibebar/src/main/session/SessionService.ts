@@ -11,14 +11,18 @@ import type {
   SessionState,
   IntentContract,
   FlightRecorderData,
-  VerifyPinStatus
+  VerifyPinStatus,
+  TerminalFailureRecord,
+  AgentMistake
 } from '@shared/types.js'
 import { readChangedFilePaths, readGitDiff } from '../git/gitDiff.js'
 import { readGitStatus } from '../git/gitStatus.js'
 import type { ProjectService } from '../project/ProjectService.js'
 import { scanText } from '../scanner/secretScanner.js'
 import { buildFlightLogView, formatLastGreenExcerpt } from './flightRecorderLogic.js'
+import { recentFailuresForUi } from './failureStoreLogic.js'
 import { formatIntentSection } from './intentContract.js'
+import { formatMistakeWarnings } from './mistakeLedger.js'
 
 const SESSION_DIR = '.vibebar'
 const SESSION_FILE = 'session.json'
@@ -34,6 +38,8 @@ export interface SessionFile {
   entries: SessionEntry[]
   flight?: FlightRecorderData
   intent?: IntentContract | null
+  failures?: TerminalFailureRecord[]
+  mistakes?: AgentMistake[]
 }
 
 /** Truncates stored full text to the session handoff cap. */
@@ -90,7 +96,15 @@ export class SessionService {
   }
 
   private emptyState(noProject: boolean): SessionState {
-    return { entries: [], noProject, pinnedCount: 0, intent: null, flight: null }
+    return {
+      entries: [],
+      noProject,
+      pinnedCount: 0,
+      intent: null,
+      flight: null,
+      recentFailures: [],
+      mistakes: []
+    }
   }
 
   private withMeta(entries: SessionEntry[], noProject: boolean, file: SessionFile): SessionState {
@@ -99,7 +113,9 @@ export class SessionService {
       noProject,
       pinnedCount: entries.filter((e) => e.pinned).length,
       intent: file.intent ?? null,
-      flight: buildFlightLogView(file.flight)
+      flight: buildFlightLogView(file.flight),
+      recentFailures: recentFailuresForUi(file.failures),
+      mistakes: file.mistakes ?? []
     }
   }
 
@@ -112,7 +128,9 @@ export class SessionService {
       const file: SessionFile = {
         entries: normalized,
         flight: parsed.flight,
-        intent: parsed.intent ?? null
+        intent: parsed.intent ?? null,
+        failures: Array.isArray(parsed.failures) ? parsed.failures : [],
+        mistakes: Array.isArray(parsed.mistakes) ? parsed.mistakes : []
       }
       if (normalized.length !== entries.length) {
         await this.writeFile(root, file)
@@ -137,12 +155,42 @@ export class SessionService {
     await this.writeFile(root, { ...data, flight })
   }
 
+  async writeMistakes(mistakes: AgentMistake[]): Promise<void> {
+    const root = this.root()
+    if (!root) return
+    const data = await this.readFile(root)
+    await this.writeFile(root, { ...data, mistakes })
+  }
+
+  async getMistakes(): Promise<AgentMistake[]> {
+    const root = this.root()
+    if (!root) return []
+    const data = await this.readFile(root)
+    return data.mistakes ?? []
+  }
+
+  async writeFailures(failures: TerminalFailureRecord[]): Promise<void> {
+    const root = this.root()
+    if (!root) return
+    const data = await this.readFile(root)
+    await this.writeFile(root, { ...data, failures })
+  }
+
+  async getFailures(): Promise<TerminalFailureRecord[]> {
+    const root = this.root()
+    if (!root) return []
+    const data = await this.readFile(root)
+    return data.failures ?? []
+  }
+
   private async writeFile(root: string, data: SessionFile): Promise<void> {
     await mkdir(join(root, SESSION_DIR), { recursive: true })
     const normalized: SessionFile = {
       entries: normalizeSessionEntries(data.entries),
       flight: data.flight,
-      intent: data.intent ?? null
+      intent: data.intent ?? null,
+      failures: data.failures ?? [],
+      mistakes: data.mistakes ?? []
     }
     await writeFile(this.sessionPath(root), `${JSON.stringify(normalized, null, 2)}\n`, 'utf8')
   }
@@ -176,7 +224,11 @@ export class SessionService {
 
   async updateEntryVerify(
     entryId: string,
-    patch: { verifyCommand?: string; verifyStatus?: VerifyPinStatus }
+    patch: {
+      verifyCommand?: string
+      verifyStatus?: VerifyPinStatus | null
+      lastVerifyOutputHash?: string | null
+    }
   ): Promise<SessionEntry | null> {
     const root = this.root()
     if (!root) return null
@@ -185,7 +237,16 @@ export class SessionService {
     const entry = data.entries.find((e) => e.id === entryId)
     if (!entry) return null
     if (patch.verifyCommand !== undefined) entry.verifyCommand = patch.verifyCommand
-    if (patch.verifyStatus !== undefined) entry.verifyStatus = patch.verifyStatus
+    if ('verifyStatus' in patch) {
+      if (patch.verifyStatus === null) delete entry.verifyStatus
+      else if (patch.verifyStatus !== undefined) entry.verifyStatus = patch.verifyStatus
+    }
+    if ('lastVerifyOutputHash' in patch) {
+      if (patch.lastVerifyOutputHash === null) delete entry.lastVerifyOutputHash
+      else if (patch.lastVerifyOutputHash !== undefined) {
+        entry.lastVerifyOutputHash = patch.lastVerifyOutputHash
+      }
+    }
     await this.writeFile(root, data)
     return entry
   }
@@ -253,7 +314,12 @@ export class SessionService {
 
     if (existsSync(this.sessionPath(root))) {
       const data = await this.readFile(root)
-      await this.writeFile(root, { entries: [], flight: data.flight, intent: data.intent ?? null })
+      await this.writeFile(root, {
+        entries: [],
+        flight: data.flight,
+        intent: data.intent ?? null,
+        failures: data.failures ?? []
+      })
     }
     return this.getState()
   }
@@ -306,6 +372,11 @@ export class SessionService {
     const lines: string[] = ['# VibeBar Session Handoff', '']
 
     lines.push(...formatIntentSection(intent))
+
+    const mistakeLines = formatMistakeWarnings(data.mistakes ?? [], 2)
+    if (mistakeLines.length > 0) {
+      lines.push(...mistakeLines)
+    }
 
     if (profile) {
       const ctx = buildContext(profile)
@@ -416,7 +487,8 @@ export class SessionService {
     return { lines, pinned, noProject: false }
   }
 
-  async buildHandoffPrompt(includeGitDiff = true): Promise<SessionHandoffResult> {
+  /** Pure handoff text — no clipboard side effects (safe for MCP resources). */
+  async buildHandoffText(includeGitDiff = true): Promise<SessionHandoffResult> {
     const { lines, pinned, noProject } = await this.buildHandoffLines(includeGitDiff)
     if (noProject) {
       return { copied: false, text: '', findings: [], noProject: true, pinnedCount: 0 }
@@ -424,21 +496,29 @@ export class SessionService {
 
     const raw = lines.join('\n').trimEnd() + '\n'
     const scan = scanText(raw)
-    let copied = false
-    try {
-      clipboard.writeText(scan.redactedText)
-      copied = true
-    } catch {
-      copied = false
-    }
 
     return {
-      copied,
+      copied: false,
       text: scan.redactedText,
       findings: scan.findings,
       noProject: false,
       pinnedCount: pinned.length
     }
+  }
+
+  async buildHandoffPrompt(includeGitDiff = true): Promise<SessionHandoffResult> {
+    const result = await this.buildHandoffText(includeGitDiff)
+    if (result.noProject) return result
+
+    let copied = false
+    try {
+      clipboard.writeText(result.text)
+      copied = true
+    } catch {
+      copied = false
+    }
+
+    return { ...result, copied }
   }
 
   /** Copies only pinned audit/terminal fix prompts — separate from the narrative handoff. */

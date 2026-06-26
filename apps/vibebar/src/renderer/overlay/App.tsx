@@ -192,6 +192,23 @@ export function App(): JSX.Element {
     if (result.pasteNotice) showNotice(result.pasteNotice)
   }, [showNotice])
 
+  const handlePrepareCursor = useCallback(async () => {
+    const result = await window.vibebar.quickLaunch.prepareCursor()
+    if (result.noProject) {
+      showNotice('Select a project first.')
+      return
+    }
+    if (!result.ok && result.error) {
+      showNotice(result.error)
+      return
+    }
+    if (result.text) {
+      onCopyOutcome(true, result.text, 0)
+    }
+    if (result.pasteNotice) showNotice(result.pasteNotice)
+    else if (result.ok) showNotice('Cursor bootstrap copied — opening Cursor.')
+  }, [onCopyOutcome, showNotice])
+
   const handleCopyGitDiff = useCallback(async () => {
     const result = await window.vibebar.git.copyDiffPrompt()
     if (result.noProject) {
@@ -306,6 +323,7 @@ export function App(): JSX.Element {
         onAuditConfig: () => handleTool('security-audit'),
         onSnip: () => handleTool('snip'),
         onSetCurrentTask: handleSetCurrentTask,
+        onPrepareCursor: () => void handlePrepareCursor(),
         recents: recentProjects,
         onOpenRecent: (path) => void handleOpenRecent(path)
       }),
@@ -316,6 +334,7 @@ export function App(): JSX.Element {
       handlePackChanged,
       handleCopySessionHandoff,
       handleSetCurrentTask,
+      handlePrepareCursor,
       recentProjects,
       handleOpenRecent
     ]
@@ -398,6 +417,7 @@ export function App(): JSX.Element {
             onClose={closePanel}
             onCopyOutcome={onCopyOutcome}
             onPackChanged={() => void handlePackChanged()}
+            onPrepareCursor={() => void handlePrepareCursor()}
             onCopyGitDiff={() => void handleCopyGitDiff()}
             onOpenTerminal={() => handleTool('terminal')}
             onOpenPromptLibrary={() => handleTool('prompt-library')}

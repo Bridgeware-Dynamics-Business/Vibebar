@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { SettingsState } from '@shared/api.js'
-import type { DockSide, McpServerStatus, QuickLaunchApp } from '@shared/types.js'
+import type { DockSide, McpServerStatus, ProjectProfile, ProjectStackOverrides, QuickLaunchApp } from '@shared/types.js'
 import { Icon } from '../../shared/icons'
 import { DetachButton, PanelHeader, Toggle } from '../../shared/ui'
 
@@ -9,6 +9,17 @@ const DOCKS: { id: DockSide; label: string }[] = [
   { id: 'top', label: 'Top' },
   { id: 'right', label: 'Right' }
 ]
+
+function formatAgentAccessAgo(timestamp: number | null | undefined): string {
+  if (timestamp == null) return 'No agent access yet'
+  const deltaMs = Date.now() - timestamp
+  if (deltaMs < 60_000) return 'Cursor connected recently'
+  const mins = Math.floor(deltaMs / 60_000)
+  if (mins < 60) return `Last agent access: ${mins}m ago`
+  const hours = Math.floor(mins / 60)
+  if (hours < 48) return `Last agent access: ${hours}h ago`
+  return `Last agent access: ${Math.floor(hours / 24)}d ago`
+}
 
 export function SettingsPanel({
   onClose,
@@ -29,6 +40,8 @@ export function SettingsPanel({
   const [githubDesktopPath, setGithubDesktopPath] = useState('')
   const [mcpStatus, setMcpStatus] = useState<McpServerStatus | null>(null)
   const [snippetCopied, setSnippetCopied] = useState(false)
+  const [profile, setProfile] = useState<ProjectProfile | null>(null)
+  const [stackOverrides, setStackOverrides] = useState<ProjectStackOverrides>({})
 
   useEffect(() => {
     void window.vibebar.settings.get().then((s) => {
@@ -36,12 +49,19 @@ export function SettingsPanel({
       setGithubDesktopPath(s.githubDesktopPath ?? '')
       setMcpStatus(s.mcpStatus)
     })
+    void window.vibebar.project.get().then(setProfile)
+    void window.vibebar.project.getStackOverrides().then(setStackOverrides)
     void window.vibebar.quickLaunch.list().then(setQuickLaunch)
     const offQuickLaunch = window.vibebar.quickLaunch.onChanged(setQuickLaunch)
     const offMcp = window.vibebar.mcp.onChanged(setMcpStatus)
+    const offProject = window.vibebar.project.onChanged((p) => {
+      setProfile(p)
+      void window.vibebar.project.getStackOverrides().then(setStackOverrides)
+    })
     return () => {
       offQuickLaunch()
       offMcp()
+      offProject()
     }
   }, [])
 
@@ -344,6 +364,9 @@ export function SettingsPanel({
             {mcpStatus?.error && (
               <p className="mb-2 text-amber-400">Error: {mcpStatus.error}</p>
             )}
+            <p className="mb-2 text-[11px] text-vibe-muted">
+              {formatAgentAccessAgo(mcpStatus?.lastAgentAccessAt)}
+            </p>
             <pre className="vibe-scroll max-h-32 overflow-auto whitespace-pre-wrap rounded bg-black/30 p-2 font-mono text-[10px] text-vibe-text">
               {mcpStatus?.connectionSnippet ?? '{\n  "mcpServers": {}\n}'}
             </pre>
@@ -358,6 +381,18 @@ export function SettingsPanel({
           </div>
           <div className="flex items-center justify-between">
             <div>
+              <span className="text-sm text-vibe-text">Auto-pin Fix with Context</span>
+              <p className="text-[11px] text-vibe-muted">
+                When Fix with Context copies, pin the session entry for handoff.
+              </p>
+            </div>
+            <Toggle
+              checked={settings.autoPinFixWithContext ?? false}
+              onChange={(next) => void save({ autoPinFixWithContext: next })}
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
               <span className="text-sm text-vibe-text">Paste clipboard after opening Cursor</span>
               <p className="text-[11px] text-vibe-muted">
                 Opt-in one-shot paste when you tap Open Cursor or Quick Launch after a recent copy.
@@ -368,7 +403,121 @@ export function SettingsPanel({
               onChange={(next) => void save({ pasteAfterOpenCursor: next })}
             />
           </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-sm text-vibe-text">Pre-paste safety gate</span>
+              <p className="text-[11px] text-vibe-muted">
+                Scan clipboard for secrets, oversized prompts, and risky shell patterns before paste.
+              </p>
+            </div>
+            <Toggle
+              checked={settings.prePasteSafetyGate !== false && Boolean(settings.pasteAfterOpenCursor)}
+              onChange={(next) => void save({ prePasteSafetyGate: next })}
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-sm text-vibe-text">Auto-run verify after Fix with Context</span>
+              <p className="text-[11px] text-vibe-muted">
+                Queue the suggested verify command in Smart Terminal after copying a fix bundle.
+              </p>
+            </div>
+            <Toggle
+              checked={settings.autoRunVerifyAfterFix ?? false}
+              onChange={(next) => void save({ autoRunVerifyAfterFix: next })}
+            />
+          </div>
         </section>
+
+        {profile &&
+          profile.language === 'unknown' &&
+          profile.framework === 'unknown' && (
+            <section>
+              <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-vibe-muted">
+                Stack detection
+              </h3>
+              <p className="mb-2 text-xs text-vibe-muted">
+                Auto-detection could not infer this project&apos;s stack. Override language, framework,
+                and test runner for prompts, parsers, and verify recipes.
+              </p>
+              <div className="grid gap-2 sm:grid-cols-3">
+                <label className="block text-[10px] text-vibe-muted">
+                  Language
+                  <select
+                    value={stackOverrides.language ?? ''}
+                    onChange={(e) =>
+                      setStackOverrides((o) => ({ ...o, language: e.target.value as ProjectStackOverrides['language'] }))
+                    }
+                    className="mt-1 w-full rounded-md border border-vibe-border bg-black/20 px-2 py-1.5 text-xs text-vibe-text"
+                  >
+                    <option value="">—</option>
+                    {['typescript', 'javascript', 'python', 'rust', 'go', 'php'].map((v) => (
+                      <option key={v} value={v}>
+                        {v}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block text-[10px] text-vibe-muted">
+                  Framework
+                  <select
+                    value={stackOverrides.framework ?? ''}
+                    onChange={(e) =>
+                      setStackOverrides((o) => ({ ...o, framework: e.target.value as ProjectStackOverrides['framework'] }))
+                    }
+                    className="mt-1 w-full rounded-md border border-vibe-border bg-black/20 px-2 py-1.5 text-xs text-vibe-text"
+                  >
+                    <option value="">—</option>
+                    {['electron', 'next', 'react', 'vue', 'svelte', 'fastapi', 'flask', 'django', 'laravel'].map(
+                      (v) => (
+                        <option key={v} value={v}>
+                          {v}
+                        </option>
+                      )
+                    )}
+                  </select>
+                </label>
+                <label className="block text-[10px] text-vibe-muted">
+                  Test runner
+                  <select
+                    value={stackOverrides.testRunner ?? ''}
+                    onChange={(e) =>
+                      setStackOverrides((o) => ({
+                        ...o,
+                        testRunner: e.target.value as ProjectStackOverrides['testRunner']
+                      }))
+                    }
+                    className="mt-1 w-full rounded-md border border-vibe-border bg-black/20 px-2 py-1.5 text-xs text-vibe-text"
+                  >
+                    <option value="">—</option>
+                    {['vitest', 'jest', 'pytest', 'playwright'].map((v) => (
+                      <option key={v} value={v}>
+                        {v}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    void window.vibebar.project.saveStackOverrides(stackOverrides).then(setStackOverrides)
+                  }
+                  className="rounded-lg bg-vibe-accent px-3 py-1.5 text-xs font-medium text-white"
+                >
+                  Save overrides
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void window.vibebar.project.clearStackOverrides().then(setStackOverrides)}
+                  className="rounded-lg px-3 py-1.5 text-xs text-vibe-muted hover:text-vibe-text"
+                >
+                  Clear overrides
+                </button>
+              </div>
+            </section>
+          )}
 
         <section>
           <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-vibe-muted">

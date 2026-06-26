@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { buildContextHealthWarnings } from '@shared/contextHealth.js'
+import {
+  recommendContextPackTier,
+  type ContextPackTier,
+  CONTEXT_PACK_TIER_BUDGETS
+} from '@shared/contextPackTier.js'
 import type { PackChangedPreview, PackNode, PackResult, ProjectProfile } from '@shared/types.js'
 import { ContextHealthBanners } from '../../shared/ContextHealthBanners'
 import { Icon } from '../../shared/icons'
@@ -31,6 +36,7 @@ export function ContextPackerPanel({
   const [changedPreview, setChangedPreview] = useState<PackChangedPreview | null>(null)
   const [changedPaths, setChangedPaths] = useState<string[]>([])
   const [loadingDirs, setLoadingDirs] = useState<Set<string>>(new Set())
+  const [tier, setTier] = useState<ContextPackTier>('standard')
   const expandTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   async function loadDir(dir: string): Promise<void> {
@@ -82,6 +88,11 @@ export function ContextPackerPanel({
     [profile, packCharCount, selected, changedPaths]
   )
 
+  const recommendedTier = useMemo(
+    () => recommendContextPackTier(packCharCount || changedPreview?.charCount || 0),
+    [packCharCount, changedPreview?.charCount]
+  )
+
   async function toggleDir(path: string): Promise<void> {
     const next = new Set(expanded)
     if (next.has(path)) {
@@ -115,7 +126,7 @@ export function ContextPackerPanel({
   async function pack(): Promise<void> {
     setBusy(true)
     try {
-      const r = await window.vibebar.packer.pack([...selected])
+      const r = await window.vibebar.packer.pack([...selected], tier)
       setResult(r)
       onCopyOutcome(r.copied, r.text)
     } finally {
@@ -221,10 +232,30 @@ export function ContextPackerPanel({
         <>
           <p className="px-4 pt-3 text-xs text-vibe-muted">
             Pick files to bundle into a clipboard-ready context block. Secrets are stripped
-            automatically; dependencies and build output are ignored. Bundles trim to ~32k chars
-            (changed files kept first).
+            automatically; choose a pack tier to control char budget (Micro 8k / Standard 32k / Full 100k).
           </p>
           <ContextHealthBanners warnings={packerHealthWarnings} className="mx-4 mt-2" />
+          <div className="flex flex-wrap items-center gap-2 px-4 pt-2">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-vibe-muted">Tier</span>
+            {(['micro', 'standard', 'full'] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setTier(t)}
+                className={`rounded-full px-2.5 py-1 text-[10px] font-medium capitalize ${
+                  tier === t
+                    ? 'bg-vibe-accent/25 text-vibe-accent-2'
+                    : 'bg-white/5 text-vibe-muted hover:bg-white/10 hover:text-vibe-text'
+                }`}
+              >
+                {t}
+                <span className="ml-1 opacity-70">({CONTEXT_PACK_TIER_BUDGETS[t].toLocaleString()})</span>
+              </button>
+            ))}
+            {recommendedTier !== tier && (
+              <span className="text-[10px] text-vibe-muted">Suggested: {recommendedTier}</span>
+            )}
+          </div>
           <div className="flex flex-wrap gap-1.5 px-4 pt-2">
             {(
               [
@@ -252,7 +283,8 @@ export function ContextPackerPanel({
             <p className="px-4 py-1.5 text-xs text-vibe-muted">
               Packed {result.fileCount} file{result.fileCount === 1 ? '' : 's'}
               {result.skipped > 0 ? `, skipped ${result.skipped}` : ''}
-              {result.findings.length > 0 ? ` \u00b7 ${result.findings.length} secret(s) redacted` : ''}
+              {result.tier ? ` · ${result.tier} (${result.usedChars?.toLocaleString() ?? '?'} chars)` : ''}
+              {result.findings.length > 0 ? ` · ${result.findings.length} secret(s) redacted` : ''}
             </p>
           )}
           <div className="flex flex-wrap items-center gap-2 border-t border-vibe-border p-3">

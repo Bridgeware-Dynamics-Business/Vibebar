@@ -1,6 +1,7 @@
 import { buildContext } from '@vibebar/prompt-engine'
 import type { ProjectProfile } from '@vibebar/project-detector'
 import { buildContextHealthWarnings } from '@shared/contextHealth.js'
+import { resolveContextPackBudget } from '@shared/contextPackTier.js'
 import type { DetectedIssue, IntentContract, ProjectCommand } from '@shared/types.js'
 import type { ProjectService } from '../project/ProjectService.js'
 import type { AppStore } from '../settings/store.js'
@@ -15,6 +16,10 @@ import type { CommandResult } from './TerminalSession.js'
 import { parseStructuredOutput } from './terminalParsers.js'
 import { generateProjectCommands } from './projectCommands.js'
 import { formatIntentSection } from '../session/intentContract.js'
+import {
+  buildVerificationRecipe,
+  primaryVerifyFromRecipe
+} from '../verify/verificationRecipes.js'
 
 export interface FixWithContextInput {
   result: CommandResult
@@ -92,12 +97,14 @@ export async function buildFixWithContextBundle(input: FixWithContextInput): Pro
   let fileCount = 0
   let packedPaths: string[] = []
   if (profile?.rootPath) {
+    const { tier, budget } = resolveContextPackBudget('standard')
     const mvc = await packMvcContext({
       rootPath: profile.rootPath,
       headerLabel: headerLabel(profile),
       seedPaths,
       ignoreText: input.ignoreText,
-      charBudget: 32_000
+      charBudget: budget,
+      tier
     })
     mvcText = mvc.text
     fileCount = mvc.fileCount
@@ -105,7 +112,9 @@ export async function buildFixWithContextBundle(input: FixWithContextInput): Pro
   }
 
   const commands = await generateProjectCommands(profile)
-  const verifyCommand = suggestVerifyCommand(commands, failureKind)
+  const recipe = buildVerificationRecipe(profile)
+  const verifyCommand =
+    suggestVerifyCommand(commands, failureKind) ?? primaryVerifyFromRecipe(recipe)
 
   const testPaths =
     profile?.rootPath && seedPaths.length > 0

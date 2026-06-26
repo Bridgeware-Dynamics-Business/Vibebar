@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { GitStatus, ProjectAiDocs, ProjectProfile, SessionEntry, SessionState, IntentContract } from '@shared/types.js'
+import type { GitStatus, ProjectAiDocs, ProjectMemoryDiff, ProjectProfile, SessionEntry, SessionState, IntentContract, AgentMistake } from '@shared/types.js'
 import { Icon } from '../../shared/icons'
 import { buildNoteBullet, SaveToNotePicker } from '../../shared/saveToNote'
 import { DetachButton, PanelHeader } from '../../shared/ui'
@@ -97,6 +97,27 @@ function IntentContractStrip({
     onSaved()
   }
 
+  async function fillFilesFromGit(): Promise<void> {
+    const paths = await window.vibebar.git.changedFiles()
+    setFilesInScope(paths.join('\n'))
+  }
+
+  function renderFieldList(label: string, items: string[]): JSX.Element | null {
+    if (items.length === 0) return null
+    return (
+      <div>
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-vibe-muted">{label}</p>
+        <ul className="mt-1 list-inside list-disc space-y-0.5 text-vibe-text">
+          {items.map((item) => (
+            <li key={item} className="font-mono text-[11px]">
+              {item}
+            </li>
+          ))}
+        </ul>
+      </div>
+    )
+  }
+
   return (
     <div className="rounded-xl border border-vibe-border bg-white/[0.02]">
       <button
@@ -116,6 +137,9 @@ function IntentContractStrip({
           {!editing && intent?.goal ? (
             <>
               <p className="whitespace-pre-wrap text-vibe-text">{intent.goal}</p>
+              {renderFieldList('Constraints', intent.constraints)}
+              {renderFieldList('Files in scope', intent.filesInScope)}
+              {renderFieldList('Acceptance criteria', intent.acceptanceCriteria)}
               {intent.verifyCommand && (
                 <p className="font-mono text-[10px] text-vibe-muted">Verify: {intent.verifyCommand}</p>
               )}
@@ -146,6 +170,45 @@ function IntentContractStrip({
                 onChange={(e) => setGoal(e.target.value)}
                 rows={2}
                 placeholder="What are you trying to ship in this session?"
+                className="w-full rounded-lg border border-vibe-border bg-black/20 px-2 py-1.5 text-xs text-vibe-text"
+              />
+              <label className="block text-[10px] font-semibold uppercase tracking-wide text-vibe-muted">
+                Constraints
+              </label>
+              <textarea
+                value={constraints}
+                onChange={(e) => setConstraints(e.target.value)}
+                rows={2}
+                placeholder="One constraint per line (scope, style, deps…)"
+                className="w-full rounded-lg border border-vibe-border bg-black/20 px-2 py-1.5 text-xs text-vibe-text"
+              />
+              <div className="flex items-center justify-between gap-2">
+                <label className="text-[10px] font-semibold uppercase tracking-wide text-vibe-muted">
+                  Files in scope
+                </label>
+                <button
+                  type="button"
+                  onClick={() => void fillFilesFromGit()}
+                  className="rounded-md bg-white/10 px-2 py-0.5 text-[10px] font-medium text-vibe-text hover:bg-white/15"
+                >
+                  Fill from git changed
+                </button>
+              </div>
+              <textarea
+                value={filesInScope}
+                onChange={(e) => setFilesInScope(e.target.value)}
+                rows={2}
+                placeholder="src/auth.ts&#10;apps/web/…"
+                className="w-full rounded-lg border border-vibe-border bg-black/20 px-2 py-1.5 font-mono text-xs text-vibe-text"
+              />
+              <label className="block text-[10px] font-semibold uppercase tracking-wide text-vibe-muted">
+                Acceptance criteria
+              </label>
+              <textarea
+                value={acceptanceCriteria}
+                onChange={(e) => setAcceptanceCriteria(e.target.value)}
+                rows={2}
+                placeholder="One criterion per line"
                 className="w-full rounded-lg border border-vibe-border bg-black/20 px-2 py-1.5 text-xs text-vibe-text"
               />
               <label className="block text-[10px] font-semibold uppercase tracking-wide text-vibe-muted">
@@ -189,7 +252,8 @@ function IntentContractStrip({
 function FlightLogSection({ state }: { state: SessionState | null }): JSX.Element | null {
   const [open, setOpen] = useState(false)
   const flight = state?.flight
-  if (!flight) return null
+  const failures = state?.recentFailures ?? []
+  if (!flight && failures.length === 0) return null
 
   return (
     <div className="rounded-xl border border-vibe-border bg-white/[0.02]">
@@ -202,34 +266,49 @@ function FlightLogSection({ state }: { state: SessionState | null }): JSX.Elemen
         <Icon name="Activity" size={14} className="text-vibe-muted" />
         <span className="font-medium text-vibe-text">Flight log</span>
         <span className="ml-auto text-vibe-muted">
-          {flight.recentCommands.length} cmd
-          {flight.lastGreen ? ' · last green' : ''}
+          {flight ? `${flight.recentCommands.length} cmd` : '0 cmd'}
+          {flight?.lastGreen ? ' · last green' : ''}
+          {failures.length > 0 ? ` · ${failures.length} failure(s)` : ''}
         </span>
       </button>
       {open && (
         <div className="space-y-2 border-t border-vibe-border px-3 py-2.5 text-[11px] text-vibe-muted">
-          {flight.lastGreen && (
+          {flight?.lastGreen && (
             <p>
               Last green: <span className="font-mono text-vibe-text">{flight.lastGreen.command}</span>
               {flight.lastGreen.filesChangedSince.length > 0 &&
                 ` · ${flight.lastGreen.filesChangedSince.length} file(s) changed since`}
             </p>
           )}
-          {flight.lastAudit && (
+          {flight?.lastAudit && (
             <p>
               Last audit: grade {flight.lastAudit.grade ?? '—'} · {flight.lastAudit.findingCount} finding(s)
             </p>
           )}
-          <ul className="space-y-1 font-mono text-[10px]">
-            {flight.recentCommands.slice(0, 6).map((c, i) => (
-              <li key={`${c.timestamp}-${i}`} className="truncate">
-                <span className={c.exitCode === 0 ? 'text-emerald-400/90' : 'text-red-300/90'}>
-                  {c.exitCode ?? '?'}
-                </span>{' '}
-                {c.command}
-              </li>
-            ))}
-          </ul>
+          {flight && (
+            <ul className="space-y-1 font-mono text-[10px]">
+              {flight.recentCommands.slice(0, 6).map((c, i) => (
+                <li key={`${c.timestamp}-${i}`} className="truncate">
+                  <span className={c.exitCode === 0 ? 'text-emerald-400/90' : 'text-red-300/90'}>
+                    {c.exitCode ?? '?'}
+                  </span>{' '}
+                  {c.command}
+                </li>
+              ))}
+            </ul>
+          )}
+          {failures.length > 0 && (
+            <div className="space-y-1 border-t border-vibe-border/60 pt-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-vibe-muted">
+                Recent failures
+              </p>
+              {failures.map((f) => (
+                <p key={f.fingerprint} className="truncate font-mono text-[10px] text-red-200/90">
+                  [{f.kind}] exit {f.exitCode} — {f.command}
+                </p>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -359,10 +438,16 @@ function EntryRow({
 function AiDocsSection({ profile }: { profile: ProjectProfile }): JSX.Element {
   const [open, setOpen] = useState(false)
   const [docs, setDocs] = useState<ProjectAiDocs | null>(null)
+  const [memoryDiff, setMemoryDiff] = useState<ProjectMemoryDiff | null>(null)
   const [confirmAppend, setConfirmAppend] = useState(false)
 
   const refresh = useCallback(async () => {
-    setDocs(await window.vibebar.project.getAiDocs())
+    const [aiDocs, diff] = await Promise.all([
+      window.vibebar.project.getAiDocs(),
+      window.vibebar.project.getMemoryDiff()
+    ])
+    setDocs(aiDocs)
+    setMemoryDiff(diff)
   }, [])
 
   useEffect(() => {
@@ -398,6 +483,7 @@ function AiDocsSection({ profile }: { profile: ProjectProfile }): JSX.Element {
           {hasAgents ? 'AGENTS.md' : 'no AGENTS.md'}
           {ruleCount > 0 ? ` · ${ruleCount} rule(s)` : ''}
           {hasContext ? ' · AI Context' : ''}
+          {(memoryDiff?.warnings.length ?? 0) > 0 ? ` · ${memoryDiff!.warnings.length} drift` : ''}
         </span>
       </button>
       {open && docs && (
@@ -420,6 +506,20 @@ function AiDocsSection({ profile }: { profile: ProjectProfile }): JSX.Element {
             AGENTS.md and .cursor/rules excerpts are included in session handoffs. Keep project AI
             docs current for better Cursor context.
           </p>
+          {memoryDiff && memoryDiff.warnings.length > 0 && (
+            <ul className="space-y-1.5 rounded-lg border border-amber-500/20 bg-amber-500/5 p-2">
+              {memoryDiff.warnings.map((w) => (
+                <li key={w.id} className="flex gap-2 text-[11px] text-vibe-text">
+                  <Icon
+                    name={w.severity === 'warning' ? 'AlertTriangle' : 'BookOpen'}
+                    size={12}
+                    className={w.severity === 'warning' ? 'shrink-0 text-amber-300' : 'shrink-0 text-vibe-muted'}
+                  />
+                  <span>{w.message}</span>
+                </li>
+              ))}
+            </ul>
+          )}
           {confirmAppend ? (
             <div className="flex flex-wrap gap-2">
               <button
@@ -448,6 +548,35 @@ function AiDocsSection({ profile }: { profile: ProjectProfile }): JSX.Element {
             </button>
           )}
         </div>
+      )}
+    </div>
+  )
+}
+
+function AgentPatternsSection({ mistakes }: { mistakes: AgentMistake[] }): JSX.Element | null {
+  const [open, setOpen] = useState(false)
+  if (mistakes.length === 0) return null
+
+  return (
+    <div className="rounded-xl border border-vibe-border bg-white/[0.02]">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-xs"
+      >
+        <Icon name={open ? 'ChevronDown' : 'ChevronRight'} size={14} className="text-vibe-muted" />
+        <Icon name="ShieldAlert" size={14} className="text-amber-300" />
+        <span className="font-medium text-vibe-text">Agent patterns</span>
+        <span className="ml-auto text-vibe-muted">{mistakes.length} noted</span>
+      </button>
+      {open && (
+        <ul className="space-y-1.5 border-t border-vibe-border px-3 py-2.5 text-[11px] text-vibe-muted">
+          {mistakes.slice(0, 8).map((m) => (
+            <li key={m.fingerprint} className="font-mono">
+              <span className="text-amber-200/90">[{m.pattern}]</span> {m.file} — {m.message}
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   )
@@ -489,6 +618,7 @@ export function SessionHubPanel({
   onClose,
   onCopyOutcome,
   onPackChanged,
+  onPrepareCursor,
   onCopyGitDiff,
   onOpenTerminal,
   onOpenPromptLibrary,
@@ -503,6 +633,7 @@ export function SessionHubPanel({
   onClose: () => void
   onCopyOutcome: (copied: boolean, text: string, redactedCount?: number) => void
   onPackChanged: () => void
+  onPrepareCursor?: () => void
   onCopyGitDiff?: () => void
   onOpenTerminal?: () => void
   onOpenPromptLibrary?: () => void
@@ -670,6 +801,15 @@ export function SessionHubPanel({
                   <span className="text-vibe-muted">~{preview.tokenEstimate.toLocaleString()} tok</span>
                 )}
               </button>
+              <button
+                type="button"
+                onClick={() => onPrepareCursor?.()}
+                title="Copy Cursor bootstrap and open Cursor on this project"
+                className="flex items-center gap-1.5 rounded-lg bg-vibe-accent-2/20 px-3 py-1.5 text-xs font-medium text-vibe-accent-2 hover:bg-vibe-accent-2/30"
+              >
+                <Icon name="MousePointer2" size={13} />
+                Prepare Cursor
+              </button>
               {confirmClear ? (
                 <>
                   <button
@@ -722,6 +862,7 @@ export function SessionHubPanel({
               initiallyOpen={intentEditorOpen}
             />
             <FlightLogSection state={state} />
+            <AgentPatternsSection mistakes={state?.mistakes ?? []} />
             <AiDocsSection profile={profile} />
 
             {(state?.entries.length ?? 0) === 0 ? (

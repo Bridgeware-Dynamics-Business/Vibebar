@@ -12,14 +12,24 @@ import type { GitStatusService } from '../git/GitStatusService.js'
 import type { ProjectService } from '../project/ProjectService.js'
 import type { ReadyCheckService } from '../readyCheck/ReadyCheckService.js'
 import type { SessionService } from '../session/SessionService.js'
+import type { TerminalController } from '../terminal/TerminalController.js'
 import type { AppStore } from '../settings/store.js'
+import { buildVerificationRecipe } from '../verify/verificationRecipes.js'
+import { buildReadyCheckBrief } from '../readyCheck/readyCheckLogic.js'
 import { MCP_HOST, MCP_PORT, mcpConnectionSnippet } from './constants.js'
 import {
   buildAuditSummaryResource,
   buildGitStatusResource,
+  buildProjectMemoryDiffResource,
   buildProjectProfileResource,
+  buildReadyCheckBriefResource,
   buildReadyCheckSummaryResource,
-  buildSessionPinsResource
+  buildSessionFailuresResource,
+  buildSessionFlightLogResource,
+  buildSessionIntentResource,
+  buildSessionMistakesResource,
+  buildSessionPinsResource,
+  buildVerifyRecipeResource
 } from './resources.js'
 import { registerVibebarTools } from './tools.js'
 
@@ -31,19 +41,37 @@ export interface McpServiceDeps {
   gitDiff: GitDiffService
   gitStatus: GitStatusService
   store: AppStore
+  terminal: TerminalController
 }
 
 /**
  * Optional localhost MCP server so Cursor Agent can read VibeBar state without clipboard paste.
- * Streamable HTTP on 127.0.0.1 only; read-only resources + pack_changed tool.
+ * Streamable HTTP on 127.0.0.1 only; read-only resources + agent supervision tools.
  */
 export class McpServerController {
   private httpServer: Server | null = null
   private readonly transports: Record<string, StreamableHTTPServerTransport> = {}
   private running = false
   private lastError: string | null = null
+  private lastAgentAccessAt: number | null = null
+  private onAgentAccess: (() => void) | null = null
 
   constructor(private readonly deps: McpServiceDeps) {}
+
+  /** Called from registerIpc so Settings can refresh when Agent reads resources/tools. */
+  setActivityListener(listener: (() => void) | null): void {
+    this.onAgentAccess = listener
+  }
+
+  private touchAgentAccess(): void {
+    this.lastAgentAccessAt = Date.now()
+    this.onAgentAccess?.()
+  }
+
+  /** Records MCP tool invocations (resources call touchAgentAccess directly). */
+  recordAgentAccess(): void {
+    this.touchAgentAccess()
+  }
 
   getStatus(): McpServerStatus {
     const enabled = this.deps.store.getSettings().mcpServerEnabled ?? false
@@ -53,7 +81,8 @@ export class McpServerController {
       port: MCP_PORT,
       host: MCP_HOST,
       connectionSnippet: mcpConnectionSnippet(MCP_PORT),
-      error: this.lastError
+      error: this.lastError,
+      lastAgentAccessAt: this.lastAgentAccessAt
     }
   }
 
@@ -157,138 +186,167 @@ export class McpServerController {
     })
   }
 
+  private registerJsonResource(
+    server: McpServer,
+    name: string,
+    uri: string,
+    title: string,
+    description: string,
+    build: () => Promise<Record<string, unknown>>
+  ): void {
+    server.registerResource(
+      name,
+      uri,
+      { title, description, mimeType: 'application/json' },
+      async () => {
+        this.touchAgentAccess()
+        const payload = await build()
+        return {
+          contents: [{ uri, mimeType: 'application/json', text: JSON.stringify(payload, null, 2) }]
+        }
+      }
+    )
+  }
+
   private createServer(): McpServer {
     const server = new McpServer(
       { name: 'vibebar', version: '1.0.0' },
       {
         instructions:
-          'Read-only VibeBar project context for Cursor Agent. Use resources for session pins, audit posture, git status, and Ready Check. Call pack_changed to fetch an MVC context bundle for changed files.'
+          'VibeBar Agent Command Center on localhost. Read resources for intent, flight log, failures, Ready Check brief, and verify recipe. Tools: pack_changed, ready_check, get/set_intent, get_last_green, get_context_health, fix_last_terminal_failure, get_regression_context, record_outcome. Session writes only — never edit source files directly.'
       }
     )
 
-    server.registerResource(
+    this.registerJsonResource(
+      server,
       'session-pins',
       'vibebar://session/pins',
-      {
-        title: 'Session pins',
-        description: 'Pinned Session Hub entries and a formatted handoff excerpt.',
-        mimeType: 'application/json'
-      },
+      'Session pins',
+      'Pinned Session Hub entries and a formatted handoff excerpt.',
       async () => {
         const profile = this.deps.projects.getProfile()
         const state = await this.deps.session.getState()
-        const handoff = await this.deps.session.buildHandoffPrompt(false)
-        const payload = buildSessionPinsResource({
+        const handoff = await this.deps.session.buildHandoffText(false)
+        return buildSessionPinsResource({
           projectName: profile?.folderName ?? null,
           pinned: state.entries.filter((e) => e.pinned),
           handoffExcerpt: handoff.text.slice(0, 12_000)
         })
-        return {
-          contents: [
-            {
-              uri: 'vibebar://session/pins',
-              mimeType: 'application/json',
-              text: JSON.stringify(payload, null, 2)
-            }
-          ]
-        }
       }
     )
 
-    server.registerResource(
+    this.registerJsonResource(
+      server,
+      'session-intent',
+      'vibebar://session/intent',
+      'Session intent',
+      'Full IntentContract for the active project session.',
+      async () => buildSessionIntentResource(await this.deps.session.getIntent())
+    )
+
+    this.registerJsonResource(
+      server,
+      'session-flight-log',
+      'vibebar://session/flight-log',
+      'Session flight log',
+      'Terminal commands, audit runs, and last-green verify state.',
+      async () => {
+        const ext = await this.deps.session.readExtended()
+        return buildSessionFlightLogResource(ext.flight)
+      }
+    )
+
+    this.registerJsonResource(
+      server,
+      'session-failures',
+      'vibebar://session/failures',
+      'Terminal failure black box',
+      'Structured Smart Terminal failures (command, kind, fingerprint, stack).',
+      async () => buildSessionFailuresResource(await this.deps.session.getFailures())
+    )
+
+    this.registerJsonResource(
+      server,
+      'session-mistakes',
+      'vibebar://session/mistakes',
+      'Agent mistake ledger',
+      'Session-local agent mistake patterns detected from git snapshots.',
+      async () => buildSessionMistakesResource(await this.deps.session.getMistakes())
+    )
+
+    this.registerJsonResource(
+      server,
+      'project-memory-diff',
+      'vibebar://project/memory-diff',
+      'Project memory diff',
+      'Drift between AI docs (AGENTS.md, rules) and live repo signals.',
+      async () => buildProjectMemoryDiffResource(await this.deps.projects.getMemoryDiff())
+    )
+
+    this.registerJsonResource(
+      server,
       'project-profile',
       'vibebar://project/profile',
-      {
-        title: 'Project profile',
-        description: 'Stack detection / ProjectProfile for the active VibeBar project.',
-        mimeType: 'application/json'
-      },
-      async () => {
-        const payload = buildProjectProfileResource(this.deps.projects.getProfile())
-        return {
-          contents: [
-            {
-              uri: 'vibebar://project/profile',
-              mimeType: 'application/json',
-              text: JSON.stringify(payload, null, 2)
-            }
-          ]
-        }
-      }
+      'Project profile',
+      'Stack detection / ProjectProfile for the active VibeBar project.',
+      async () => buildProjectProfileResource(this.deps.projects.getProfile())
     )
 
-    server.registerResource(
+    this.registerJsonResource(
+      server,
+      'project-verify-recipe',
+      'vibebar://project/verify-recipe',
+      'Verify recipe',
+      'Ordered verify plan from package.json scripts.',
+      async () => buildVerifyRecipeResource(buildVerificationRecipe(this.deps.projects.getProfile()))
+    )
+
+    this.registerJsonResource(
+      server,
       'audit-summary',
       'vibebar://audit/summary',
-      {
-        title: 'Audit summary',
-        description: 'Cached security audit score, severity counts, and truncation flag.',
-        mimeType: 'application/json'
-      },
-      async () => {
-        const payload = buildAuditSummaryResource({
-          report: this.deps.audit.getCachedReport()
-        })
-        return {
-          contents: [
-            {
-              uri: 'vibebar://audit/summary',
-              mimeType: 'application/json',
-              text: JSON.stringify(payload, null, 2)
-            }
-          ]
-        }
-      }
+      'Audit summary',
+      'Cached security audit score, severity counts, and truncation flag.',
+      async () =>
+        buildAuditSummaryResource({ report: this.deps.audit.getCachedReport() })
     )
 
-    server.registerResource(
+    this.registerJsonResource(
+      server,
       'git-status',
       'vibebar://git/status',
-      {
-        title: 'Git status',
-        description: 'Branch, change count, and changed file paths for the active repo.',
-        mimeType: 'application/json'
-      },
+      'Git status',
+      'Branch, change count, and changed file paths for the active repo.',
       async () => {
         const status = this.deps.gitStatus.getStatus()
         const changedPaths = await this.deps.gitDiff.changedFiles()
-        const payload = buildGitStatusResource({ status, changedPaths })
-        return {
-          contents: [
-            {
-              uri: 'vibebar://git/status',
-              mimeType: 'application/json',
-              text: JSON.stringify(payload, null, 2)
-            }
-          ]
-        }
+        return buildGitStatusResource({ status, changedPaths })
       }
     )
 
-    server.registerResource(
+    this.registerJsonResource(
+      server,
       'ready-check-summary',
       'vibebar://ready-check/summary',
-      {
-        title: 'Ready Check summary',
-        description: 'Ready Check v2 tri-state and key signals.',
-        mimeType: 'application/json'
-      },
+      'Ready Check summary',
+      'Ready Check v2 tri-state and key signals. See vibebar://ready-check/brief for top actions.',
+      async () => buildReadyCheckSummaryResource(await this.deps.readyCheck.evaluate())
+    )
+
+    this.registerJsonResource(
+      server,
+      'ready-check-brief',
+      'vibebar://ready-check/brief',
+      'Ready Check brief',
+      'Top 3 blockers with explicit next actions.',
       async () => {
         const result = await this.deps.readyCheck.evaluate()
-        const payload = buildReadyCheckSummaryResource(result)
-        return {
-          contents: [
-            {
-              uri: 'vibebar://ready-check/summary',
-              mimeType: 'application/json',
-              text: JSON.stringify(payload, null, 2)
-            }
-          ]
-        }
+        const brief = result.brief ?? buildReadyCheckBrief(result.status, result.signals)
+        return buildReadyCheckBriefResource(brief)
       }
     )
 
-    registerVibebarTools(server, this.deps)
+    registerVibebarTools(server, this.deps, this)
     return server
   }
 }

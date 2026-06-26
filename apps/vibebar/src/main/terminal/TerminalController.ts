@@ -381,6 +381,13 @@ export class TerminalController {
     return { copied: false, text: bundle.text, verifyCommand: bundle.verifyCommand }
   }
 
+  /** Last finished command when it failed — for MCP fix_last_terminal_failure. */
+  getLastFailedResult(): CommandResult | null {
+    if (!this.lastResult) return null
+    if (this.lastResult.exitCode == null || this.lastResult.exitCode === 0) return null
+    return this.lastResult
+  }
+
   /** Writes one line to the terminal view (CRLF for xterm). */
   private writeLine(text: string): void {
     this.send(CH.terminalData, `${text}\r\n`)

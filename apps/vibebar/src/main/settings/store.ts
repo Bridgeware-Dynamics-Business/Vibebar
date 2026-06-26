@@ -9,7 +9,8 @@ import type {
   QuickLaunchApp,
   RecentProject,
   VibeSettings,
-  WindowBounds
+  WindowBounds,
+  ProjectStackOverrides
 } from '@shared/types.js'
 import { pruneRecentProjects, pushRecentProject } from '../project/recentProjects.js'
 
@@ -36,6 +37,10 @@ interface StoreSchema {
   onboardingComplete: boolean
   /** When true, Settings replay opens the wizard even if a project is selected. */
   onboardingReplayRequested: boolean
+  /** Per-project cursor rules count snapshot for memory drift detection. */
+  projectMemorySnapshots: Record<string, { cursorRulesCount: number; updatedAt: number }>
+  /** Per-project manual stack overrides when detection is unknown. */
+  stackOverrides: Record<string, ProjectStackOverrides>
 }
 
 const DEFAULT_SETTINGS: VibeSettings = {
@@ -46,7 +51,10 @@ const DEFAULT_SETTINGS: VibeSettings = {
   launchOnStartup: false,
   hotkeysEnabled: true,
   mcpServerEnabled: false,
-  pasteAfterOpenCursor: false
+  pasteAfterOpenCursor: false,
+  prePasteSafetyGate: true,
+  autoPinFixWithContext: false,
+  autoRunVerifyAfterFix: false
 }
 
 /**
@@ -89,7 +97,9 @@ export class AppStore {
         panelBounds: {},
         terminalBounds: null,
         onboardingComplete: false,
-        onboardingReplayRequested: false
+        onboardingReplayRequested: false,
+        projectMemorySnapshots: {},
+        stackOverrides: {}
       }
     })
   }
@@ -264,5 +274,34 @@ export class AppStore {
 
   setOnboardingReplayRequested(requested: boolean): void {
     this.store.set('onboardingReplayRequested', requested)
+  }
+
+  getProjectMemorySnapshot(projectPath: string): { cursorRulesCount: number; updatedAt: number } | null {
+    return this.store.get('projectMemorySnapshots')?.[projectPath] ?? null
+  }
+
+  setProjectMemorySnapshot(projectPath: string, cursorRulesCount: number): void {
+    const all = this.store.get('projectMemorySnapshots') ?? {}
+    this.store.set('projectMemorySnapshots', {
+      ...all,
+      [projectPath]: { cursorRulesCount, updatedAt: Date.now() }
+    })
+  }
+
+  getStackOverrides(projectPath: string): ProjectStackOverrides {
+    return this.store.get('stackOverrides')?.[projectPath] ?? {}
+  }
+
+  setStackOverrides(projectPath: string, overrides: ProjectStackOverrides): ProjectStackOverrides {
+    const all = this.store.get('stackOverrides') ?? {}
+    const next = { ...all, [projectPath]: overrides }
+    this.store.set('stackOverrides', next)
+    return overrides
+  }
+
+  clearStackOverrides(projectPath: string): void {
+    const all = { ...(this.store.get('stackOverrides') ?? {}) }
+    delete all[projectPath]
+    this.store.set('stackOverrides', all)
   }
 }

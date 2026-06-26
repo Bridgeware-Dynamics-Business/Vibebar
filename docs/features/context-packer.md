@@ -11,6 +11,18 @@ Context Packer bundles project files into one markdown prompt on your clipboard,
 | **Token estimate** | Approximately `character count / 4` |
 | **Shortcut** | Palette → **Pack changed files** |
 
+## Pack tiers (Phase D)
+
+Context Packer and **Pack changed** support three char budgets:
+
+| Tier | Budget | Best for |
+|------|--------|----------|
+| **Micro** | 8,000 | Prepare Cursor–scale bootstrap, quick fixes |
+| **Standard** | 32,000 | Default handoffs and Fix with Context |
+| **Full** | 100,000 | MCP `pack_changed` cap, large refactors |
+
+The panel shows a **Tier** selector and a suggested tier from your current selection size. Pack metadata includes `tier`, `charBudget`, and `usedChars`.
+
 ## File tree
 
 Directories load lazily with a short debounce when you expand folders. Large trees show loading indicators.

@@ -40,6 +40,8 @@ Built-in launchers: **Cursor** and **Codex**. For each app you can:
 
 **Add application** for custom editors or tools. Launch opens the app on your **current project path** when one is selected.
 
+**Prepare Cursor** (Session Hub or Command Palette) copies a micro bootstrap for Cursor Agent — intent, verify recipe, Ready Check status, and MCP resource hints — then opens Cursor on the project. Respects **Paste clipboard after opening Cursor** when enabled.
+
 ## Cursor Agent
 
 Optional integrations for Cursor power users. See [MCP server](/features/mcp-server) for full setup.
@@ -48,8 +50,21 @@ Optional integrations for Cursor power users. See [MCP server](/features/mcp-ser
 |---------|---------|--------|
 | **Enable MCP server for Cursor** | Off | Runs read-only MCP on `127.0.0.1:17342` when VibeBar is open |
 | **Paste clipboard after opening Cursor** | Off | One-shot paste after **Open Cursor** or Quick Launch when you recently copied from VibeBar |
+| **Pre-paste safety gate** | On (when paste enabled) | Scan clipboard for secrets, oversized prompts (>32k warning), and risky shell patterns before paste |
+| **Auto-pin Fix with Context** | Off | Pins the Session Hub entry when **Fix with Context** copies to clipboard |
+| **Auto-run verify after Fix with Context** | Off | Queues suggested verify in Smart Terminal after fix copy |
 
-When MCP is enabled, Settings shows **Running/Stopped**, port, and a **Copy mcp.json snippet** button for Cursor's MCP config.
+When MCP is enabled, Settings shows **Running/Stopped**, port, **last agent access** time, and a **Copy mcp.json snippet** button for Cursor's MCP config.
+
+## Stack detection override
+
+When auto-detection reports **language** and **framework** as unknown, a **Stack detection** section appears:
+
+- Override **language**, **framework**, and **test runner** (optional)
+- **Save overrides** merges them into the effective profile for prompts, terminal parsers, and verify recipes
+- **Clear overrides** removes manual values for the active project
+
+Overrides are stored per project path in VibeBar settings (not in the repo).
 
 ## Footer
 

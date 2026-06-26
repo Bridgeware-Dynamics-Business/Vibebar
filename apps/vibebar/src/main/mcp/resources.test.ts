@@ -1,136 +1,99 @@
 import { describe, expect, it } from 'vitest'
-import type { AuditReport, ReadyCheckResult, SessionEntry } from '@shared/types.js'
-import type { ProjectProfile } from '@vibebar/project-detector'
 import {
-  buildAuditSummaryResource,
-  buildGitStatusResource,
-  buildProjectProfileResource,
+  buildReadyCheckBriefResource,
   buildReadyCheckSummaryResource,
-  buildSessionPinsResource
+  buildProjectMemoryDiffResource,
+  buildSessionMistakesResource,
+  buildSessionFailuresResource,
+  buildSessionFlightLogResource,
+  buildSessionIntentResource,
+  buildVerifyRecipeResource
 } from './resources.js'
-import { resolvePackCharBudget } from './tools.js'
-import { MCP_DEFAULT_PACK_CHARS, MCP_MAX_PACK_CHARS } from './constants.js'
+import { buildReadyCheckBrief } from '../readyCheck/readyCheckLogic.js'
+import type { ReadyCheckResult } from '@shared/types.js'
 
-describe('buildSessionPinsResource', () => {
-  it('includes pinned entries and handoff excerpt', () => {
-    const pinned = [
+describe('mcp resources', () => {
+  it('buildSessionIntentResource returns null intent when unset', () => {
+    expect(buildSessionIntentResource(null)).toEqual({ intent: null })
+  })
+
+  it('buildSessionFlightLogResource empty when no flight', () => {
+    expect(buildSessionFlightLogResource(null)).toEqual({
+      commands: [],
+      audits: [],
+      lastGreen: null
+    })
+  })
+
+  it('buildSessionFailuresResource reverses newest first', () => {
+    const payload = buildSessionFailuresResource([
       {
-        id: 'a',
-        type: 'prompt' as const,
-        title: 'Fix bug',
-        timestamp: 1,
-        pinned: true,
-        promptId: 'p1'
-      }
-    ] satisfies SessionEntry[]
-
-    const payload = buildSessionPinsResource({
-      projectName: 'demo',
-      pinned,
-      handoffExcerpt: '# Handoff\n'
-    })
-
-    expect(payload.project).toBe('demo')
-    expect(payload.pinnedCount).toBe(1)
-    expect(payload.pins).toHaveLength(1)
-    expect(payload.handoffExcerpt).toContain('Handoff')
-  })
-})
-
-describe('buildProjectProfileResource', () => {
-  it('returns noProject when profile is null', () => {
-    expect(buildProjectProfileResource(null)).toEqual({ noProject: true })
-  })
-
-  it('serializes stack fields', () => {
-    const profile = {
-      rootPath: '/repo',
-      folderName: 'repo',
-      language: 'typescript',
-      framework: 'next',
-      packageManager: 'npm',
-      hasRootManifest: true,
-      hasAiContextFolder: false,
-      scripts: ['test']
-    } as ProjectProfile
-
-    const payload = buildProjectProfileResource(profile)
-    expect(payload.framework).toBe('next')
-    expect(payload.language).toBe('typescript')
-  })
-})
-
-describe('buildAuditSummaryResource', () => {
-  it('handles missing cached report', () => {
-    const payload = buildAuditSummaryResource({ report: null })
-    expect(payload.scanned).toBe(false)
-    expect(payload.criticalCount).toBe(0)
-  })
-
-  it('counts severities and truncation', () => {
-    const report = {
-      ranAt: Date.now(),
-      projectName: 'demo',
-      scannedFiles: 10,
-      totalCandidates: 20,
-      truncated: true,
-      findings: [
-        { severity: 'critical' },
-        { severity: 'high' },
-        { severity: 'low' }
-      ],
-      noProject: false
-    } as AuditReport
-
-    const payload = buildAuditSummaryResource({ report })
-    expect(payload.criticalCount).toBe(1)
-    expect(payload.highCount).toBe(1)
-    expect(payload.truncated).toBe(true)
-    expect(payload.openFindings).toBe(3)
-  })
-})
-
-describe('buildGitStatusResource', () => {
-  it('includes branch and changed paths', () => {
-    const payload = buildGitStatusResource({
-      status: {
-        isRepo: true,
-        branch: 'main',
-        changeCount: 2,
-        ahead: 0,
-        behind: 0
+        command: 'npm test',
+        exitCode: 1,
+        kind: 'vitest',
+        fingerprint: 'a',
+        stackFrames: [],
+        rawOutput: 'fail',
+        timestamp: 1
       },
-      changedPaths: ['src/a.ts', 'src/b.ts']
-    })
-    expect(payload.branch).toBe('main')
-    expect(payload.changedPaths).toEqual(['src/a.ts', 'src/b.ts'])
+      {
+        command: 'npm run lint',
+        exitCode: 2,
+        kind: 'generic',
+        fingerprint: 'b',
+        stackFrames: [],
+        rawOutput: 'lint',
+        timestamp: 2
+      }
+    ])
+    expect(payload.count).toBe(2)
+    expect((payload.failures as { command: string }[])[0]?.command).toBe('npm run lint')
   })
-})
 
-describe('buildReadyCheckSummaryResource', () => {
-  it('maps tri-state and signals', () => {
+  it('buildVerifyRecipeResource null when missing', () => {
+    expect(buildVerifyRecipeResource(null)).toEqual({ recipe: null })
+  })
+
+  it('buildReadyCheckSummaryResource links to brief resource', () => {
     const result: ReadyCheckResult = {
       status: 'blocked',
-      signals: [
-        { id: 'terminal', label: 'Terminal', level: 'blocked', detail: 'Last run failed' }
-      ]
+      signals: [{ id: 'terminal', label: 'Terminal', level: 'blocked', detail: 'failed' }]
     }
     const payload = buildReadyCheckSummaryResource(result)
-    expect(payload.status).toBe('blocked')
-    expect(payload.signals).toHaveLength(1)
-  })
-})
-
-describe('resolvePackCharBudget', () => {
-  it('defaults when maxTokens omitted', () => {
-    expect(resolvePackCharBudget()).toBe(MCP_DEFAULT_PACK_CHARS)
+    expect(payload.briefResource).toBe('vibebar://ready-check/brief')
   })
 
-  it('caps at MCP_MAX_PACK_CHARS', () => {
-    expect(resolvePackCharBudget(999_999)).toBe(MCP_MAX_PACK_CHARS)
+  it('buildReadyCheckBriefResource exposes top items', () => {
+    const brief = buildReadyCheckBrief('needs-review', [
+      { id: 'tests-not-run', label: 'Tests not run', level: 'warning', detail: 'not run' }
+    ])
+    const payload = buildReadyCheckBriefResource(brief)
+    expect(payload.topItems).toHaveLength(1)
+    expect((payload.topItems as { nextAction: string }[])[0]?.nextAction).toContain('test')
   })
 
-  it('converts tokens to chars', () => {
-    expect(resolvePackCharBudget(1000)).toBe(4000)
+  it('buildProjectMemoryDiffResource includes warnings', () => {
+    const payload = buildProjectMemoryDiffResource({
+      warnings: [{ id: 'no-agents-md', message: 'missing', severity: 'warning' }],
+      agentsMdExists: false,
+      agentsMdAgeDays: null,
+      cursorRulesCount: 0,
+      contextReadmeExists: false,
+      codesyncConfigured: false
+    })
+    expect((payload.warnings as unknown[]).length).toBe(1)
+  })
+
+  it('buildSessionMistakesResource caps list', () => {
+    const payload = buildSessionMistakesResource([
+      {
+        pattern: 'weak-types',
+        file: 'a.ts',
+        message: 'any',
+        timestamp: 1,
+        fingerprint: 'x'
+      }
+    ])
+    expect(payload.count).toBe(1)
   })
 })

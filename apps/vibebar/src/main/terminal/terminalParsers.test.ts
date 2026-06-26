@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { analyzeOutput } from './outputAnalyzer.js'
 import {
   extractStackFrames,
-  parseStructuredOutput
+  parseStructuredOutput,
+  parseVerifyOutcome
 } from './terminalParsers.js'
 
 describe('extractStackFrames', () => {
@@ -62,6 +63,77 @@ AssertionError: expected 3 to be 4
     )
     expect(parsed?.primaryKind).toBe('stack')
     expect(parsed?.stackFrames[0]?.file).toBe('src/run.ts')
+  })
+})
+
+describe('parseVerifyOutcome', () => {
+  it('marks still-broken when vitest FAIL appears with exit 0', () => {
+    const result = parseVerifyOutcome(
+      {
+        command: 'npm test',
+        output: ' FAIL  src/a.test.ts > case\nAssertionError: nope',
+        exitCode: 0
+      },
+      { testRunner: 'vitest', language: 'typescript' } as never
+    )
+    expect(result.verifyStatus).toBe('still-broken')
+    expect(result.hasFailurePatterns).toBe(true)
+    expect(result.outputHash).toHaveLength(16)
+  })
+
+  it('marks verified on clean output with exit 0', () => {
+    const result = parseVerifyOutcome(
+      { command: 'npm test', output: 'Tests  12 passed', exitCode: 0 },
+      null
+    )
+    expect(result.verifyStatus).toBe('verified')
+  })
+
+  it('marks still-broken on non-zero exit without patterns', () => {
+    const result = parseVerifyOutcome(
+      { command: 'npm test', output: 'killed', exitCode: 1 },
+      null
+    )
+    expect(result.verifyStatus).toBe('still-broken')
+  })
+
+  it('parses pytest failures', () => {
+    const output = `
+FAILED tests/test_auth.py::test_login - AssertionError
+File "tests/test_auth.py", line 42, in test_login
+`
+    const parsed = parseStructuredOutput(
+      { command: 'pytest', output, exitCode: 1, profile: null },
+      { language: 'python', testRunner: 'pytest' } as never
+    )
+    expect(parsed?.primaryKind).toBe('pytest')
+    expect(parsed?.failures[0]?.file).toBe('tests/test_auth.py')
+  })
+
+  it('parses rust compiler errors', () => {
+    const output = `error[E0308]: mismatched types
+ --> src/main.rs:10:5
+`
+    const parsed = parseStructuredOutput(
+      { command: 'cargo test', output, exitCode: 101, profile: null },
+      { language: 'rust', testRunner: 'unknown' } as never
+    )
+    expect(parsed?.primaryKind).toBe('rust')
+    expect(parsed?.failures[0]?.file).toBe('src/main.rs')
+    expect(parsed?.failures[0]?.line).toBe(10)
+  })
+
+  it('parses go test failures', () => {
+    const output = `--- FAIL: TestAuth (0.00s)
+    auth_test.go:18: expected true
+`
+    const parsed = parseStructuredOutput(
+      { command: 'go test ./...', output, exitCode: 1, profile: null },
+      { language: 'go', testRunner: 'unknown' } as never
+    )
+    expect(parsed?.primaryKind).toBe('go')
+    expect(parsed?.failures[0]?.testName).toBe('TestAuth')
+    expect(parsed?.failures[0]?.file).toBe('auth_test.go')
   })
 })
 

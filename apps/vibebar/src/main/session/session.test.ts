@@ -1,7 +1,13 @@
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+const clipboardWrite = vi.fn()
+vi.mock('electron', () => ({
+  clipboard: { writeText: (...args: unknown[]) => clipboardWrite(...args) }
+}))
+
 import { emptyProfile } from '@vibebar/project-detector'
 import type { ProjectProfile } from '@shared/types.js'
 import type { ProjectService } from '../project/ProjectService.js'
@@ -21,6 +27,7 @@ describe('SessionService', () => {
   let dir: string
 
   afterEach(async () => {
+    clipboardWrite.mockClear()
     if (dir) await rm(dir, { recursive: true, force: true })
   })
 
@@ -50,7 +57,7 @@ describe('SessionService', () => {
     expect(state.entries).toEqual([])
 
     const raw = await readFile(join(dir, '.vibebar', 'session.json'), 'utf8')
-    expect(JSON.parse(raw)).toEqual({ entries: [], intent: null })
+    expect(JSON.parse(raw)).toEqual({ entries: [], intent: null, failures: [], mistakes: [] })
   })
 
   it('buildHandoffPrompt includes pinned items', async () => {
@@ -65,6 +72,22 @@ describe('SessionService', () => {
     expect(result.text).toContain('# VibeBar Session Handoff')
     expect(result.text).toContain('Pinned note')
     expect(result.text).toContain('Remember X')
+  })
+
+  it('buildHandoffText returns handoff without writing clipboard', async () => {
+    dir = await mkdtemp(join(tmpdir(), 'vibebar-session-'))
+    const svc = new SessionService(mockProjects(dir))
+    const state = await svc.append({ type: 'note', title: 'MCP safe', noteId: 'n1', text: 'No clipboard' })
+    await svc.togglePin(state.entries[0]!.id)
+
+    clipboardWrite.mockClear()
+    const result = await svc.buildHandoffText(false)
+    expect(clipboardWrite).not.toHaveBeenCalled()
+    expect(result.copied).toBe(false)
+    expect(result.text).toContain('MCP safe')
+
+    await svc.buildHandoffPrompt(false)
+    expect(clipboardWrite).toHaveBeenCalled()
   })
 
   it('pinRecentIfNonePinned pins the newest entries when none are pinned', async () => {

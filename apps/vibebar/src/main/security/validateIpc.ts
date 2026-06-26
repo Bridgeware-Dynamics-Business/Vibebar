@@ -55,10 +55,14 @@ const SCHEMAS: Partial<Record<ChannelName, z.ZodTypeAny>> = {
 
   [CH.packerTree]: z.object({ dir: z.string().max(2048) }),
   [CH.packerPack]: z.object({
-    paths: z.array(z.string().min(1).max(2048)).max(5000)
+    paths: z.array(z.string().min(1).max(2048)).max(5000),
+    tier: z.enum(['micro', 'standard', 'full']).optional()
   }),
   [CH.packerPresetPaths]: z.object({
     preset: z.enum(['tests', 'config', 'entry'])
+  }),
+  [CH.packerPackChanged]: z.object({
+    tier: z.enum(['micro', 'standard', 'full']).optional()
   }),
 
   [CH.clipboardWrite]: z.object({ text: z.string().max(1_000_000) }),
@@ -173,6 +177,13 @@ const SCHEMAS: Partial<Record<ChannelName, z.ZodTypeAny>> = {
   [CH.sessionClearIntent]: z.object({}),
   [CH.sessionRerunVerify]: z.object({ entryId: z.string().min(1).max(64) }),
   [CH.projectAppendAgentsMd]: z.object({ markdown: z.string().max(50_000) }),
+  [CH.projectSaveStackOverrides]: z.object({
+    language: z.enum(['typescript', 'javascript', 'python', 'rust', 'go', 'php', 'unknown', '']).optional(),
+    framework: z
+      .enum(['electron', 'next', 'react', 'vue', 'svelte', 'fastapi', 'flask', 'django', 'laravel', 'unknown', ''])
+      .optional(),
+    testRunner: z.enum(['vitest', 'jest', 'pytest', 'playwright', 'unknown', '']).optional()
+  }),
   [CH.githubSetDesktopPath]: z.object({ path: z.string().max(4096) }),
   [CH.auditSetRuleDisabled]: z.object({
     ruleId: z.string().min(1).max(64),
@@ -202,6 +213,7 @@ const SCHEMAS: Partial<Record<ChannelName, z.ZodTypeAny>> = {
     pasteAfterOpen: z.boolean().optional(),
     fromCopyToast: z.boolean().optional()
   }),
+  [CH.quickLaunchPrepareCursor]: z.object({}),
   [CH.quickLaunchRemove]: z.object({ id: z.string().min(1).max(64) }),
   [CH.quickLaunchLocate]: z.object({ id: z.string().min(1).max(64) }),
   [CH.quickLaunchSetVisible]: z.object({
@@ -218,7 +230,10 @@ const SCHEMAS: Partial<Record<ChannelName, z.ZodTypeAny>> = {
       launchOnStartup: z.boolean().optional(),
       hotkeysEnabled: z.boolean().optional(),
       mcpServerEnabled: z.boolean().optional(),
-      pasteAfterOpenCursor: z.boolean().optional()
+      pasteAfterOpenCursor: z.boolean().optional(),
+      prePasteSafetyGate: z.boolean().optional(),
+      autoPinFixWithContext: z.boolean().optional(),
+      autoRunVerifyAfterFix: z.boolean().optional()
     })
     .strict()
 }

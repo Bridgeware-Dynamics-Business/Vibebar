@@ -177,6 +177,7 @@ export function buildPaletteActions(handlers: {
   onAuditConfig: () => void
   onSnip: () => void
   onSetCurrentTask?: () => void
+  onPrepareCursor?: () => void
   recents?: RecentProject[]
   onOpenRecent?: (path: string) => void
 }): CommandPaletteAction[] {
@@ -203,6 +204,13 @@ export function buildPaletteActions(handlers: {
       keywords: 'intent task goal scope acceptance verify session brief',
       icon: 'Target',
       run: () => handlers.onSetCurrentTask?.()
+    },
+    {
+      id: 'prepare-cursor',
+      label: 'Prepare Cursor',
+      keywords: 'cursor agent bootstrap mcp intent ready check open',
+      icon: 'MousePointer2',
+      run: () => handlers.onPrepareCursor?.()
     },
     {
       id: 'session-hub',

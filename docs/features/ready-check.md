@@ -17,7 +17,7 @@ Read-only: no auto-commit, no auto-fix. Copy prompts and jump to related tools.
 
 | Status | When |
 |--------|------|
-| **Blocked** | Open critical audit finding, secrets in staged/unstaged diff, or last terminal command failed (non-zero exit) |
+| **Blocked** | Open critical audit finding, secrets in staged/unstaged diff, **secrets in untracked files**, or last terminal command failed (non-zero exit) |
 | **Needs review** | High audit finding, truncated audit scan, large diff (>500 lines), unknown stack, `package.json` changed, untracked-only changes, unresolved terminal dock issues, subfolder without project manifest, JS/TS changed without a recent audit, **or any v2 signal below** |
 | **Looks ready** | None of the above **and** (audit ran in the last 30 minutes **or** no JS/TS source files changed) |
 
@@ -32,6 +32,7 @@ These use **Session Flight Recorder** data in `.vibebar/session.json` and the se
 | **Lockfile changed — npm audit pending** | `package-lock.json`, `pnpm-lock.yaml`, etc. changed but no `npm audit` or Security Audit run since |
 | **Audit delta since session start** | Finding count increased or score dropped vs the first audit recorded this session |
 | **Last green stale** | Files changed after your last passing verify command (from Flight Recorder `lastGreen`) |
+| **Untracked secrets** | Secret scanner found credentials in untracked file contents (up to 20 files, 64KB each) |
 
 ## Core signals (v1)
 
@@ -50,6 +51,21 @@ Last command exit code from Smart Terminal and open issues in the terminal dock.
 ### Secrets in diff
 
 Local secret scanner on staged + unstaged diff hunks. Any match → **Blocked**.
+
+### Untracked file inspector (Phase C)
+
+When untracked paths exist, Ready Check scans up to **20 files** (64KB each) and shows a collapsible **Untracked files (N)** section with per-file scan status. Secrets in untracked content → **Blocked** (`untracked-secrets` signal). Actions:
+
+- **Copy untracked summary for AI** — review prompt listing paths and scan status
+- **Copy paths list** — plain path list for packer or manual review
+
+### Dependency change explainer
+
+When `package.json` changed, Ready Check compares `HEAD:package.json` vs working tree and lists added/removed/changed deps (prod vs dev). Flags unpinned versions (`*`, `latest`, `file:`, `git:`) and cross-references the lockfile-audit signal when lockfiles changed without audit.
+
+### Regression context
+
+When **Last green stale** is active, use **Copy regression context** to pack MVC context for files changed since the last passing verify (same logic as MCP `get_regression_context`).
 
 ### Project context
 

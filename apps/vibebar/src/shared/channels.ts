@@ -29,6 +29,10 @@ export const CH = {
   projectOpenContextFolder: 'project:openContextFolder',
   projectGetAiDocs: 'project:getAiDocs',
   projectAppendAgentsMd: 'project:appendAgentsMd',
+  projectGetMemoryDiff: 'project:getMemoryDiff',
+  projectGetStackOverrides: 'project:getStackOverrides',
+  projectSaveStackOverrides: 'project:saveStackOverrides',
+  projectClearStackOverrides: 'project:clearStackOverrides',
 
   promptsList: 'prompts:list',
   promptsPreview: 'prompts:preview',
@@ -147,6 +151,9 @@ export const CH = {
   // Ready Check — pre-commit trust gate (read-only aggregation)
   readyCheckGet: 'readyCheck:get',
   readyCheckCopyReviewPrompt: 'readyCheck:copyReviewPrompt',
+  readyCheckCopyUntrackedSummary: 'readyCheck:copyUntrackedSummary',
+  readyCheckCopyDependencyReview: 'readyCheck:copyDependencyReview',
+  readyCheckCopyRegressionContext: 'readyCheck:copyRegressionContext',
 
   // In-app error console — a renderer reports a captured (already-redacted) runtime error; the
   // console window receives the live list and asks main to clear/close itself.
@@ -158,6 +165,7 @@ export const CH = {
   // Quick Launch — one-click external editor/app launchers (Cursor, Codex, custom)
   quickLaunchList: 'quickLaunch:list',
   quickLaunchRun: 'quickLaunch:run',
+  quickLaunchPrepareCursor: 'quickLaunch:prepareCursor',
   quickLaunchAdd: 'quickLaunch:add',
   quickLaunchRemove: 'quickLaunch:remove',
   quickLaunchLocate: 'quickLaunch:locate',
@@ -196,6 +204,10 @@ export const INVOKABLE_CHANNELS: readonly string[] = [
   CH.projectOpenContextFolder,
   CH.projectGetAiDocs,
   CH.projectAppendAgentsMd,
+  CH.projectGetMemoryDiff,
+  CH.projectGetStackOverrides,
+  CH.projectSaveStackOverrides,
+  CH.projectClearStackOverrides,
   CH.promptsList,
   CH.promptsPreview,
   CH.promptsCopy,
@@ -267,6 +279,9 @@ export const INVOKABLE_CHANNELS: readonly string[] = [
   CH.gitChangedFiles,
   CH.readyCheckGet,
   CH.readyCheckCopyReviewPrompt,
+  CH.readyCheckCopyUntrackedSummary,
+  CH.readyCheckCopyDependencyReview,
+  CH.readyCheckCopyRegressionContext,
   CH.sessionGetState,
   CH.sessionAppend,
   CH.sessionTogglePin,
@@ -281,6 +296,7 @@ export const INVOKABLE_CHANNELS: readonly string[] = [
   CH.errorsClose,
   CH.quickLaunchList,
   CH.quickLaunchRun,
+  CH.quickLaunchPrepareCursor,
   CH.quickLaunchAdd,
   CH.quickLaunchRemove,
   CH.quickLaunchLocate,

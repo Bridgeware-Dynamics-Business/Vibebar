@@ -92,7 +92,26 @@ The collapsible **Sync project context** section shows status for:
 - `.cursor/rules/` (file count)
 - `AI Context/README.md`
 
+**Project memory diff** compares those docs to live repo signals (stack detection, `package.json` scripts, top-level folders). Drift warnings appear inline with actionable text — e.g. missing AGENTS.md, framework mismatch, undocumented scripts, or new Cursor rules.
+
 **Update AGENTS.md from session** appends a handoff block to your agents file.
+
+## Agent patterns (mistake ledger)
+
+When git snapshots run (after terminal commands or audits), VibeBar records lightweight **agent patterns** in `.vibebar/session.json`:
+
+| Pattern | Trigger |
+|---------|---------|
+| `weak-types` | Diff adds `any` or `@ts-ignore` |
+| `out-of-scope` | Changes outside intent `filesInScope` |
+| `duplicate-file` | Untracked basename matches existing file |
+| `skipped-tests` | Source changed since last green, no test files in diff |
+
+Open the collapsible **Agent patterns** section when mistakes exist. Top items are included in handoffs and Prepare Cursor. MCP: `vibebar://session/mistakes`.
+
+## Verify timeline notes
+
+Verify runs (test/lint commands) append lightweight **Verify:** note entries to the timeline when Smart Terminal completes them, including pass/fail/inconclusive status.
 
 Palette → **Sync / view AI docs** opens Session Hub (it does not open a separate docs viewer).
 

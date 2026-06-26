@@ -22,12 +22,15 @@ import type {
   PackResult,
   PreviewResult,
   ProjectAiDocs,
+  ProjectMemoryDiff,
+  ProjectStackOverrides,
   ProjectProfile,
   PromptListResult,
   QuickLaunchApp,
   RecentProject,
   QuickLaunchResult,
   ReadyCheckResult,
+  PrepareCursorResult,
   ScanResult,
   SessionAppendInput,
   SessionHandoffResult,
@@ -107,6 +110,11 @@ export interface VibeBarApi {
     getAiDocs: () => Promise<ProjectAiDocs>
     /** Appends markdown to AGENTS.md (creates the file if missing). */
     appendAgentsMd: (markdown: string) => Promise<{ ok: boolean; error?: string }>
+    /** Compare AI docs vs live repo drift signals. */
+    getMemoryDiff: () => Promise<ProjectMemoryDiff>
+    getStackOverrides: () => Promise<ProjectStackOverrides>
+    saveStackOverrides: (overrides: ProjectStackOverrides) => Promise<ProjectStackOverrides>
+    clearStackOverrides: () => Promise<ProjectStackOverrides>
     onChanged: (cb: (profile: ProjectProfile | null) => void) => () => void
   }
   prompts: {
@@ -126,11 +134,11 @@ export interface VibeBarApi {
   }
   packer: {
     tree: (dir: string) => Promise<PackNode[]>
-    pack: (paths: string[]) => Promise<PackResult>
+    pack: (paths: string[], tier?: import('./contextPackTier.js').ContextPackTier) => Promise<PackResult>
     /** Estimates size for git-changed files before packing. */
     previewChanged: () => Promise<PackChangedPreview>
     /** Packs git-changed files and copies to clipboard. */
-    packChanged: () => Promise<PackResult>
+    packChanged: (tier?: import('./contextPackTier.js').ContextPackTier) => Promise<PackResult>
     /** Resolves file paths for a preset (tests, config, entry). */
     presetPaths: (preset: 'tests' | 'config' | 'entry') => Promise<{ paths: string[]; noProject?: boolean }>
   }
@@ -210,6 +218,9 @@ export interface VibeBarApi {
     get: () => Promise<ReadyCheckResult>
     /** Copies the AI-ready review prompt to the clipboard. */
     copyReviewPrompt: () => Promise<{ copied: boolean; text: string }>
+    copyUntrackedSummary: () => Promise<{ copied: boolean; text: string }>
+    copyDependencyReview: () => Promise<{ copied: boolean; text: string }>
+    copyRegressionContext: () => Promise<{ copied: boolean; text: string }>
   }
   notes: {
     /** Current Notes state for the active project (folder presence, name, catalog). */
@@ -268,6 +279,8 @@ export interface VibeBarApi {
       id: string,
       options?: { pasteAfterOpen?: boolean; fromCopyToast?: boolean }
     ) => Promise<QuickLaunchResult>
+    /** Builds Cursor bootstrap, copies to clipboard, opens Cursor on project path. */
+    prepareCursor: () => Promise<PrepareCursorResult>
     /** Opens a native picker to add a new app; returns the updated list. */
     add: () => Promise<QuickLaunchApp[]>
     /** Removes an app by id; returns the updated list. */

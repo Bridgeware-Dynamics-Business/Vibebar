@@ -1,8 +1,10 @@
+import { createHash } from 'node:crypto'
 import type { ProjectProfile } from '@vibebar/project-detector'
+import type { VerifyPinStatus } from '@shared/types.js'
 import type { AnalyzeInput } from './outputAnalyzer.js'
 
 export interface ParsedFailure {
-  kind: 'vitest' | 'jest' | 'tsc' | 'generic'
+  kind: 'vitest' | 'jest' | 'tsc' | 'pytest' | 'rust' | 'go' | 'generic'
   file?: string
   line?: number
   column?: number
@@ -37,6 +39,13 @@ const JEST_EXPECT = /^\s*(?:Expected|Received|expect\(.+\)|Error:\s*expect)/i
 
 const TSC_ERROR = /^(.+?)\((\d+),(\d+)\):\s*error\s+(TS\d+):\s*(.+)$/
 const TSC_ERROR_ALT = /^error\s+(TS\d+):\s*(.+)$/
+
+const PYTEST_FAIL = /^FAILED\s+(\S+::\S+)/
+const PYTEST_FILE_LINE = /^File "([^"]+)", line (\d+)/
+const RUST_ERROR = /^error\[E\d+\]/
+const RUST_LOC = /^\s*-->\s+(\S+):(\d+):(\d+)/
+const GO_FAIL = /^--- FAIL:\s+(\S+)/
+const GO_FILE_LINE = /^\s+(\S+_test\.go):(\d+):/
 
 const STACK_AT = /^\s*at\s+(?:.+?\s+\()?([^\s(]+):(\d+):(\d+)\)?/
 const STACK_AT_BARE = /^\s*at\s+([^\s(]+):(\d+):(\d+)\s*$/
@@ -126,6 +135,85 @@ function parseJest(text: string): ParsedFailure[] {
     }
     if (JEST_EXPECT.test(line)) {
       current.assertion = current.assertion ? `${current.assertion}\n${line.trim()}` : line.trim()
+    }
+  }
+  if (current) failures.push(current)
+  return failures
+}
+
+function parsePytest(text: string): ParsedFailure[] {
+  const lines = text.replace(/\r/g, '').split('\n')
+  const failures: ParsedFailure[] = []
+  let current: ParsedFailure | null = null
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    const fail = line.match(PYTEST_FAIL)
+    if (fail) {
+      if (current) failures.push(current)
+      const id = fail[1]?.trim() ?? ''
+      const parts = id.split('::')
+      current = {
+        kind: 'pytest',
+        file: parts[0],
+        testName: parts.slice(1).join('::') || id
+      }
+      continue
+    }
+    if (!current) continue
+    const loc = line.match(PYTEST_FILE_LINE)
+    if (loc) {
+      current.file = loc[1]?.replace(/\\/g, '/')
+      current.line = Number(loc[2])
+    }
+    if (!current.message && /AssertionError|E\s+assert/i.test(line)) {
+      current.message = line.trim()
+    }
+  }
+  if (current) failures.push(current)
+  return failures
+}
+
+function parseRust(text: string): ParsedFailure[] {
+  const lines = text.replace(/\r/g, '').split('\n')
+  const failures: ParsedFailure[] = []
+  let current: ParsedFailure | null = null
+
+  for (const line of lines) {
+    if (RUST_ERROR.test(line)) {
+      if (current) failures.push(current)
+      current = { kind: 'rust', message: line.trim() }
+      continue
+    }
+    if (!current) continue
+    const loc = line.match(RUST_LOC)
+    if (loc) {
+      current.file = loc[1]?.replace(/\\/g, '/')
+      current.line = Number(loc[2])
+      current.column = Number(loc[3])
+    }
+  }
+  if (current) failures.push(current)
+  return failures
+}
+
+function parseGo(text: string): ParsedFailure[] {
+  const lines = text.replace(/\r/g, '').split('\n')
+  const failures: ParsedFailure[] = []
+  let current: ParsedFailure | null = null
+
+  for (const line of lines) {
+    const fail = line.match(GO_FAIL)
+    if (fail) {
+      if (current) failures.push(current)
+      current = { kind: 'go', testName: fail[1]?.trim() }
+      continue
+    }
+    if (!current) continue
+    const loc = line.match(GO_FILE_LINE)
+    if (loc) {
+      current.file = loc[1]?.replace(/\\/g, '/')
+      current.line = Number(loc[2])
     }
   }
   if (current) failures.push(current)
@@ -227,6 +315,24 @@ export function parseStructuredOutput(
     failures = parseTsc(text)
     if (failures.length > 0) primaryKind = 'tsc'
   }
+  if (
+    failures.length === 0 &&
+    (testRunner === 'pytest' || language === 'python' || /^FAILED\s+\S+::/m.test(text))
+  ) {
+    failures = parsePytest(text)
+    if (failures.length > 0) primaryKind = 'pytest'
+  }
+  if (failures.length === 0 && (language === 'rust' || /^error\[E\d+\]/m.test(text))) {
+    failures = parseRust(text)
+    if (failures.length > 0) primaryKind = 'rust'
+  }
+  if (
+    failures.length === 0 &&
+    (language === 'go' || /^--- FAIL:\s+/m.test(text) || /_test\.go:\d+:/m.test(text))
+  ) {
+    failures = parseGo(text)
+    if (failures.length > 0) primaryKind = 'go'
+  }
 
   if (failures.length === 0 && stackFrames.length === 0) return null
   if (failures.length === 0 && stackFrames.length > 0) primaryKind = 'stack'
@@ -240,5 +346,78 @@ export function parseStructuredOutput(
     evidence,
     fingerprint: fingerprintFor(failures, stackFrames, primaryKind),
     primaryKind
+  }
+}
+
+export type VerifyOutcomeKind = 'passed' | 'failed' | 'inconclusive'
+
+export interface VerifyParseResult {
+  outcome: VerifyOutcomeKind
+  /** True when structured or generic parsers found failure patterns in output. */
+  hasFailurePatterns: boolean
+  verifyStatus: VerifyPinStatus | null
+  primaryKind?: ParsedFailure['kind'] | 'stack' | 'generic'
+  outputHash: string
+}
+
+/** Stable short hash of terminal output for verify dedup / flight records. */
+export function hashTerminalOutput(output: string): string {
+  return createHash('sha256').update(output).digest('hex').slice(0, 16)
+}
+
+const GENERIC_VERIFY_FAIL =
+  /\bFAIL\b|\d+\s+failed\b|Tests:\s+\d+\s+failed|Test Files\s+\d+\s+failed|error TS\d{3,5}:|^FAILED\s+\S+::|^--- FAIL:\s+|^error\[E\d+\]/im
+
+function genericFailurePatterns(text: string): boolean {
+  return GENERIC_VERIFY_FAIL.test(text)
+}
+
+/**
+ * Parses verify/test command output for pass/fail — not exit code alone.
+ * `still-broken` when failure patterns appear even if exit code is 0 (documented limitation).
+ */
+export function parseVerifyOutcome(
+  input: Pick<AnalyzeInput, 'command' | 'output' | 'exitCode'>,
+  profile: ProjectProfile | null
+): VerifyParseResult {
+  const output = input.output ?? ''
+  const outputHash = hashTerminalOutput(output)
+  const structured = parseStructuredOutput(input, profile)
+  const hasStructuredFailures = (structured?.failures.length ?? 0) > 0
+  const hasFailurePatterns = hasStructuredFailures || genericFailurePatterns(output)
+
+  if (hasFailurePatterns) {
+    return {
+      outcome: 'failed',
+      hasFailurePatterns: true,
+      verifyStatus: 'still-broken',
+      primaryKind: structured?.primaryKind ?? 'generic',
+      outputHash
+    }
+  }
+
+  if (input.exitCode === 0) {
+    return {
+      outcome: 'passed',
+      hasFailurePatterns: false,
+      verifyStatus: 'verified',
+      outputHash
+    }
+  }
+
+  if (input.exitCode != null && input.exitCode !== 0) {
+    return {
+      outcome: 'failed',
+      hasFailurePatterns: false,
+      verifyStatus: 'still-broken',
+      outputHash
+    }
+  }
+
+  return {
+    outcome: 'inconclusive',
+    hasFailurePatterns: false,
+    verifyStatus: null,
+    outputHash
   }
 }

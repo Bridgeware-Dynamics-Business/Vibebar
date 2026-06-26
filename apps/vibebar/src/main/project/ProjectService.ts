@@ -8,8 +8,9 @@ import {
   findContextFolder,
   type ProjectProfile
 } from '@vibebar/project-detector'
-import type { ProjectAiDocs, RecentProject } from '@shared/types.js'
+import type { ProjectAiDocs, ProjectMemoryDiff, ProjectStackOverrides, RecentProject } from '@shared/types.js'
 import type { AppStore } from '../settings/store.js'
+import { computeProjectMemoryDiff } from './projectMemoryDiff.js'
 
 /** Seeded into a freshly created AI context folder so it is self-explanatory and git-trackable. */
 const AI_CONTEXT_README = [
@@ -43,11 +44,85 @@ export class ProjectService {
   }
 
   getProfile(): ProjectProfile | null {
+    return this.applyOverrides(this.profile)
+  }
+
+  /** Raw detected profile without manual overrides. */
+  getRawProfile(): ProjectProfile | null {
     return this.profile
   }
 
+  private applyOverrides(profile: ProjectProfile | null): ProjectProfile | null {
+    if (!profile) return null
+    const overrides = this.store.getStackOverrides(profile.rootPath)
+    const next = { ...profile }
+    if (overrides.language && overrides.language !== 'unknown') {
+      next.language = overrides.language
+    }
+    if (overrides.framework && overrides.framework !== 'unknown') {
+      next.framework = overrides.framework
+    }
+    if (overrides.testRunner && overrides.testRunner !== 'unknown') {
+      next.testRunner = overrides.testRunner
+    }
+    const tags = new Set(next.stacks.filter((s) => s !== 'any'))
+    if (next.language !== 'unknown') tags.add(next.language)
+    if (next.framework !== 'unknown') tags.add(next.framework)
+    if (next.testRunner !== 'unknown') tags.add(next.testRunner)
+    next.stacks = tags.size > 0 ? [...tags] : ['any']
+    return next
+  }
+
+  getStackOverrides(): ProjectStackOverrides {
+    const root = this.profile?.rootPath
+    if (!root) return {}
+    return this.store.getStackOverrides(root)
+  }
+
+  saveStackOverrides(overrides: ProjectStackOverrides): ProjectStackOverrides {
+    const root = this.profile?.rootPath
+    if (!root) return {}
+    const saved = this.store.setStackOverrides(root, overrides)
+    return saved
+  }
+
+  clearStackOverrides(): void {
+    const root = this.profile?.rootPath
+    if (!root) return
+    this.store.clearStackOverrides(root)
+  }
+
+  async getMemoryDiff(): Promise<ProjectMemoryDiff> {
+    const profile = this.getProfile()
+    if (!profile) {
+      return {
+        noProject: true,
+        warnings: [],
+        agentsMdExists: false,
+        agentsMdAgeDays: null,
+        cursorRulesCount: 0,
+        contextReadmeExists: false,
+        codesyncConfigured: false
+      }
+    }
+
+    const docs = await this.getAiDocs()
+    const snapshot = this.store.getProjectMemorySnapshot(profile.rootPath)
+    const diff = await computeProjectMemoryDiff({
+      profile,
+      agentsMd: docs.agentsMd,
+      cursorRulesCount: docs.cursorRules.length,
+      contextReadme: docs.contextReadme,
+      lastKnownCursorRulesCount: snapshot?.cursorRulesCount ?? null,
+      codesyncInstances: this.store.getCodeSyncConfig().instances
+    })
+
+    this.store.setProjectMemorySnapshot(profile.rootPath, docs.cursorRules.length)
+    return diff
+  }
+
   stacks(): string[] {
-    return this.profile?.stacks ?? ['any']
+    return this.getProfile()?.stacks ?? ['any']
   }
 
   listRecents(): RecentProject[] {

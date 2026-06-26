@@ -21,6 +21,9 @@ import {
   resolvePresetPaths,
   packIgnorePatternsFromIgnoreText
 } from '../packer/contextPacker.js'
+import { packMvcContext } from '../packer/mvcPacker.js'
+import { resolveContextPackBudget } from '@shared/contextPackTier.js'
+import type { ContextPackTier } from '@shared/contextPackTier.js'
 import type { SessionService } from '../session/SessionService.js'
 import type { FlightRecorderService } from '../session/FlightRecorderService.js'
 import type { VerifyLoopService } from '../session/VerifyLoopService.js'
@@ -40,6 +43,7 @@ import type { SnipController } from '../snip/SnipController.js'
 import type { HotkeyController } from '../hotkeys/HotkeyController.js'
 import type { ReadyCheckService } from '../readyCheck/ReadyCheckService.js'
 import type { McpServerController } from '../mcp/McpServerController.js'
+import { buildPrepareCursorBootstrap } from '../quicklaunch/prepareCursor.js'
 
 export interface IpcDeps {
   store: AppStore
@@ -129,6 +133,8 @@ export function registerIpc(deps: IpcDeps): void {
     detachedPanels.send(CH.mcpChanged, status)
   }
 
+  mcp.setActivityListener(broadcastMcpStatus)
+
   const handle = <T>(channel: string, fn: (payload: unknown) => T | Promise<T>): void => {
     ipcMain.handle(channel, async (_event, raw: unknown) => {
       const payload = parsePayload(channel, raw)
@@ -204,6 +210,19 @@ export function registerIpc(deps: IpcDeps): void {
     const { markdown } = p as { markdown: string }
     return projects.appendAgentsMd(markdown)
   })
+  handle(CH.projectGetMemoryDiff, () => projects.getMemoryDiff())
+  handle(CH.projectGetStackOverrides, () => projects.getStackOverrides())
+  handle(CH.projectSaveStackOverrides, (p) => {
+    const overrides = p as import('@shared/types.js').ProjectStackOverrides
+    const saved = projects.saveStackOverrides(overrides)
+    broadcastProject(projects.getProfile())
+    return saved
+  })
+  handle(CH.projectClearStackOverrides, () => {
+    projects.clearStackOverrides()
+    broadcastProject(projects.getProfile())
+    return projects.getStackOverrides()
+  })
 
   // Prompts
   handle(CH.promptsList, () => prompts.list())
@@ -261,13 +280,15 @@ export function registerIpc(deps: IpcDeps): void {
     if (!profile?.rootPath) {
       return { copied: false, text: '', fileCount: 0, skipped: 0, findings: [] }
     }
+    const payload = p as { paths: string[]; tier?: ContextPackTier }
+    const { tier, budget } = resolveContextPackBudget(payload.tier)
     const ignore = packIgnorePatterns(deps)
     const out = await packContext({
       rootPath: profile.rootPath,
-      relPaths: (p as { paths: string[] }).paths,
+      relPaths: payload.paths,
       headerLabel: headerLabel(deps),
       ignorePatterns: ignore,
-      charBudget: 32_000
+      charBudget: budget
     })
     let copied = writeClipboard(out.redactedText)
     if (copied) {
@@ -286,7 +307,10 @@ export function registerIpc(deps: IpcDeps): void {
       text: out.redactedText,
       fileCount: out.fileCount,
       skipped: out.skipped,
-      findings: out.findings
+      findings: out.findings,
+      tier,
+      charBudget: budget,
+      usedChars: out.redactedText.length
     }
   })
   handle(CH.packerPreviewChanged, async (): Promise<PackChangedPreview> => {
@@ -314,7 +338,7 @@ export function registerIpc(deps: IpcDeps): void {
     const paths = await resolvePresetPaths(profile.rootPath, preset, packIgnorePatterns(deps))
     return { paths, noProject: false }
   })
-  handle(CH.packerPackChanged, async (): Promise<PackResult> => {
+  handle(CH.packerPackChanged, async (p): Promise<PackResult> => {
     const profile = projects.getProfile()
     if (!profile?.rootPath) {
       return { copied: false, text: '', fileCount: 0, skipped: 0, findings: [] }
@@ -323,32 +347,36 @@ export function registerIpc(deps: IpcDeps): void {
     if (paths.length === 0) {
       return { copied: false, text: '', fileCount: 0, skipped: 0, findings: [] }
     }
-    const out = await packContext({
+    const tierArg = (p as { tier?: ContextPackTier }).tier
+    const { tier, budget } = resolveContextPackBudget(tierArg)
+    const packed = await packMvcContext({
       rootPath: profile.rootPath,
-      relPaths: paths,
       headerLabel: headerLabel(deps),
-      ignorePatterns: packIgnorePatterns(deps),
-      charBudget: 32_000,
-      pathCategories: Object.fromEntries(paths.map((p) => [p, 'changed' as const]))
+      ignoreText: deps.store.getCodeSyncConfig().ignoreText,
+      charBudget: budget,
+      tier
     })
-    const copied = writeClipboard(out.redactedText)
+    const copied = writeClipboard(packed.text)
     if (copied) {
       await broadcastSession(
         await session.append({
           type: 'note',
-          title: `Pack changed (${out.fileCount} file${out.fileCount === 1 ? '' : 's'})`,
+          title: `Pack changed (${packed.fileCount} file${packed.fileCount === 1 ? '' : 's'})`,
           noteId: 'context-pack-changed',
-          text: `Packed ${out.fileCount} changed file(s) to clipboard`,
-          fullText: out.redactedText
+          text: `Packed ${packed.fileCount} changed file(s) to clipboard`,
+          fullText: packed.text
         })
       )
     }
     return {
       copied,
-      text: out.redactedText,
-      fileCount: out.fileCount,
-      skipped: out.skipped,
-      findings: out.findings
+      text: packed.text,
+      fileCount: packed.fileCount,
+      skipped: packed.skipped,
+      findings: [],
+      tier: packed.tier,
+      charBudget: packed.charBudget,
+      usedChars: packed.usedChars
     }
   })
 
@@ -450,17 +478,32 @@ export function registerIpc(deps: IpcDeps): void {
     const copied = writeClipboard(result.text)
     if (copied) {
       const verifyCommand = result.verifyCommand ?? intent?.verifyCommand ?? null
-      await broadcastSession(
-        await session.append({
-          type: 'terminal-issue',
-          title: 'Fix with context',
-          issueId: issueId ?? 'fix-with-context',
-          command: terminal.getState().status.lastCommand ?? undefined,
-          fullText: result.text.slice(0, 8192),
-          verifyCommand,
-          verifyStatus: verifyCommand ? 'awaiting' : undefined
-        })
-      )
+      let state = await session.append({
+        type: 'terminal-issue',
+        title: 'Fix with context',
+        issueId: issueId ?? 'fix-with-context',
+        command: terminal.getState().status.lastCommand ?? undefined,
+        fullText: result.text.slice(0, 8192),
+        verifyCommand,
+        verifyStatus: verifyCommand ? 'awaiting' : undefined
+      })
+      if (store.getSettings().autoPinFixWithContext) {
+        const entry = state.entries[0]
+        if (entry && !entry.pinned) {
+          state = await session.togglePin(entry.id)
+        }
+      }
+      await broadcastSession(state)
+      if (verifyCommand && store.getSettings().autoRunVerifyAfterFix) {
+        const entry = state.entries.find(
+          (e) => e.type === 'terminal-issue' && e.title === 'Fix with context'
+        )
+        if (entry) {
+          verifyLoop.markPending(entry.id, verifyCommand)
+          terminal.show()
+          void terminal.run(verifyCommand)
+        }
+      }
     }
     return { ...result, copied }
   })
@@ -684,6 +727,21 @@ export function registerIpc(deps: IpcDeps): void {
     }
     return result
   })
+  handle(CH.readyCheckCopyUntrackedSummary, async () => {
+    const result = await readyCheck.copyUntrackedSummary()
+    if (result.copied) trackClipboardCopy(true)
+    return result
+  })
+  handle(CH.readyCheckCopyDependencyReview, async () => {
+    const result = await readyCheck.copyDependencyReview()
+    if (result.copied) trackClipboardCopy(true)
+    return result
+  })
+  handle(CH.readyCheckCopyRegressionContext, async () => {
+    const result = await readyCheck.copyRegressionContext()
+    if (result.copied) trackClipboardCopy(true)
+    return result
+  })
 
   // In-app error console — a renderer reports an already-redacted error (validated above); main is
   // a pure local forwarder that surfaces the always-on-top console window. Nothing leaves the app.
@@ -720,6 +778,35 @@ export function registerIpc(deps: IpcDeps): void {
       pasteAfterOpen: wantsPaste,
       fromCopyToast: Boolean(fromCopyToast)
     })
+  })
+  handle(CH.quickLaunchPrepareCursor, async () => {
+    const profile = projects.getProfile()
+    if (!profile?.rootPath) {
+      return { ok: false, noProject: true, error: 'Select a project first.' }
+    }
+    const ready = await readyCheck.evaluate()
+    const intent = await session.getIntent()
+    const [memoryDiff, mistakes] = await Promise.all([
+      projects.getMemoryDiff(),
+      session.getMistakes()
+    ])
+    const text = buildPrepareCursorBootstrap({ profile, readyCheck: ready, intent, memoryDiff, mistakes })
+    const copied = writeClipboard(text)
+    const settings = store.getSettings()
+    const launch = await quickLaunch.launch('cursor', profile.rootPath, {
+      pasteAfterOpen: settings.pasteAfterOpenCursor && copied,
+      fromCopyToast: copied
+    })
+    if (!launch.ok) {
+      return { ok: false, error: launch.error, text, noProject: false }
+    }
+    return {
+      ok: true,
+      text,
+      pasteAttempted: launch.pasteAttempted,
+      pasteSucceeded: launch.pasteSucceeded,
+      pasteNotice: launch.pasteNotice
+    }
   })
   handle(CH.quickLaunchAdd, async () => broadcastQuickLaunch(await quickLaunch.add()))
   handle(CH.quickLaunchRemove, (p) =>

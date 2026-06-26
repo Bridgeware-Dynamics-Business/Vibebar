@@ -1,6 +1,16 @@
-import type { AuditReport } from '@shared/types.js'
+import type {
+  AuditReport,
+  AgentMistake,
+  FlightRecorderData,
+  IntentContract,
+  ProjectMemoryDiff,
+  ReadyCheckBrief,
+  ReadyCheckResult,
+  SessionEntry,
+  TerminalFailureRecord,
+  VerificationRecipe
+} from '@shared/types.js'
 import type { ProjectProfile } from '@vibebar/project-detector'
-import type { ReadyCheckResult, SessionEntry } from '@shared/types.js'
 import type { GitStatus } from '@shared/types.js'
 
 export interface SessionPinsResourceInput {
@@ -35,6 +45,53 @@ export function buildSessionPinsResource(input: SessionPinsResourceInput): Recor
     pinnedCount: pins.length,
     pins,
     handoffExcerpt: input.handoffExcerpt
+  }
+}
+
+/** Builds JSON payload for vibebar://session/intent */
+export function buildSessionIntentResource(intent: IntentContract | null): Record<string, unknown> {
+  if (!intent) return { intent: null }
+  return { intent }
+}
+
+/** Builds JSON payload for vibebar://session/flight-log */
+export function buildSessionFlightLogResource(
+  flight: FlightRecorderData | null | undefined
+): Record<string, unknown> {
+  if (!flight) {
+    return { commands: [], audits: [], lastGreen: null }
+  }
+  return {
+    commands: flight.commands.slice(-20),
+    audits: flight.audits.slice(-5),
+    lastGreen: flight.lastGreen
+  }
+}
+
+/** Builds JSON payload for vibebar://session/failures */
+export function buildSessionFailuresResource(
+  failures: TerminalFailureRecord[]
+): Record<string, unknown> {
+  return {
+    count: failures.length,
+    failures: [...failures].reverse().slice(0, 20)
+  }
+}
+
+/** Builds JSON payload for vibebar://project/verify-recipe */
+export function buildVerifyRecipeResource(
+  recipe: VerificationRecipe | null
+): Record<string, unknown> {
+  if (!recipe) return { recipe: null }
+  return { recipe }
+}
+
+/** Builds JSON payload for vibebar://ready-check/brief */
+export function buildReadyCheckBriefResource(brief: ReadyCheckBrief): Record<string, unknown> {
+  return {
+    status: brief.status,
+    summaryLine: brief.summaryLine,
+    topItems: brief.topItems
   }
 }
 
@@ -102,12 +159,35 @@ export function buildGitStatusResource(input: GitStatusResourceInput): Record<st
   }
 }
 
+/** Builds JSON payload for vibebar://session/mistakes */
+export function buildSessionMistakesResource(mistakes: AgentMistake[]): Record<string, unknown> {
+  return {
+    count: mistakes.length,
+    mistakes: [...mistakes].slice(0, 20)
+  }
+}
+
+/** Builds JSON payload for vibebar://project/memory-diff */
+export function buildProjectMemoryDiffResource(diff: ProjectMemoryDiff): Record<string, unknown> {
+  return {
+    noProject: diff.noProject ?? false,
+    agentsMdExists: diff.agentsMdExists,
+    agentsMdAgeDays: diff.agentsMdAgeDays,
+    cursorRulesCount: diff.cursorRulesCount,
+    contextReadmeExists: diff.contextReadmeExists,
+    codesyncConfigured: diff.codesyncConfigured,
+    warnings: diff.warnings
+  }
+}
+
 /** Builds JSON payload for vibebar://ready-check/summary */
 export function buildReadyCheckSummaryResource(result: ReadyCheckResult): Record<string, unknown> {
   return {
     status: result.status,
     noProject: result.noProject ?? false,
     contextWarningCount: result.contextWarningCount ?? 0,
+    briefResource: 'vibebar://ready-check/brief',
+    verifyRecipe: result.verifyRecipe ?? null,
     signals: result.signals.map((s) => ({
       id: s.id,
       label: s.label,

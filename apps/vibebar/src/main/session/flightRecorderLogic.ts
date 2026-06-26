@@ -6,6 +6,7 @@ import type {
   FlightLogView,
   LastGreenState
 } from '@shared/types.js'
+import type { VerifyParseResult } from '../terminal/terminalParsers.js'
 
 export const FLIGHT_MAX_COMMANDS = 50
 export const FLIGHT_MAX_AUDITS = 20
@@ -39,13 +40,15 @@ export function trimFlightData(data: FlightRecorderData): FlightRecorderData {
 export function appendCommandRecord(
   data: FlightRecorderData,
   command: string,
-  exitCode: number | null
+  exitCode: number | null,
+  outputHash?: string
 ): FlightRecorderData {
   const record: FlightCommandRecord = {
     command: command.trim(),
     exitCode,
     timestamp: Date.now(),
-    isTest: looksLikeVerifyCommand(command)
+    isTest: looksLikeVerifyCommand(command),
+    outputHash
   }
   return trimFlightData({
     ...data,
@@ -73,14 +76,26 @@ export function appendSnapshot(
   })
 }
 
-/** Updates last-green when a verify/test command exits 0. */
+/** Whether a verify run counts as green for Flight Recorder last-green tracking. */
+export function verifyCountsAsGreen(
+  command: string,
+  verify: VerifyParseResult | null,
+  exitCode: number | null
+): boolean {
+  if (!looksLikeVerifyCommand(command)) return false
+  if (verify) return verify.outcome === 'passed' && verify.verifyStatus === 'verified'
+  return exitCode === 0
+}
+
+/** Updates last-green when a verify/test command passes structured parse (not exit code alone). */
 export function updateLastGreen(
   data: FlightRecorderData,
   command: string,
   exitCode: number | null,
-  changedFiles: string[]
+  changedFiles: string[],
+  verify?: VerifyParseResult | null
 ): FlightRecorderData {
-  if (exitCode !== 0 || !looksLikeVerifyCommand(command)) return data
+  if (!verifyCountsAsGreen(command, verify ?? null, exitCode)) return data
 
   const prev = data.lastGreen
   const filesChangedSince =

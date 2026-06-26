@@ -1,11 +1,17 @@
+import type { ProjectProfile } from '@vibebar/project-detector'
 import type { SessionAppendInput, SessionEntry, VerifyPinStatus } from '@shared/types.js'
 import type { ProjectService } from '../project/ProjectService.js'
 import { generateProjectCommands } from '../terminal/projectCommands.js'
 import { suggestVerifyCommand } from '../terminal/fixWithContext.js'
+import { parseVerifyOutcome } from '../terminal/terminalParsers.js'
+import {
+  buildVerificationRecipe,
+  primaryVerifyFromRecipe
+} from '../verify/verificationRecipes.js'
 import type { SessionService } from './SessionService.js'
 
 /**
- * Minimal verify loop: attach a verify command to fix copies, compare re-runs, update pin status.
+ * Verify loop v2: structured output parse, output hash on re-run, recipe-backed verify commands.
  */
 export class VerifyLoopService {
   private pendingEntryId: string | null = null
@@ -23,10 +29,14 @@ export class VerifyLoopService {
     if (input.title.includes('behavioral test')) return null
 
     const profile = this.projects.getProfile()
-    const commands = await generateProjectCommands(profile)
     const intent = (await this.session.readExtended()).intent
     if (intent?.verifyCommand) return intent.verifyCommand
 
+    const recipe = buildVerificationRecipe(profile)
+    const fromRecipe = primaryVerifyFromRecipe(recipe)
+    if (fromRecipe) return fromRecipe
+
+    const commands = await generateProjectCommands(profile)
     const failureKind =
       input.type === 'terminal-issue' && input.command
         ? input.command.includes('tsc')
@@ -58,8 +68,15 @@ export class VerifyLoopService {
     this.pendingCommand = null
   }
 
-  /** Called when any terminal command completes — updates matching verify pin. */
-  async onCommandComplete(command: string, exitCode: number | null): Promise<void> {
+  /**
+   * Called when any terminal command completes — updates matching verify pin using structured parsers.
+   */
+  async onCommandComplete(
+    command: string,
+    exitCode: number | null,
+    output = '',
+    profile: ProjectProfile | null = null
+  ): Promise<void> {
     const trimmed = command.trim()
     let entryId = this.pendingEntryId
     let matched = entryId != null && this.pendingCommand === trimmed
@@ -84,8 +101,15 @@ export class VerifyLoopService {
       return
     }
 
-    const status: VerifyPinStatus = exitCode === 0 ? 'verified' : 'still-broken'
-    await this.session.updateEntryVerify(entryId, { verifyStatus: status })
+    const parsed = parseVerifyOutcome({ command: trimmed, output, exitCode }, profile)
+    const status: VerifyPinStatus =
+      parsed.verifyStatus ??
+      (exitCode === 0 ? 'verified' : 'still-broken')
+
+    await this.session.updateEntryVerify(entryId, {
+      verifyStatus: status,
+      lastVerifyOutputHash: parsed.outputHash
+    })
     this.clearPending()
   }
 

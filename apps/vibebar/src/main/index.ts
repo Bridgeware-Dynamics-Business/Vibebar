@@ -44,8 +44,14 @@ const terminal = new TerminalController(
   (visible) => overlay.broadcast(CH.terminalVisibility, { visible }),
   (result) => {
     void (async () => {
-      await flightRecorder?.recordCommand(result.command, result.exitCode)
-      await verifyLoop?.onCommandComplete(result.command, result.exitCode)
+      const profile = projects.getProfile()
+      await flightRecorder?.recordCommand(result.command, result.exitCode, result, profile)
+      await verifyLoop?.onCommandComplete(
+        result.command,
+        result.exitCode,
+        result.output,
+        profile
+      )
       const state = await sessionService.getState()
       overlay.broadcast(CH.sessionChanged, state)
       detachedPanels.send(CH.sessionChanged, state)
@@ -64,7 +70,7 @@ const hotkeys = new HotkeyController(store, overlay, terminal)
 const snip = new SnipController(projects)
 const errorConsole = new ErrorConsoleController(store)
 const notes = new NotesService(projects)
-const readyCheck = new ReadyCheckService(projects, audit, terminal, gitDiff, sessionService)
+const readyCheck = new ReadyCheckService(projects, audit, terminal, gitDiff, sessionService, store)
 const mcp = new McpServerController({
   projects,
   session: sessionService,
@@ -72,7 +78,8 @@ const mcp = new McpServerController({
   readyCheck,
   gitDiff,
   gitStatus,
-  store
+  store,
+  terminal
 })
 const noteWindows = new NoteWindowController(store)
 

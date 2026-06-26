@@ -47,6 +47,11 @@ const api: VibeBarApi = {
     openContextFolder: () => ipcRenderer.invoke(CH.projectOpenContextFolder),
     getAiDocs: () => ipcRenderer.invoke(CH.projectGetAiDocs),
     appendAgentsMd: (markdown: string) => ipcRenderer.invoke(CH.projectAppendAgentsMd, { markdown }),
+    getMemoryDiff: () => ipcRenderer.invoke(CH.projectGetMemoryDiff),
+    getStackOverrides: () => ipcRenderer.invoke(CH.projectGetStackOverrides),
+    saveStackOverrides: (overrides: import('@shared/types.js').ProjectStackOverrides) =>
+      ipcRenderer.invoke(CH.projectSaveStackOverrides, overrides),
+    clearStackOverrides: () => ipcRenderer.invoke(CH.projectClearStackOverrides),
     onChanged: (cb: (profile: ProjectProfile | null) => void) => subscribe(CH.projectChanged, cb)
   },
   prompts: {
@@ -68,9 +73,11 @@ const api: VibeBarApi = {
   },
   packer: {
     tree: (dir: string) => ipcRenderer.invoke(CH.packerTree, { dir }),
-    pack: (paths: string[]) => ipcRenderer.invoke(CH.packerPack, { paths }),
+    pack: (paths: string[], tier?: import('@shared/contextPackTier.js').ContextPackTier) =>
+      ipcRenderer.invoke(CH.packerPack, { paths, tier }),
     previewChanged: () => ipcRenderer.invoke(CH.packerPreviewChanged),
-    packChanged: () => ipcRenderer.invoke(CH.packerPackChanged),
+    packChanged: (tier?: import('@shared/contextPackTier.js').ContextPackTier) =>
+      ipcRenderer.invoke(CH.packerPackChanged, { tier }),
     presetPaths: (preset: 'tests' | 'config' | 'entry') =>
       ipcRenderer.invoke(CH.packerPresetPaths, { preset })
   },
@@ -126,7 +133,10 @@ const api: VibeBarApi = {
   },
   readyCheck: {
     get: () => ipcRenderer.invoke(CH.readyCheckGet),
-    copyReviewPrompt: () => ipcRenderer.invoke(CH.readyCheckCopyReviewPrompt)
+    copyReviewPrompt: () => ipcRenderer.invoke(CH.readyCheckCopyReviewPrompt),
+    copyUntrackedSummary: () => ipcRenderer.invoke(CH.readyCheckCopyUntrackedSummary),
+    copyDependencyReview: () => ipcRenderer.invoke(CH.readyCheckCopyDependencyReview),
+    copyRegressionContext: () => ipcRenderer.invoke(CH.readyCheckCopyRegressionContext)
   },
   notes: {
     getState: () => ipcRenderer.invoke(CH.notesGetState),
@@ -169,6 +179,7 @@ const api: VibeBarApi = {
     list: () => ipcRenderer.invoke(CH.quickLaunchList),
     run: (id: string, options?: { pasteAfterOpen?: boolean; fromCopyToast?: boolean }) =>
       ipcRenderer.invoke(CH.quickLaunchRun, { id, ...options }),
+    prepareCursor: () => ipcRenderer.invoke(CH.quickLaunchPrepareCursor),
     add: () => ipcRenderer.invoke(CH.quickLaunchAdd),
     remove: (id: string) => ipcRenderer.invoke(CH.quickLaunchRemove, { id }),
     locate: (id: string) => ipcRenderer.invoke(CH.quickLaunchLocate, { id }),

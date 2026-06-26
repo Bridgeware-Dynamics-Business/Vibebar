@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   AUDIT_RECENT_MS,
+  buildReadyCheckBrief,
+  buildSignals,
   computeReadyCheckStatus,
   computeV2Flags,
   countDiffLines,
@@ -9,10 +11,12 @@ import {
   inferLastFileChangeTimestamp,
   isJsTsSourcePath,
   isLockfilePath,
+  isTestFixturePath,
   npmAuditRanSince,
   testsPassedSince,
   type ReadyCheckFlags
 } from './readyCheckLogic.js'
+import { refreshLastGreenDelta } from '../session/flightRecorderLogic.js'
 
 function baseFlags(overrides: Partial<ReadyCheckFlags> = {}): ReadyCheckFlags {
   return {
@@ -21,6 +25,7 @@ function baseFlags(overrides: Partial<ReadyCheckFlags> = {}): ReadyCheckFlags {
     auditTruncated: false,
     auditRecent: false,
     secretsInDiff: false,
+    untrackedSecrets: false,
     terminalFailed: false,
     terminalUnresolvedIssues: false,
     largeDiff: false,
@@ -41,6 +46,10 @@ function baseFlags(overrides: Partial<ReadyCheckFlags> = {}): ReadyCheckFlags {
 describe('computeReadyCheckStatus', () => {
   it('returns blocked when critical audit finding is open', () => {
     expect(computeReadyCheckStatus(baseFlags({ criticalAudit: true }))).toBe('blocked')
+  })
+
+  it('returns blocked when secrets appear in untracked files', () => {
+    expect(computeReadyCheckStatus(baseFlags({ untrackedSecrets: true }))).toBe('blocked')
   })
 
   it('returns blocked when secrets appear in the diff', () => {
@@ -116,6 +125,29 @@ describe('computeV2Flags', () => {
     })
     expect(flags.lastGreenStale).toBe(true)
     expect(flags.testsNotRunSinceChange).toBe(true)
+  })
+
+  it('flags last green stale after refreshLastGreenDelta with live paths', () => {
+    const lastGreen = refreshLastGreenDelta(
+      {
+        command: 'npm test',
+        timestamp: baseTime,
+        filesAtGreen: ['src/a.ts'],
+        filesChangedSince: []
+      },
+      ['src/a.ts', 'src/new.ts']
+    )
+    const flags = computeV2Flags({
+      changedPaths: ['src/a.ts', 'src/new.ts'],
+      sessionEntries: [],
+      flight: {
+        commands: [],
+        audits: [],
+        snapshots: [{ timestamp: baseTime }],
+        lastGreen
+      }
+    })
+    expect(flags.lastGreenStale).toBe(true)
   })
 
   it('flags diff not reviewed when no git-diff session entry since snapshot', () => {
@@ -258,5 +290,61 @@ describe('isJsTsSourcePath', () => {
 describe('AUDIT_RECENT_MS', () => {
   it('defaults to 30 minutes', () => {
     expect(AUDIT_RECENT_MS).toBe(30 * 60 * 1000)
+  })
+})
+
+describe('isTestFixturePath', () => {
+  it('matches common test and spec file names', () => {
+    expect(isTestFixturePath('src/foo.test.ts')).toBe(true)
+    expect(isTestFixturePath('src/foo.spec.tsx')).toBe(true)
+    expect(isTestFixturePath('src/foo.ts')).toBe(false)
+    expect(isTestFixturePath('.env')).toBe(false)
+  })
+})
+
+describe('buildSignals', () => {
+  it('includes file paths in untracked-secrets detail for up to three files', () => {
+    const signals = buildSignals(
+      baseFlags({
+        untrackedSecrets: true,
+        untrackedSecretPaths: ['src/a.ts', 'src/b.ts']
+      })
+    )
+    const secret = signals.find((s) => s.id === 'untracked-secrets')
+    expect(secret?.level).toBe('blocked')
+    expect(secret?.detail).toContain('`src/a.ts`')
+    expect(secret?.detail).toContain('`src/b.ts`')
+  })
+
+  it('downgrades test fixture secret paths to warning', () => {
+    const signals = buildSignals(
+      baseFlags({
+        untrackedTestSecretPaths: ['src/foo.test.ts']
+      })
+    )
+    const secret = signals.find((s) => s.id === 'untracked-secrets')
+    expect(secret?.level).toBe('warning')
+    expect(secret?.detail).toContain('`src/foo.test.ts`')
+  })
+})
+
+describe('buildReadyCheckBrief', () => {
+  it('ranks blocked signals before warnings and caps at three', () => {
+    const brief = buildReadyCheckBrief('blocked', [
+      { id: 'git-diff', label: 'Large diff', level: 'warning', detail: 'big' },
+      { id: 'secrets', label: 'Secrets', level: 'blocked', detail: 'leak' },
+      { id: 'terminal', label: 'Terminal', level: 'blocked', detail: 'fail' },
+      { id: 'audit', label: 'Audit', level: 'warning', detail: 'high' }
+    ])
+    expect(brief.topItems).toHaveLength(3)
+    expect(brief.topItems[0]?.id).toBe('secrets')
+    expect(brief.topItems.every((i) => i.nextAction.length > 0)).toBe(true)
+  })
+
+  it('omits ok signals from brief', () => {
+    const brief = buildReadyCheckBrief('looks-ready', [
+      { id: 'project', label: 'Project', level: 'ok', detail: 'fine' }
+    ])
+    expect(brief.topItems).toHaveLength(0)
   })
 })

@@ -1,4 +1,4 @@
-import type { ProjectProfile } from '@vibebar/project-detector'
+import type { ProjectProfile, ProjectFramework, ProjectLanguage, TestRunner } from '@vibebar/project-detector'
 import type { PromptCategory, PromptTemplate, ResolvedVariable } from '@vibebar/prompt-engine'
 
 export type DockSide = 'left' | 'right' | 'top'
@@ -40,6 +40,12 @@ export interface VibeSettings {
   mcpServerEnabled?: boolean
   /** After opening Cursor from Quick Launch / copy toast, attempt one-shot paste (opt-in). */
   pasteAfterOpenCursor?: boolean
+  /** Scan clipboard before paste-after-open; default on when paste is enabled. */
+  prePasteSafetyGate?: boolean
+  /** Pin Fix with Context session entries automatically when copied (opt-in). */
+  autoPinFixWithContext?: boolean
+  /** After Fix with Context copy, queue verify command in Smart Terminal (opt-in). */
+  autoRunVerifyAfterFix?: boolean
 }
 
 /** Live status of the optional VibeBar MCP server. */
@@ -50,6 +56,8 @@ export interface McpServerStatus {
   host: string
   connectionSnippet: string
   error?: string | null
+  /** Epoch ms when an MCP resource or tool was last read (null until first access). */
+  lastAgentAccessAt?: number | null
 }
 
 /** A recently opened project folder, persisted for quick switching. */
@@ -291,6 +299,9 @@ export interface PackResult {
   fileCount: number
   skipped: number
   findings: SecretFinding[]
+  tier?: import('./contextPackTier.js').ContextPackTier
+  charBudget?: number
+  usedChars?: number
 }
 
 /** Preview of git-changed files before packing (char/token estimate). */
@@ -321,6 +332,8 @@ export interface FlightCommandRecord {
   exitCode: number | null
   timestamp: number
   isTest?: boolean
+  /** Short hash of command output when recorded from verify/test runs. */
+  outputHash?: string
 }
 
 export interface FlightAuditRecord {
@@ -357,6 +370,35 @@ export interface FlightLogView {
   lastAudit: FlightAuditRecord | null
 }
 
+/** Stack frame captured from Smart Terminal failure output. */
+export interface FailureStackFrame {
+  file: string
+  line: number
+  column?: number
+}
+
+/** Persistent Smart Terminal failure record (failure black box). */
+export interface TerminalFailureRecord {
+  command: string
+  exitCode: number
+  kind: string
+  fingerprint: string
+  stackFrames: FailureStackFrame[]
+  /** Trimmed terminal output excerpt. */
+  rawOutput: string
+  timestamp: number
+}
+
+export interface PrepareCursorResult {
+  ok: boolean
+  error?: string
+  text?: string
+  noProject?: boolean
+  pasteAttempted?: boolean
+  pasteSucceeded?: boolean
+  pasteNotice?: string
+}
+
 export type SessionEntryType = 'prompt' | 'terminal-issue' | 'audit-finding' | 'note' | 'git-diff'
 
 interface SessionEntryBase {
@@ -371,6 +413,8 @@ interface SessionEntryBase {
   verifyCommand?: string | null
   /** Verify loop outcome for pinned fix entries. */
   verifyStatus?: VerifyPinStatus
+  /** Hash of output from the last verify re-run (dedup / audit trail). */
+  lastVerifyOutputHash?: string
 }
 
 export interface SessionPromptEntry extends SessionEntryBase {
@@ -426,6 +470,45 @@ export interface SessionState {
   intent: IntentContract | null
   /** Compact flight recorder summary for Session Hub. */
   flight: FlightLogView | null
+  /** Recent Smart Terminal failures (newest first, capped for UI). */
+  recentFailures: TerminalFailureRecord[]
+  /** Session-local agent mistake patterns (Phase D). */
+  mistakes: AgentMistake[]
+}
+
+export type MistakePattern = 'weak-types' | 'out-of-scope' | 'duplicate-file' | 'skipped-tests'
+
+export interface AgentMistake {
+  pattern: MistakePattern
+  file: string
+  message: string
+  timestamp: number
+  fingerprint: string
+}
+
+export type ProjectMemoryWarningSeverity = 'info' | 'warning'
+
+export interface ProjectMemoryWarning {
+  id: string
+  message: string
+  severity: ProjectMemoryWarningSeverity
+}
+
+export interface ProjectMemoryDiff {
+  warnings: ProjectMemoryWarning[]
+  agentsMdExists: boolean
+  agentsMdAgeDays: number | null
+  cursorRulesCount: number
+  contextReadmeExists: boolean
+  codesyncConfigured: boolean
+  noProject?: boolean
+}
+
+/** Optional manual stack overrides when auto-detection is unknown. */
+export interface ProjectStackOverrides {
+  language?: ProjectLanguage | ''
+  framework?: ProjectFramework | ''
+  testRunner?: TestRunner | ''
 }
 
 export interface SessionHandoffResult {
@@ -702,9 +785,26 @@ export interface ReadyCheckSignal {
     | 'lockfile-audit'
     | 'audit-delta'
     | 'last-green-stale'
+    | 'untracked-secrets'
   label: string
   level: ReadyCheckSignalLevel
   detail: string
+}
+
+/** One ranked signal with an explicit next action for agents and review prompts. */
+export interface ReadyCheckBriefItem {
+  id: ReadyCheckSignal['id']
+  label: string
+  level: ReadyCheckSignalLevel
+  detail: string
+  nextAction: string
+}
+
+/** Top blockers + next actions derived from Ready Check signals. */
+export interface ReadyCheckBrief {
+  status: ReadyCheckStatus
+  topItems: ReadyCheckBriefItem[]
+  summaryLine: string
 }
 
 /** Aggregated pre-commit trust gate from git, audit, terminal, secrets, and project signals. */
@@ -713,9 +813,54 @@ export interface ReadyCheckResult {
   signals: ReadyCheckSignal[]
   /** AI-ready review prompt (included on get; used by copy action). */
   reviewPrompt?: string
+  /** Ranked top blockers with next actions (MCP brief + review prompt). */
+  brief?: ReadyCheckBrief
   noProject?: boolean
   /** Profile-level context health warnings (stack, AGENTS.md, etc.) — informational only. */
   contextWarningCount?: number
+  /** Ordered verify plan from package.json scripts (typecheck → test → lint → build). */
+  verifyRecipe?: VerificationRecipe
+  /** Untracked file secret-scan summary (Ready Check v3). */
+  untrackedFiles?: UntrackedFileInspection[]
+  /** Dependency diff when package.json changed. */
+  dependencyChange?: DependencyChangeSummary
+}
+
+/** One untracked path scanned for Ready Check inspector. */
+export interface UntrackedFileInspection {
+  path: string
+  sizeBytes: number
+  skipped: boolean
+  secretCount: number
+}
+
+/** Added/removed/changed deps when package.json is in the working tree. */
+export interface DependencyChangeSummary {
+  added: DependencyChangeEntry[]
+  removed: DependencyChangeEntry[]
+  changed: DependencyChangeEntry[]
+  unpinned: DependencyChangeEntry[]
+  lockfileSignalActive: boolean
+}
+
+export interface DependencyChangeEntry {
+  name: string
+  section: 'dependencies' | 'devDependencies'
+  before?: string
+  after?: string
+  unpinned?: boolean
+}
+
+/** Ordered verify steps detected from the active project. */
+export interface VerificationStep {
+  id: string
+  label: string
+  command: string
+}
+
+export interface VerificationRecipe {
+  steps: VerificationStep[]
+  summary: string
 }
 
 export type { PromptCategory, PromptTemplate, ResolvedVariable, ProjectProfile }
