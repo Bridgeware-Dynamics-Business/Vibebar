@@ -18,7 +18,8 @@ It is a built-in terminal. It does not mirror Cursor's integrated terminal.
 - Full interactive shell via xterm.js
 - **Failure detection** on non-zero exits and common test output patterns
 - **Copy fix prompt** and **Copy test** on issues
-- **Re-run last command** and **Mark resolved** (dismiss)
+- **Fix with context** — one-click bundle with MVC pack (see [Fix With Context](./fix-with-context))
+- **Re-run last command** and **Mark resolved** (dismiss by fingerprint, persists across commands)
 - **Project commands** menu: scripts from `package.json`, detected commands, README hints
 - **Audit dock** when Security Audit results are presented in the terminal
 
@@ -29,9 +30,9 @@ Window position and size persist between sessions.
 1. Open Smart Terminal (`Ctrl+Shift+T` or palette → **Open Smart Terminal**).
 2. Run your test or build command (try **Project commands** for shortcuts).
 3. On failure, the dock highlights the issue.
-4. **Copy fix prompt**, paste in Cursor, implement.
+4. **Copy fix prompt** or **Fix with context** (failure + git-changed files + tests), paste in Cursor, implement.
 5. Re-run in the terminal.
-6. **Mark resolved** when green.
+6. **Mark resolved** when green (dismiss persists across commands for the same fingerprint).
 
 Fix copies append to [Session Hub](./session-hub).
 
@@ -50,5 +51,6 @@ If Smart Terminal is already open, clicking **Security Audit** on the toolbar ro
 ## Related
 
 - [Security Audit](./security-audit)
+- [Fix With Context](./fix-with-context)
 - [Session Hub](./session-hub)
 - [Everyday patterns](/workflows/real-world-workflows)

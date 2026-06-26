@@ -1,6 +1,7 @@
 import type { ProjectProfile } from '@vibebar/project-detector'
 import { buildContext } from '@vibebar/prompt-engine'
 import type { DetectedIssue, IssueSeverity } from '@shared/types.js'
+import { parseStructuredOutput } from './terminalParsers.js'
 
 export interface AnalyzeInput {
   command: string
@@ -17,7 +18,7 @@ interface ProjectCtx {
   packageManager: string
 }
 
-const SAFETY_FOOTER =
+export const SAFETY_FOOTER =
   'Constraints: do not weaken security, do not print or hard-code secrets, do not add dependencies unless strictly required, and pin any version you do add. After fixing, tell me the single command to verify it works.'
 
 function projectCtx(profile: ProjectProfile | null): ProjectCtx {
@@ -179,13 +180,88 @@ const RULES: Rule[] = [
  * fix prompts. Pure: no I/O, no clipboard — the controller decides what to do with the results.
  * Each rule fires at most once per analysis so the issue list stays focused.
  */
+function relatedFilesFromStructured(
+  structured: ReturnType<typeof parseStructuredOutput>
+): string[] {
+  if (!structured) return []
+  const paths = new Set<string>()
+  for (const f of structured.failures) {
+    if (f.file) paths.add(f.file.replace(/\\/g, '/'))
+  }
+  for (const frame of structured.stackFrames) {
+    paths.add(frame.file.replace(/\\/g, '/'))
+  }
+  return [...paths]
+}
+
+function structuredIssue(
+  input: AnalyzeInput,
+  ctx: ProjectCtx,
+  structured: NonNullable<ReturnType<typeof parseStructuredOutput>>
+): DetectedIssue {
+  const evidence = clampEvidence(structured.evidence)
+  const kind = structured.primaryKind
+  const title =
+    kind === 'tsc'
+      ? 'TypeScript compiler error'
+      : kind === 'vitest' || kind === 'jest'
+        ? 'Failing tests'
+        : kind === 'stack'
+          ? 'Unhandled error / stack trace'
+          : 'Command failed'
+  const summary =
+    structured.failures[0]?.message ??
+    structured.failures[0]?.assertion ??
+    structured.failures[0]?.testName ??
+    (kind === 'stack' ? 'Exception with stack frames detected.' : 'Structured failure detected.')
+  const guidance =
+    kind === 'tsc'
+      ? `Explain this type error in ${ctx.label} in plain language, then give me the minimal, correctly typed fix. Do not use \`any\` or \`@ts-ignore\` to silence it.`
+      : kind === 'vitest' || kind === 'jest'
+        ? `These ${ctx.testRunner} tests are failing. For each failure, tell me whether the test or the implementation is wrong, then give me the fix. If the implementation is correct and the test is outdated, update the test — never delete a test just to make the suite green.`
+        : kind === 'stack'
+          ? `Trace this exception in ${ctx.label} to its root cause (not just where it threw), explain it in plain language, and give me the fix plus a guard so it cannot recur silently.`
+          : 'Explain what went wrong in plain language and give me the exact fix and how to verify it.'
+
+  const prompt = [
+    `I'm working in ${ctx.label}. I ran \`${input.command.trim()}\` and it failed${
+      input.exitCode != null ? ` (exit code ${input.exitCode})` : ''
+    } with:`,
+    '',
+    fence(evidence),
+    '',
+    guidance,
+    '',
+    SAFETY_FOOTER
+  ].join('\n')
+
+  return {
+    id: kind === 'tsc' ? 'typescript-error' : kind === 'stack' ? 'unhandled-exception' : 'test-failure',
+    severity: 'error',
+    title,
+    summary,
+    evidence,
+    prompt,
+    fingerprint: structured.fingerprint,
+    relatedFiles: relatedFilesFromStructured(structured)
+  }
+}
+
 export function analyzeOutput(input: AnalyzeInput): DetectedIssue[] {
   const text = input.output ?? ''
   if (!text.trim()) return []
   const ctx = projectCtx(input.profile)
   const issues: DetectedIssue[] = []
 
+  const structured = parseStructuredOutput(input, input.profile)
+  if (structured) {
+    issues.push(structuredIssue(input, ctx, structured))
+  }
+
   for (const rule of RULES) {
+    if (structured && (rule.id === 'typescript-error' || rule.id === 'test-failure' || rule.id === 'unhandled-exception')) {
+      continue
+    }
     const raw = rule.match(text)
     if (!raw) continue
     const evidence = clampEvidence(raw)
@@ -207,7 +283,8 @@ export function analyzeOutput(input: AnalyzeInput): DetectedIssue[] {
       title: rule.title,
       summary: rule.summary,
       evidence,
-      prompt
+      prompt,
+      fingerprint: `${rule.id}:${evidence.slice(0, 120)}`
     })
   }
 
@@ -221,6 +298,7 @@ export function analyzeOutput(input: AnalyzeInput): DetectedIssue[] {
       title: 'Command failed',
       summary: `Exited with code ${input.exitCode}.`,
       evidence,
+      fingerprint: `generic-failure:${evidence.slice(0, 120)}`,
       prompt: [
         `I'm working in ${ctx.label}. The command \`${input.command.trim()}\` exited with code ${input.exitCode}. Here is the output:`,
         '',

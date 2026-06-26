@@ -8,6 +8,7 @@ import type {
   AuditSeverity,
   DetectedIssue,
   DockSide,
+  IntentContract,
   IssueSeverity,
   ProjectCommand,
   ShellType,
@@ -22,10 +23,11 @@ import type { AppStore } from '../settings/store.js'
 import { createTerminalWindow } from '../overlay/windowFactory.js'
 import type { Rect } from '../overlay/snapLogic.js'
 import { trackWindowBounds, clampWindowBounds } from '../overlay/windowBounds.js'
-import { TerminalSession } from './TerminalSession.js'
+import { TerminalSession, type CommandResult } from './TerminalSession.js'
 import { ShellSession } from './ShellSession.js'
 import { generateProjectCommands } from './projectCommands.js'
 import { analyzeOutput } from './outputAnalyzer.js'
+import { runFixWithContext } from './fixWithContext.js'
 
 const DEFAULT_W = 960
 const DEFAULT_H = 620
@@ -94,6 +96,7 @@ export class TerminalController {
   private readonly store: AppStore
   private readonly projects: ProjectService
   private readonly onVisibility?: (visible: boolean) => void
+  private readonly onCommandComplete?: (result: CommandResult) => void
   private win: BrowserWindow | null = null
   private session: TerminalSession | null = null
   /** The expandable bottom terminal's persistent interactive shell (created on demand). */
@@ -104,12 +107,23 @@ export class TerminalController {
   private resizeAnchor: Rect | null = null
   /** Last issue count pushed to the renderer (for bridge hints). */
   private lastIssueCount = 0
+  /** Last finished command — used by Fix with context. */
+  private lastResult: CommandResult | null = null
+  private lastIssues: DetectedIssue[] = []
+  /** Dismissed issue fingerprints persist across commands within this terminal session. */
+  private dismissedFingerprints = new Set<string>()
   private untrackBounds: (() => void) | null = null
 
-  constructor(store: AppStore, projects: ProjectService, onVisibility?: (visible: boolean) => void) {
+  constructor(
+    store: AppStore,
+    projects: ProjectService,
+    onVisibility?: (visible: boolean) => void,
+    onCommandComplete?: (result: CommandResult) => void
+  ) {
     this.store = store
     this.projects = projects
     this.onVisibility = onVisibility
+    this.onCommandComplete = onCommandComplete
   }
 
   toggle(): { visible: boolean } {
@@ -128,6 +142,13 @@ export class TerminalController {
   hide(): void {
     if (this.win && !this.win.isDestroyed()) this.win.hide()
     this.emitVisibility(false)
+  }
+
+  show(): void {
+    this.ensureWindow()
+    this.win?.show()
+    this.win?.focus()
+    this.emitVisibility(true)
   }
 
   /**
@@ -324,8 +345,40 @@ export class TerminalController {
 
   /** Pushes issue-panel updates to the renderer (audit metadata included when from a scan). */
   private pushIssues(update: TerminalIssueUpdate): void {
-    this.lastIssueCount = update.issues.length
-    this.send(CH.terminalIssues, update)
+    const visible = update.issues.filter((issue) => {
+      const fp = issue.fingerprint ?? `${issue.id}:${issue.evidence.slice(0, 120)}`
+      return !this.dismissedFingerprints.has(fp)
+    })
+    this.lastIssueCount = visible.length
+    this.send(CH.terminalIssues, { ...update, issues: visible })
+  }
+
+  dismissIssue(fingerprint: string): void {
+    if (fingerprint) this.dismissedFingerprints.add(fingerprint)
+  }
+
+  issueFingerprint(issue: DetectedIssue): string {
+    return issue.fingerprint ?? `${issue.id}:${issue.evidence.slice(0, 120)}`
+  }
+
+  async fixWithContext(
+    issueId?: string,
+    intent?: IntentContract | null
+  ): Promise<{ copied: boolean; text: string; noResult?: boolean; verifyCommand?: string | null }> {
+    if (!this.lastResult) {
+      return { copied: false, text: '', noResult: true }
+    }
+    const issue =
+      issueId != null
+        ? this.lastIssues.find((i) => i.id === issueId) ?? null
+        : this.lastIssues[0] ?? null
+    const bundle = await runFixWithContext(
+      { store: this.store, projects: this.projects },
+      this.lastResult,
+      issue,
+      intent ?? null
+    )
+    return { copied: false, text: bundle.text, verifyCommand: bundle.verifyCommand }
   }
 
   /** Writes one line to the terminal view (CRLF for xterm). */
@@ -383,13 +436,17 @@ export class TerminalController {
       onData: (chunk) => this.send(CH.terminalData, chunk),
       onStatus: (status) => this.send(CH.terminalStatus, status),
       onResult: ({ command, output, exitCode }) => {
+        const result = { command, output, exitCode }
+        this.lastResult = result
         const issues = analyzeOutput({
           command,
           output,
           exitCode,
           profile: this.projects.getProfile()
         })
+        this.lastIssues = issues
         this.pushIssues({ issues, audit: null })
+        this.onCommandComplete?.(result)
       }
     })
 

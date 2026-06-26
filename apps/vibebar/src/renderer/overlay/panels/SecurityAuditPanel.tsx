@@ -34,7 +34,9 @@ function PasteScanner({ onCopy }: { onCopy: CopyOutcome }): JSX.Element {
     onCopy(r.copied, r.redactedText)
   }
 
-  const clean = result && result.findings.length === 0
+  const secrets = result?.findings ?? []
+  const risks = result?.risks ?? []
+  const clean = result && secrets.length === 0 && risks.length === 0
 
   return (
     <div className="rounded-xl border border-vibe-border bg-white/[0.02]">
@@ -46,8 +48,8 @@ function PasteScanner({ onCopy }: { onCopy: CopyOutcome }): JSX.Element {
       >
         <Icon name={open ? 'ChevronDown' : 'ChevronRight'} size={16} className="text-vibe-muted" />
         <Icon name="ShieldAlert" size={15} className="text-vibe-muted" />
-        <span className="text-sm font-medium text-vibe-text">Scan pasted text for secrets</span>
-        <span className="ml-auto text-[11px] text-vibe-muted">before sending to an AI</span>
+        <span className="text-sm font-medium text-vibe-text">Scan pasted AI output</span>
+        <span className="ml-auto text-[11px] text-vibe-muted">secrets + risk patterns</span>
       </button>
       <AnimatePresence initial={false}>
         {open && (
@@ -65,25 +67,49 @@ function PasteScanner({ onCopy }: { onCopy: CopyOutcome }): JSX.Element {
                   setText(e.target.value)
                   setResult(null)
                 }}
-                placeholder="Paste code or text to scan locally…"
+                placeholder="Paste AI-suggested code or commands to scan locally…"
                 className="vibe-scroll vibe-no-drag h-24 w-full resize-none rounded-lg border border-vibe-border bg-black/30 p-3 font-mono text-xs text-vibe-text outline-none focus:border-vibe-accent"
               />
               {result && (
-                <div className="vibe-scroll max-h-28 overflow-y-auto rounded-lg border border-vibe-border bg-black/20 p-2">
+                <div className="vibe-scroll max-h-36 overflow-y-auto rounded-lg border border-vibe-border bg-black/20 p-2">
                   {clean ? (
                     <p className="flex items-center gap-2 px-1 py-1 text-xs text-emerald-400">
-                      <Icon name="ShieldCheck" size={14} /> No secrets detected.
+                      <Icon name="ShieldCheck" size={14} /> No secrets or risk patterns detected.
                     </p>
                   ) : (
                     <ul className="space-y-1">
-                      {result.findings.map((f, i) => (
+                      {secrets.map((f, i) => (
                         <li
-                          key={`${f.kind}-${i}`}
+                          key={`secret-${f.kind}-${i}`}
                           className="flex items-center gap-2 rounded-md bg-red-500/10 px-2 py-1 text-xs text-red-300"
                         >
                           <Icon name="AlertTriangle" size={13} />
                           <span className="font-medium">{f.kind}</span>
+                          <span className="rounded bg-red-500/20 px-1 text-[10px] uppercase">secret</span>
                           <span className="ml-auto font-mono text-[11px] text-red-200/80">{f.match}</span>
+                        </li>
+                      ))}
+                      {risks.map((r, i) => (
+                        <li
+                          key={`risk-${r.kind}-${i}`}
+                          className={`flex items-center gap-2 rounded-md px-2 py-1 text-xs ${
+                            r.severity === 'error'
+                              ? 'bg-red-500/10 text-red-300'
+                              : 'bg-amber-500/10 text-amber-200'
+                          }`}
+                        >
+                          <Icon name="AlertTriangle" size={13} />
+                          <span className="font-medium">{r.kind}</span>
+                          <span
+                            className={`rounded px-1 text-[10px] uppercase ${
+                              r.severity === 'error' ? 'bg-red-500/20' : 'bg-amber-500/20'
+                            }`}
+                          >
+                            {r.severity}
+                          </span>
+                          <span className="ml-auto max-w-[45%] truncate font-mono text-[11px] opacity-80">
+                            {r.match}
+                          </span>
                         </li>
                       ))}
                     </ul>
@@ -172,8 +198,17 @@ export function SecurityAuditPanel({
   }, [autoScan, intervalMs, runAudit])
 
   const copy = useCallback(
-    async (text: string) => {
+    async (text: string, sessionTitle?: string) => {
       const r = await window.vibebar.clipboard.write(text)
+      if (r.copied && sessionTitle) {
+        void window.vibebar.session.append({
+          type: 'note',
+          title: sessionTitle,
+          noteId: 'audit-bulk',
+          text: sessionTitle,
+          fullText: text
+        })
+      }
       onCopyOutcome(r.copied, text)
     },
     [onCopyOutcome]
@@ -433,7 +468,12 @@ export function SecurityAuditPanel({
         {filtered.length > 0 && report && (
           <button
             type="button"
-            onClick={() => void copy(buildAuditPromptFor(filtered, report, hasActiveFilters ? '(filtered)' : ''))}
+            onClick={() =>
+              void copy(
+                buildAuditPromptFor(filtered, report, hasActiveFilters ? '(filtered)' : ''),
+                `Audit: copy all (${filtered.length} finding${filtered.length === 1 ? '' : 's'})`
+              )
+            }
             className="flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium text-vibe-text hover:bg-white/15"
           >
             <Icon name="Copy" size={14} /> Copy {hasActiveFilters ? 'filtered' : 'all'} as one prompt

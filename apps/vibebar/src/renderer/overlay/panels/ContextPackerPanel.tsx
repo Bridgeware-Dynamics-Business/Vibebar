@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { buildContextHealthWarnings } from '@shared/contextHealth.js'
 import type { PackChangedPreview, PackNode, PackResult, ProjectProfile } from '@shared/types.js'
+import { ContextHealthBanners } from '../../shared/ContextHealthBanners'
 import { Icon } from '../../shared/icons'
 import { DetachButton, PanelHeader } from '../../shared/ui'
 
@@ -27,6 +29,7 @@ export function ContextPackerPanel({
   const [result, setResult] = useState<PackResult | null>(null)
   const [busy, setBusy] = useState(false)
   const [changedPreview, setChangedPreview] = useState<PackChangedPreview | null>(null)
+  const [changedPaths, setChangedPaths] = useState<string[]>([])
   const [loadingDirs, setLoadingDirs] = useState<Set<string>>(new Set())
   const expandTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -48,10 +51,36 @@ export function ContextPackerPanel({
     if (profile?.rootPath) {
       void loadDir('')
       void window.vibebar.packer.previewChanged().then(setChangedPreview)
+      void window.vibebar.git.changedFiles().then(setChangedPaths)
     } else {
       setChangedPreview(null)
+      setChangedPaths([])
     }
   }, [profile?.rootPath])
+
+  const packCharCount = useMemo(() => {
+    if (result?.text) return result.text.length
+    if (!changedPreview || changedPreview.noProject || changedPreview.noFiles) return 0
+    const sel = [...selected]
+    if (sel.length === 0) return 0
+    const allChangedSelected =
+      sel.length === changedPreview.paths.length &&
+      sel.every((p) => changedPreview.paths.includes(p))
+    return allChangedSelected ? changedPreview.charCount : 0
+  }, [result, changedPreview, selected])
+
+  const packerHealthWarnings = useMemo(
+    () =>
+      buildContextHealthWarnings({
+        profile,
+        packCharCount,
+        selectedPaths: [...selected],
+        changedPaths
+      }).filter((w) =>
+        (['stack-unknown', 'pack-oversized', 'changed-not-in-pack'] as const).includes(w.id)
+      ),
+    [profile, packCharCount, selected, changedPaths]
+  )
 
   async function toggleDir(path: string): Promise<void> {
     const next = new Set(expanded)
@@ -192,8 +221,10 @@ export function ContextPackerPanel({
         <>
           <p className="px-4 pt-3 text-xs text-vibe-muted">
             Pick files to bundle into a clipboard-ready context block. Secrets are stripped
-            automatically; dependencies and build output are ignored.
+            automatically; dependencies and build output are ignored. Bundles trim to ~32k chars
+            (changed files kept first).
           </p>
+          <ContextHealthBanners warnings={packerHealthWarnings} className="mx-4 mt-2" />
           <div className="flex flex-wrap gap-1.5 px-4 pt-2">
             {(
               [

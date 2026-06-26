@@ -82,8 +82,8 @@ Shortcut: `Ctrl+Shift+P` → **Pack changed files**.
 
 When you have local changes:
 
-- **Right-click** the GitHub badge on the toolbar → copy git diff prompt (left-click opens GitHub Desktop).
-- Or `Ctrl+Shift+P` → **Copy git diff prompt**.
+- **Click** the GitHub badge when it shows changes → **Copy diff prompt** (or **Pack changed files** for untracked-only repos).
+- Or `Ctrl+Alt+Shift+P` → **Copy git diff prompt**.
 
 Session Hub logs an entry when you copy.
 

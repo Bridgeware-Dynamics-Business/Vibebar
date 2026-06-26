@@ -22,6 +22,8 @@ const T = {
   hide: 'terminal:hide',
   resizeStart: 'terminal:resizeStart',
   resize: 'terminal:resize',
+  fixWithContext: 'terminal:fixWithContext',
+  dismissIssue: 'terminal:dismissIssue',
   clipboardWrite: 'clipboard:write',
   runAudit: 'audit:runInTerminal',
   exportSarif: 'audit:exportSarif',
@@ -59,6 +61,9 @@ const api: TerminalBridge = {
   resizeStart: () => ipcRenderer.invoke(T.resizeStart),
   resize: (edge: ResizeEdge, dx: number, dy: number) =>
     ipcRenderer.invoke(T.resize, { edge, dx, dy }),
+  fixWithContext: (issueId?: string) =>
+    ipcRenderer.invoke(T.fixWithContext, issueId != null ? { issueId } : {}),
+  dismissIssue: (fingerprint: string) => ipcRenderer.invoke(T.dismissIssue, { fingerprint }),
   copy: (text: string) => ipcRenderer.invoke(T.clipboardWrite, { text }),
   runAudit: (quiet: boolean) => ipcRenderer.invoke(T.runAudit, { quiet }),
   exportAuditSarif: () => ipcRenderer.invoke(T.exportSarif),

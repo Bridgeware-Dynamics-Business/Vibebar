@@ -40,6 +40,17 @@ Built-in launchers: **Cursor** and **Codex**. For each app you can:
 
 **Add application** for custom editors or tools. Launch opens the app on your **current project path** when one is selected.
 
+## Cursor Agent
+
+Optional integrations for Cursor power users. See [MCP server](/features/mcp-server) for full setup.
+
+| Setting | Default | Effect |
+|---------|---------|--------|
+| **Enable MCP server for Cursor** | Off | Runs read-only MCP on `127.0.0.1:17342` when VibeBar is open |
+| **Paste clipboard after opening Cursor** | Off | One-shot paste after **Open Cursor** or Quick Launch when you recently copied from VibeBar |
+
+When MCP is enabled, Settings shows **Running/Stopped**, port, and a **Copy mcp.json snippet** button for Cursor's MCP config.
+
 ## Footer
 
 **Quit VibeBar** exits immediately. The toolbar **Power** button shows a confirmation dialog first.

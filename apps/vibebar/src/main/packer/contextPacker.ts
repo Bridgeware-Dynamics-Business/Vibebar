@@ -2,10 +2,28 @@ import { readFile, stat } from 'node:fs/promises'
 import { isAbsolute, join, relative } from 'node:path'
 import fg from 'fast-glob'
 import { compileIgnoreMatchers, getIgnoreGlobList, isIgnoredRel } from '@vibebar/codesync'
+
+/** Parses Code Sync ignore textarea (newline- or comma-separated). Inlined here so main IPC does not import codesync parsers separately from the packer. */
+function parseUserIgnoreLines(text: string): string[] {
+  return text
+    .split(/[\n,]/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+}
+
+/** Resolves user ignore patterns from Code Sync config text. */
+export function packIgnorePatternsFromIgnoreText(ignoreText: string): string[] {
+  return parseUserIgnoreLines(ignoreText)
+}
 import type { PackNode, ScanResult } from '@shared/types.js'
 import { scanText } from '../scanner/secretScanner.js'
 
 const DEFAULT_MAX_FILE_BYTES = 256 * 1024
+
+/** Default total bundle char budget before trimming lower-priority files. */
+export const PACK_CHAR_BUDGET = 32_000
+
+export type PackPathCategory = 'changed' | 'tests' | 'config' | 'import' | 'stack' | 'other'
 
 const LANG_BY_EXT: Record<string, string> = {
   ts: 'typescript',
@@ -49,7 +67,7 @@ function normalizeRel(rel: string): string {
  * different drive — `path.join` does not reset on an absolute segment, so an absolute Windows
  * path would otherwise be silently mangled into (or out of) the root.
  */
-function resolveWithinRoot(rootPath: string, raw: string): string | null {
+export function resolveWithinRoot(rootPath: string, raw: string): string | null {
   if (isAbsolute(raw)) return null
   const rel = normalizeRel(raw)
   if (!rel || rel.includes('..')) return null
@@ -86,11 +104,55 @@ export interface PackContextOptions {
   relPaths: string[]
   headerLabel: string
   maxFileBytes?: number
+  /** Extra ignore globs (e.g. Code Sync user rules). */
+  ignorePatterns?: string[]
+  /** Optional per-path category for budget trimming (lower priority dropped first). */
+  pathCategories?: Record<string, PackPathCategory>
+  /** Total char budget for file contents; trims config/tests before changed. */
+  charBudget?: number
 }
 
 export interface PackContextOutput extends ScanResult {
   fileCount: number
   skipped: number
+}
+
+/** Trim priority when over char budget — first listed categories are kept longest. */
+export const PACK_TRIM_PRIORITY: PackPathCategory[] = ['changed', 'stack', 'import', 'tests', 'config', 'other']
+
+function categoryRank(cat: PackPathCategory): number {
+  const idx = PACK_TRIM_PRIORITY.indexOf(cat)
+  return idx === -1 ? PACK_TRIM_PRIORITY.length : idx
+}
+
+/**
+ * Drops lower-priority paths when estimated content exceeds the char budget. Returns paths in
+ * stable priority order (changed first).
+ */
+export function trimPathsToCharBudget(
+  paths: string[],
+  charByPath: Map<string, number>,
+  categories: Record<string, PackPathCategory>,
+  budget: number
+): { kept: string[]; trimmed: string[]; totalChars: number } {
+  const sorted = [...paths].sort((a, b) => {
+    const ra = categoryRank(categories[a] ?? 'other')
+    const rb = categoryRank(categories[b] ?? 'other')
+    return ra - rb || a.localeCompare(b)
+  })
+  const kept: string[] = []
+  const trimmed: string[] = []
+  let total = 0
+  for (const p of sorted) {
+    const chars = charByPath.get(p) ?? 0
+    if (total + chars <= budget || kept.length === 0) {
+      kept.push(p)
+      total += chars
+    } else {
+      trimmed.push(p)
+    }
+  }
+  return { kept, trimmed, totalChars: total }
 }
 
 /**
@@ -99,11 +161,28 @@ export interface PackContextOutput extends ScanResult {
  */
 export async function packContext(opts: PackContextOptions): Promise<PackContextOutput> {
   const maxBytes = opts.maxFileBytes ?? DEFAULT_MAX_FILE_BYTES
-  const match = compileIgnoreMatchers([])
+  const match = compileIgnoreMatchers(opts.ignorePatterns ?? [])
+  const charBudget = opts.charBudget ?? PACK_CHAR_BUDGET
+  const categories = opts.pathCategories ?? {}
+
+  let relPaths = opts.relPaths
+  if (charBudget > 0 && relPaths.length > 0) {
+    const est = await estimatePaths(opts.rootPath, relPaths, maxBytes, opts.ignorePatterns)
+    const charByPath = new Map<string, number>()
+    let perFile = est.charCount / Math.max(est.fileCount, 1)
+    for (const p of relPaths) {
+      charByPath.set(p, perFile)
+    }
+    if (est.charCount > charBudget) {
+      const trimmed = trimPathsToCharBudget(relPaths, charByPath, categories, charBudget)
+      relPaths = trimmed.kept
+    }
+  }
+
   const files: BundleFile[] = []
   let skipped = 0
 
-  for (const raw of opts.relPaths) {
+  for (const raw of relPaths) {
     const rel = normalizeRel(raw)
     const abs = resolveWithinRoot(opts.rootPath, raw)
     if (!abs || isIgnoredRel(rel, match)) {
@@ -141,8 +220,8 @@ export async function packContext(opts: PackContextOptions): Promise<PackContext
  * Lists files and folders one level under `relDir` (rooted at the project), skipping ignored
  * paths. Used by the file-tree picker; depth is driven by the UI expanding folders on demand.
  */
-export async function listTree(rootPath: string, relDir: string): Promise<PackNode[]> {
-  const match = compileIgnoreMatchers([])
+export async function listTree(rootPath: string, relDir: string, ignorePatterns: string[] = []): Promise<PackNode[]> {
+  const match = compileIgnoreMatchers(ignorePatterns)
   const cleanRel = normalizeRel(relDir).replace(/^\/+|\/+$/g, '')
   const cwd = cleanRel ? resolveWithinRoot(rootPath, cleanRel) : rootPath
   if (!cwd) return []
@@ -155,7 +234,7 @@ export async function listTree(rootPath: string, relDir: string): Promise<PackNo
     followSymbolicLinks: false,
     suppressErrors: true,
     deep: 1,
-    ignore: getIgnoreGlobList([])
+    ignore: getIgnoreGlobList(ignorePatterns)
   })
 
   const nodes: PackNode[] = []
@@ -189,9 +268,10 @@ export interface PathEstimate {
 export async function estimatePaths(
   rootPath: string,
   relPaths: string[],
-  maxFileBytes = DEFAULT_MAX_FILE_BYTES
+  maxFileBytes = DEFAULT_MAX_FILE_BYTES,
+  ignorePatterns: string[] = []
 ): Promise<PathEstimate> {
-  const match = compileIgnoreMatchers([])
+  const match = compileIgnoreMatchers(ignorePatterns)
   let charCount = 0
   let fileCount = 0
   let skipped = 0
@@ -224,7 +304,7 @@ export async function estimatePaths(
   return { charCount, fileCount, skipped }
 }
 
-const PRESET_GLOBS: Record<'tests' | 'config' | 'entry', string[]> = {
+export const PRESET_GLOBS: Record<'tests' | 'config' | 'entry', string[]> = {
   tests: ['**/*.test.*', '**/*.spec.*', '**/__tests__/**'],
   config: [
     'package.json',
@@ -249,10 +329,11 @@ const PRESET_GLOBS: Record<'tests' | 'config' | 'entry', string[]> = {
 /** Resolves file paths matching a context-packer preset glob set. */
 export async function resolvePresetPaths(
   rootPath: string,
-  preset: 'tests' | 'config' | 'entry'
+  preset: 'tests' | 'config' | 'entry',
+  ignorePatterns: string[] = []
 ): Promise<string[]> {
   const globs = PRESET_GLOBS[preset]
-  const match = compileIgnoreMatchers([])
+  const match = compileIgnoreMatchers(ignorePatterns)
   try {
     const paths = await fg(globs, {
       cwd: rootPath,

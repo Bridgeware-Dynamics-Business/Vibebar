@@ -7,6 +7,7 @@ export type ToolId =
   | 'context-packer'
   | 'notes'
   | 'snip'
+  | 'ready-check'
   | 'github'
   | 'settings'
 
@@ -34,6 +35,7 @@ export const TOOL_DEFS: ToolDef[] = [
   { id: 'session-hub', label: 'Session Hub', icon: 'Sparkles', kind: 'panel' },
   { id: 'code-sync', label: 'Code Sync', icon: 'FolderSync', kind: 'window' },
   { id: 'context-packer', label: 'Context Packer', icon: 'PackageOpen', kind: 'panel' },
+  { id: 'ready-check', label: 'Ready Check', icon: 'ShieldCheck', kind: 'panel' },
   { id: 'notes', label: 'Notes', icon: 'StickyNote', kind: 'panel' },
   { id: 'snip', label: 'Snip to AI Context', icon: 'Crop', kind: 'action' },
   { id: 'github', label: 'Open in GitHub Desktop', icon: 'Github', kind: 'action', pinnedEnd: true },
@@ -53,6 +55,7 @@ export const DETACHABLE_PANEL_IDS = [
   'security-audit',
   'session-hub',
   'context-packer',
+  'ready-check',
   'notes',
   'settings'
 ] as const

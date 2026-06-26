@@ -19,6 +19,7 @@
     "@babel/parser": "^7.29.7",
     "@babel/traverse": "^7.29.7",
     "@babel/types": "^7.29.7",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@tiptap/extension-task-item": "^3.27.1",
     "@tiptap/extension-task-list": "^3.27.1",
     "@tiptap/extensions": "^3.27.1",
@@ -29,6 +30,7 @@
     "@xterm/xterm": "^6.0.0",
     "chokidar": "^4.0.3",
     "electron-store": "^10.0.0",
+    "express": "^5.2.1",
     "fast-glob": "^3.3.3",
     "framer-motion": "^11.15.0",
     "lucide-react": "^0.468.0",
@@ -41,6 +43,7 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.0",
+    "@types/express": "^5.0.6",
     "@types/node": "^22.10.1",
     "@types/picomatch": "^3.0.2",
     "@types/react": "^19.0.2",

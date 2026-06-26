@@ -164,6 +164,15 @@ export async function detectProject(rootPath: string): Promise<ProjectProfile> {
     (await fileExists(join(rootPath, 'electron-builder.yml')))
 
   const pkg = await readJson(join(rootPath, 'package.json'))
+  const pyproject = await readText(join(rootPath, 'pyproject.toml'))
+  const requirements = await readText(join(rootPath, 'requirements.txt'))
+  const hasCargo = await fileExists(join(rootPath, 'Cargo.toml'))
+  const hasGoMod = await fileExists(join(rootPath, 'go.mod'))
+  const composer = await readJson(join(rootPath, 'composer.json'))
+
+  profile.hasRootManifest = Boolean(
+    pkg || pyproject || requirements || hasCargo || hasGoMod || composer
+  )
 
   if (pkg) {
     const deps = collectDeps(pkg)
@@ -193,8 +202,6 @@ export async function detectProject(rootPath: string): Promise<ProjectProfile> {
     if (deps['react-dom'] && framework !== 'next') stacks.add('react')
   } else {
     // Non-Node stacks.
-    const pyproject = await readText(join(rootPath, 'pyproject.toml'))
-    const requirements = await readText(join(rootPath, 'requirements.txt'))
     if (pyproject || requirements) {
       profile.language = 'python'
       profile.packageManager = 'pip'
@@ -204,16 +211,15 @@ export async function detectProject(rootPath: string): Promise<ProjectProfile> {
       profile.hasDb = /sqlalchemy|psycopg|django|asyncpg|pymongo|sqlite/i.test(combined)
       stacks.add('python')
       if (profile.framework !== 'unknown') stacks.add(profile.framework)
-    } else if (await fileExists(join(rootPath, 'Cargo.toml'))) {
+    } else if (hasCargo) {
       profile.language = 'rust'
       profile.packageManager = 'cargo'
       stacks.add('rust')
-    } else if (await fileExists(join(rootPath, 'go.mod'))) {
+    } else if (hasGoMod) {
       profile.language = 'go'
       profile.packageManager = 'go'
       stacks.add('go')
     } else {
-      const composer = await readJson(join(rootPath, 'composer.json'))
       if (composer) {
         profile.language = 'php'
         profile.packageManager = 'composer'

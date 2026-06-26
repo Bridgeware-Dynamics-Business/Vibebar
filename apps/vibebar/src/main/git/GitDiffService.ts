@@ -3,7 +3,7 @@ import { buildContext } from '@vibebar/prompt-engine'
 import type { GitDiffCopyResult } from '@shared/types.js'
 import type { ProjectService } from '../project/ProjectService.js'
 import { readGitStatus } from './gitStatus.js'
-import { buildGitDiffPrompt, readChangedFilePaths, readGitDiff } from './gitDiff.js'
+import { buildGitDiffPrompt, readChangedFilePaths, readGitDiff, readUntrackedPaths } from './gitDiff.js'
 import { scanText } from '../scanner/secretScanner.js'
 
 /**
@@ -30,16 +30,19 @@ export class GitDiffService {
       return { copied: false, text: '', findings: [], noProject: false, noChanges: false, notRepo: true }
     }
 
-    const { staged, unstaged, hasChanges } = await readGitDiff(profile.rootPath)
+    const { staged, unstaged, hasChanges, error: gitError } = await readGitDiff(profile.rootPath)
     if (!hasChanges && status.changeCount === 0) {
-      return { copied: false, text: '', findings: [], noProject: false, noChanges: true }
+      return { copied: false, text: '', findings: [], noProject: false, noChanges: true, gitError }
     }
+
+    const untracked = !hasChanges ? await readUntrackedPaths(profile.rootPath) : []
+    const untrackedOnly = !hasChanges && untracked.length > 0
 
     const ctx = buildContext(profile)
     const label =
       profile.folderName ||
       `my ${String(ctx.framework)} project (${String(ctx.language)})`
-    const raw = buildGitDiffPrompt(label, status.branch, staged, unstaged)
+    const raw = buildGitDiffPrompt(label, status.branch, staged, unstaged, untracked)
     const scan = scanText(raw)
 
     let copied = false
@@ -55,7 +58,10 @@ export class GitDiffService {
       text: scan.redactedText,
       findings: scan.findings,
       noProject: false,
-      noChanges: false
+      noChanges: false,
+      untrackedOnly,
+      untrackedCount: untracked.length,
+      gitError
     }
   }
 }

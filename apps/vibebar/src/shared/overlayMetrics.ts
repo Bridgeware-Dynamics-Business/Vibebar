@@ -28,6 +28,7 @@ export const PANEL_SIZES: Record<DetachablePanelId, { width: number; height: num
   'security-audit': { width: 520, height: 720 },
   'session-hub': { width: 480, height: 720 },
   'context-packer': { width: 460, height: 680 },
+  'ready-check': { width: 480, height: 640 },
   notes: { width: 460, height: 720 },
   settings: { width: 440, height: 640 }
 }

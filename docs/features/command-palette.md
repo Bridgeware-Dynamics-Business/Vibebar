@@ -4,7 +4,7 @@ The command palette is fuzzy search for almost every VibeBar action. Faster than
 
 ## Open
 
-Press `Ctrl+Shift+P` (also restores the toolbar if it was hidden).
+Press `Ctrl+Alt+Shift+P` (also restores the toolbar if it was hidden).
 
 Type to filter. Use ↑/↓ to move, Enter to run, Esc to close. Search debounces after 150 ms.
 
@@ -37,7 +37,7 @@ Up to 10 entries like **Switch project: my-app**, one per recent folder.
 
 ## Cursor conflict
 
-Cursor also uses `Ctrl+Shift+P` for its own palette. If VibeBar's palette does not open, click the VibeBar toolbar first or adjust shortcuts in one of the apps. You can disable VibeBar global hotkeys in Settings and use the toolbar instead.
+Cursor uses `Ctrl+Shift+P` for its own palette. VibeBar defaults to `Ctrl+Alt+Shift+P` to reduce conflicts. You can disable VibeBar global hotkeys in Settings and use the toolbar instead.
 
 ## No global shortcut for these
 

@@ -10,11 +10,13 @@ export function OnboardingWizard({
   open,
   onClose,
   onProjectSelected,
+  onOpenSessionHub,
   quickLaunchApps
 }: {
   open: boolean
   onClose: () => void
   onProjectSelected: () => void
+  onOpenSessionHub?: () => void
   quickLaunchApps: QuickLaunchApp[]
 }): JSX.Element | null {
   const [step, setStep] = useState<Step>('welcome')
@@ -194,17 +196,31 @@ export function OnboardingWizard({
           {step === 'session' && (
             <div className="space-y-3">
               <p className="text-sm text-vibe-muted">
-                Open <strong className="font-medium text-vibe-text">Session Hub</strong> (Sparkles
-                icon). Copy a prompt from the library, pin it, then use{' '}
-                <strong className="font-medium text-vibe-text">Copy handoff</strong> to paste a
-                structured bundle into Cursor.
+                Try the vibe loop: copy something from VibeBar, then open{' '}
+                <strong className="font-medium text-vibe-text">Session Hub</strong> (Sparkles icon)
+                to see it logged. Pin what matters, then use{' '}
+                <strong className="font-medium text-vibe-text">Copy handoff</strong> for a structured
+                bundle in Cursor.
               </p>
+              {onOpenSessionHub && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onOpenSessionHub()
+                    void finish()
+                  }}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-vibe-accent bg-vibe-accent/15 px-3 py-2 text-sm font-medium text-vibe-text hover:bg-vibe-accent/25"
+                >
+                  <Icon name="Sparkles" size={16} />
+                  Open Session Hub now
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => void finish()}
                 className="flex w-full items-center justify-center gap-2 rounded-lg bg-vibe-accent px-3 py-2.5 text-sm font-medium text-white"
               >
-                <Icon name="Sparkles" size={16} />
+                <Icon name="Check" size={16} />
                 Got it — start vibing
               </button>
               <div className="flex justify-start pt-1">
@@ -225,6 +241,7 @@ export function useOnboarding(): {
   onboarding: OnboardingState | null
   dismiss: () => void
   refresh: () => void
+  replay: () => void
 } {
   const [onboarding, setOnboarding] = useState<OnboardingState | null>(null)
 
@@ -243,5 +260,9 @@ export function useOnboarding(): {
     setOnboarding((prev) => (prev ? { ...prev, show: false, complete: true } : prev))
   }, [])
 
-  return { onboarding, dismiss, refresh }
+  const replay = useCallback(() => {
+    void window.vibebar.app.showOnboardingAgain().then(setOnboarding)
+  }, [])
+
+  return { onboarding, dismiss, refresh, replay }
 }

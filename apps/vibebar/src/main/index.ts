@@ -21,6 +21,10 @@ import { SnipController } from './snip/SnipController.js'
 import { TerminalController } from './terminal/TerminalController.js'
 import { TrayController } from './tray/TrayController.js'
 import { SessionService } from './session/SessionService.js'
+import { FlightRecorderService } from './session/FlightRecorderService.js'
+import { VerifyLoopService } from './session/VerifyLoopService.js'
+import { ReadyCheckService } from './readyCheck/ReadyCheckService.js'
+import { McpServerController } from './mcp/McpServerController.js'
 
 const store = new AppStore()
 const projects = new ProjectService(store)
@@ -30,21 +34,46 @@ const codesync = new CodeSyncController(store)
 const detachedPanels = new DetachedPanelController(store)
 const confirmQuit = new ConfirmQuitController()
 const tray = new TrayController(overlay, detachedPanels)
-const terminal = new TerminalController(store, projects, (visible) =>
-  overlay.broadcast(CH.terminalVisibility, { visible })
+const sessionService = new SessionService(projects)
+const gitDiff = new GitDiffService(projects)
+let flightRecorder: FlightRecorderService
+let verifyLoop: VerifyLoopService
+const terminal = new TerminalController(
+  store,
+  projects,
+  (visible) => overlay.broadcast(CH.terminalVisibility, { visible }),
+  (result) => {
+    void (async () => {
+      await flightRecorder?.recordCommand(result.command, result.exitCode)
+      await verifyLoop?.onCommandComplete(result.command, result.exitCode)
+      const state = await sessionService.getState()
+      overlay.broadcast(CH.sessionChanged, state)
+      detachedPanels.send(CH.sessionChanged, state)
+    })()
+  }
 )
+flightRecorder = new FlightRecorderService(sessionService, gitDiff)
+verifyLoop = new VerifyLoopService(sessionService, projects)
 const audit = new AuditService(projects)
 const github = new GitHubService(store)
 const gitStatus = new GitStatusService(projects, (status) =>
   overlay.broadcast(CH.gitStatusChanged, status)
 )
-const gitDiff = new GitDiffService(projects)
 const quickLaunch = new QuickLaunchService(store)
 const hotkeys = new HotkeyController(store, overlay, terminal)
 const snip = new SnipController(projects)
 const errorConsole = new ErrorConsoleController(store)
 const notes = new NotesService(projects)
-const sessionService = new SessionService(projects)
+const readyCheck = new ReadyCheckService(projects, audit, terminal, gitDiff, sessionService)
+const mcp = new McpServerController({
+  projects,
+  session: sessionService,
+  audit,
+  readyCheck,
+  gitDiff,
+  gitStatus,
+  store
+})
 const noteWindows = new NoteWindowController(store)
 
 // A rejected promise with no handler would otherwise vanish silently; log it so a failure in any
@@ -89,8 +118,17 @@ async function bootstrap(): Promise<void> {
     notes,
     noteWindows,
     session: sessionService,
-    hotkeys
+    readyCheck,
+    flightRecorder,
+    verifyLoop,
+    hotkeys,
+    mcp
   })
+  try {
+    await mcp.syncFromSettings()
+  } catch (err) {
+    console.error('[VibeBar] MCP server failed to start:', err)
+  }
   overlay.start()
   overlay.collapseAllPanels()
   overlay.restoreAndFocus()
@@ -133,6 +171,7 @@ if (!gotLock) {
   })
 
   app.on('before-quit', () => {
+    void mcp.stop()
     overlay.destroy()
     codesync.dispose()
     detachedPanels.dispose()

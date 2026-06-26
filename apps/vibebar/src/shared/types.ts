@@ -36,6 +36,20 @@ export interface VibeSettings {
   launchOnStartup: boolean
   /** Global hotkeys (toolbar toggle, command palette, terminal). Defaults to on. */
   hotkeysEnabled: boolean
+  /** Run a localhost MCP server so Cursor Agent can read VibeBar state (opt-in). */
+  mcpServerEnabled?: boolean
+  /** After opening Cursor from Quick Launch / copy toast, attempt one-shot paste (opt-in). */
+  pasteAfterOpenCursor?: boolean
+}
+
+/** Live status of the optional VibeBar MCP server. */
+export interface McpServerStatus {
+  enabled: boolean
+  running: boolean
+  port: number
+  host: string
+  connectionSnippet: string
+  error?: string | null
 }
 
 /** A recently opened project folder, persisted for quick switching. */
@@ -96,6 +110,11 @@ export interface GitDiffCopyResult {
   noProject?: boolean
   noChanges?: boolean
   notRepo?: boolean
+  /** True when changes exist but only as untracked files (no staged/unstaged diff). */
+  untrackedOnly?: boolean
+  untrackedCount?: number
+  /** User-facing git error when diff read failed. */
+  gitError?: string
 }
 
 /**
@@ -127,6 +146,12 @@ export interface QuickLaunchResult {
   ok: boolean
   /** A user-facing reason when `ok` is false (e.g. path not set or not found). */
   error?: string
+  /** True when paste-after-open was attempted for Cursor. */
+  pasteAttempted?: boolean
+  /** True when the paste bridge reported success. */
+  pasteSucceeded?: boolean
+  /** Shown when paste was skipped or failed — user should paste manually. */
+  pasteNotice?: string
 }
 
 /**
@@ -237,9 +262,21 @@ export interface SecretFinding {
   index: number
 }
 
+export type AiRiskSeverity = 'warn' | 'error'
+
+/** Heuristic risk match in pasted AI output (not secrets). */
+export interface AiRiskFinding {
+  kind: string
+  severity: AiRiskSeverity
+  match: string
+  index: number
+}
+
 export interface ScanResult {
   findings: SecretFinding[]
   redactedText: string
+  /** AI output risk heuristics (dangerous flags, test skips, unpinned installs, etc.). */
+  risks?: AiRiskFinding[]
 }
 
 export interface PackNode {
@@ -268,6 +305,58 @@ export interface PackChangedPreview {
   noFiles?: boolean
 }
 
+export type VerifyPinStatus = 'awaiting' | 'verified' | 'still-broken'
+
+export interface IntentContract {
+  goal: string
+  constraints: string[]
+  filesInScope: string[]
+  acceptanceCriteria: string[]
+  verifyCommand: string | null
+  updatedAt: number
+}
+
+export interface FlightCommandRecord {
+  command: string
+  exitCode: number | null
+  timestamp: number
+  isTest?: boolean
+}
+
+export interface FlightAuditRecord {
+  ranAt: number
+  score?: number
+  grade?: string
+  findingCount: number
+}
+
+export interface FlightFileSnapshot {
+  timestamp: number
+  reason: 'command' | 'audit' | 'verify-green'
+  files: string[]
+}
+
+export interface LastGreenState {
+  command: string
+  timestamp: number
+  filesAtGreen: string[]
+  filesChangedSince: string[]
+}
+
+export interface FlightRecorderData {
+  commands: FlightCommandRecord[]
+  audits: FlightAuditRecord[]
+  snapshots: FlightFileSnapshot[]
+  lastGreen: LastGreenState | null
+}
+
+/** Compact flight log for Session Hub UI. */
+export interface FlightLogView {
+  recentCommands: FlightCommandRecord[]
+  lastGreen: LastGreenState | null
+  lastAudit: FlightAuditRecord | null
+}
+
 export type SessionEntryType = 'prompt' | 'terminal-issue' | 'audit-finding' | 'note' | 'git-diff'
 
 interface SessionEntryBase {
@@ -278,6 +367,10 @@ interface SessionEntryBase {
   pinned: boolean
   /** Full prompt body captured at copy time (truncated to 8KB when stored). */
   fullText?: string
+  /** Verify loop: command to re-run after a fix copy. */
+  verifyCommand?: string | null
+  /** Verify loop outcome for pinned fix entries. */
+  verifyStatus?: VerifyPinStatus
 }
 
 export interface SessionPromptEntry extends SessionEntryBase {
@@ -329,6 +422,10 @@ export interface SessionState {
   noProject: boolean
   /** Count of pinned entries — included on every session:changed broadcast for toolbar badge. */
   pinnedCount: number
+  /** Active intent contract for this project session. */
+  intent: IntentContract | null
+  /** Compact flight recorder summary for Session Hub. */
+  flight: FlightLogView | null
 }
 
 export interface SessionHandoffResult {
@@ -406,6 +503,10 @@ export interface DetectedIssue {
   references?: string[]
   /** New/existing/resolved relative to the previous audit scan (audit findings). */
   status?: FindingStatus
+  /** Stable fingerprint for dismiss persistence across terminal commands. */
+  fingerprint?: string
+  /** Relative paths referenced by structured parse (stack frames, failure sites). */
+  relatedFiles?: string[]
 }
 
 /** Scan metadata pushed alongside audit findings in the Smart Terminal dock. */
@@ -583,6 +684,38 @@ export interface AuditReport {
   durationMs?: number
   /** How many of the scanned files were served from the incremental cache. */
   cachedFiles?: number
+}
+
+export type ReadyCheckStatus = 'blocked' | 'needs-review' | 'looks-ready'
+
+export type ReadyCheckSignalLevel = 'ok' | 'warning' | 'blocked'
+
+export interface ReadyCheckSignal {
+  id:
+    | 'git-diff'
+    | 'audit'
+    | 'terminal'
+    | 'secrets'
+    | 'project'
+    | 'tests-not-run'
+    | 'diff-not-reviewed'
+    | 'lockfile-audit'
+    | 'audit-delta'
+    | 'last-green-stale'
+  label: string
+  level: ReadyCheckSignalLevel
+  detail: string
+}
+
+/** Aggregated pre-commit trust gate from git, audit, terminal, secrets, and project signals. */
+export interface ReadyCheckResult {
+  status: ReadyCheckStatus
+  signals: ReadyCheckSignal[]
+  /** AI-ready review prompt (included on get; used by copy action). */
+  reviewPrompt?: string
+  noProject?: boolean
+  /** Profile-level context health warnings (stack, AGENTS.md, etc.) — informational only. */
+  contextWarningCount?: number
 }
 
 export type { PromptCategory, PromptTemplate, ResolvedVariable, ProjectProfile }

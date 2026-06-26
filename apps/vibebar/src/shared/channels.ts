@@ -75,6 +75,8 @@ export const CH = {
   // the renderer drives resizing from its own edge grips through these channels.
   terminalResizeStart: 'terminal:resizeStart',
   terminalResize: 'terminal:resize',
+  terminalFixWithContext: 'terminal:fixWithContext',
+  terminalDismissIssue: 'terminal:dismissIssue',
   terminalData: 'terminal:data',
   terminalStatus: 'terminal:status',
   terminalIssues: 'terminal:issues',
@@ -127,14 +129,24 @@ export const CH = {
   sessionClear: 'session:clear',
   sessionCopyHandoff: 'session:copyHandoff',
   sessionCopyFixPrompts: 'session:copyFixPrompts',
+  sessionSetIntent: 'session:setIntent',
+  sessionClearIntent: 'session:clearIntent',
+  sessionRerunVerify: 'session:rerunVerify',
   sessionChanged: 'session:changed',
 
   // GitHub Desktop + live change tracking
   githubOpen: 'github:open',
+  githubGetDesktopPath: 'github:getDesktopPath',
+  githubSetDesktopPath: 'github:setDesktopPath',
+  githubLocateDesktop: 'github:locateDesktop',
   gitStatus: 'git:status',
   gitStatusChanged: 'git:statusChanged',
   gitCopyDiffPrompt: 'git:copyDiffPrompt',
   gitChangedFiles: 'git:changedFiles',
+
+  // Ready Check — pre-commit trust gate (read-only aggregation)
+  readyCheckGet: 'readyCheck:get',
+  readyCheckCopyReviewPrompt: 'readyCheck:copyReviewPrompt',
 
   // In-app error console — a renderer reports a captured (already-redacted) runtime error; the
   // console window receives the live list and asks main to clear/close itself.
@@ -152,9 +164,14 @@ export const CH = {
   quickLaunchSetVisible: 'quickLaunch:setVisible',
   quickLaunchChanged: 'quickLaunch:changed',
 
+  /** Optional localhost MCP server for Cursor Agent integration. */
+  mcpGetStatus: 'mcp:getStatus',
+  mcpChanged: 'mcp:changed',
+
   appQuit: 'app:quit',
   appGetOnboardingState: 'app:getOnboardingState',
   appCompleteOnboarding: 'app:completeOnboarding',
+  appShowOnboardingAgain: 'app:showOnboardingAgain',
   // Opens the centered "Close Vibe Bar" confirmation window (power button); cancel hides it.
   appConfirmQuit: 'app:confirmQuit',
   appCancelQuit: 'app:cancelQuit'
@@ -212,6 +229,8 @@ export const INVOKABLE_CHANNELS: readonly string[] = [
   CH.terminalGetHints,
   CH.terminalResizeStart,
   CH.terminalResize,
+  CH.terminalFixWithContext,
+  CH.terminalDismissIssue,
   CH.shellStart,
   CH.shellInput,
   CH.shellSetShell,
@@ -240,15 +259,23 @@ export const INVOKABLE_CHANNELS: readonly string[] = [
   CH.notesAppendMarkdown,
   CH.notesFindSessionLog,
   CH.githubOpen,
+  CH.githubGetDesktopPath,
+  CH.githubSetDesktopPath,
+  CH.githubLocateDesktop,
   CH.gitStatus,
   CH.gitCopyDiffPrompt,
   CH.gitChangedFiles,
+  CH.readyCheckGet,
+  CH.readyCheckCopyReviewPrompt,
   CH.sessionGetState,
   CH.sessionAppend,
   CH.sessionTogglePin,
   CH.sessionClear,
   CH.sessionCopyHandoff,
   CH.sessionCopyFixPrompts,
+  CH.sessionSetIntent,
+  CH.sessionClearIntent,
+  CH.sessionRerunVerify,
   CH.errorsReport,
   CH.errorsClear,
   CH.errorsClose,
@@ -258,9 +285,11 @@ export const INVOKABLE_CHANNELS: readonly string[] = [
   CH.quickLaunchRemove,
   CH.quickLaunchLocate,
   CH.quickLaunchSetVisible,
+  CH.mcpGetStatus,
   CH.appQuit,
   CH.appGetOnboardingState,
   CH.appCompleteOnboarding,
+  CH.appShowOnboardingAgain,
   CH.appConfirmQuit,
   CH.appCancelQuit,
   // Code Sync runs its own IPC registry (packages/codesync) with its own payload validation
@@ -292,6 +321,7 @@ export const PUSH_CHANNELS: readonly string[] = [
   CH.notesChanged,
   CH.sessionChanged,
   CH.quickLaunchChanged,
+  CH.mcpChanged,
   CH.errorsPush,
   CODESYNC_CHANNELS.log
 ]

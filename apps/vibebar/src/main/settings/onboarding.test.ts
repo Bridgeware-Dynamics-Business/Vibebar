@@ -13,4 +13,8 @@ describe('computeOnboardingState', () => {
   it('hides wizard when onboarding was dismissed', () => {
     expect(computeOnboardingState(false, true)).toEqual({ show: false, complete: true })
   })
+
+  it('shows wizard when replay is requested even with a project', () => {
+    expect(computeOnboardingState(true, true, true)).toEqual({ show: true, complete: true })
+  })
 })

@@ -95,9 +95,7 @@ function gitButtonInfo(gitStatus: GitStatus | null): { label: string; badge?: nu
   parts.push(gitStatus.changeCount === 1 ? '1 change' : `${gitStatus.changeCount} changes`)
   if (gitStatus.ahead > 0) parts.push(`${gitStatus.ahead}↑`)
   if (gitStatus.behind > 0) parts.push(`${gitStatus.behind}↓`)
-  const suffix =
-    gitStatus.changeCount > 0 ? ' · Right-click to copy diff prompt' : ''
-  return { label: `GitHub Desktop — ${parts.join(' · ')}${suffix}`, badge: gitStatus.changeCount }
+  return { label: `GitHub Desktop — ${parts.join(' · ')}`, badge: gitStatus.changeCount }
 }
 
 // Round only the corners on the edge facing away from the monitor; the docked edge stays square
@@ -248,7 +246,6 @@ export function Toolbar({
   onOpenContextFolder,
   onTool,
   onQuickLaunch,
-  onCopyGitDiff,
   sessionPinCount = 0,
   onPower
 }: {
@@ -265,8 +262,6 @@ export function Toolbar({
   onOpenContextFolder: () => void
   onTool: (id: ToolId) => void
   onQuickLaunch: (id: string) => void
-  /** Right-click the GitHub badge when there are changes to copy a git diff prompt. */
-  onCopyGitDiff?: () => void
   /** Pin count for Session Hub toolbar badge. */
   sessionPinCount?: number
   onPower: () => void
@@ -331,14 +326,6 @@ export function Toolbar({
               active={activePanel === tool.id}
               badge={git?.badge}
               onClick={() => onTool(tool.id)}
-              onContextMenu={
-                tool.id === 'github' && gitStatus?.isRepo && gitStatus.changeCount > 0 && onCopyGitDiff
-                  ? (e) => {
-                      e.preventDefault()
-                      onCopyGitDiff()
-                    }
-                  : undefined
-              }
             />
             {tool.id === 'github' && visibleQuickLaunch.length > 0 && (
               <>

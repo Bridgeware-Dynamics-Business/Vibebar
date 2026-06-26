@@ -14,6 +14,7 @@ import type {
   HistoryEntry,
   NoteDetail,
   NotesState,
+  McpServerStatus,
   OnboardingState,
   OverlayLayout,
   PackChangedPreview,
@@ -26,10 +27,12 @@ import type {
   QuickLaunchApp,
   RecentProject,
   QuickLaunchResult,
+  ReadyCheckResult,
   ScanResult,
   SessionAppendInput,
   SessionHandoffResult,
   SessionState,
+  IntentContract,
   SnipCapture,
   SnipSaveResult,
   VibeSettings
@@ -44,6 +47,8 @@ export interface OverlayState {
 export interface SettingsState {
   settings: VibeSettings
   displays: DisplayInfo[]
+  githubDesktopPath: string
+  mcpStatus: McpServerStatus
 }
 
 export interface RedactedCopyResult {
@@ -171,6 +176,9 @@ export interface VibeBarApi {
   github: {
     /** Opens GitHub Desktop on the active project so the user can commit/push. */
     open: () => Promise<GitHubOpenResult>
+    getDesktopPath: () => Promise<{ path: string }>
+    setDesktopPath: (path: string) => Promise<{ path: string }>
+    locateDesktop: () => Promise<{ path: string }>
   }
   snip: {
     /**
@@ -196,6 +204,12 @@ export interface VibeBarApi {
     copyDiffPrompt: () => Promise<GitDiffCopyResult>
     /** Changed paths (staged, unstaged, untracked) for the active repo. */
     changedFiles: () => Promise<string[]>
+  }
+  readyCheck: {
+    /** Aggregates git, audit, terminal, secrets, and project signals into a tri-state result. */
+    get: () => Promise<ReadyCheckResult>
+    /** Copies the AI-ready review prompt to the clipboard. */
+    copyReviewPrompt: () => Promise<{ copied: boolean; text: string }>
   }
   notes: {
     /** Current Notes state for the active project (folder presence, name, catalog). */
@@ -226,9 +240,14 @@ export interface VibeBarApi {
     append: (entry: SessionAppendInput) => Promise<SessionState>
     togglePin: (id: string) => Promise<SessionState>
     clear: () => Promise<SessionState>
-    copyHandoff: (includeGitDiff?: boolean) => Promise<SessionHandoffResult>
+    copyHandoff: (includeGitDiff?: boolean, pinRecentIfEmpty?: number) => Promise<SessionHandoffResult>
     /** Copies only pinned audit/terminal fix prompts (not the narrative handoff). */
     copyFixPrompts: () => Promise<SessionHandoffResult>
+    /** Sets the active intent contract (current task) for this project session. */
+    setIntent: (intent: Omit<IntentContract, 'updatedAt'>) => Promise<SessionState>
+    clearIntent: () => Promise<SessionState>
+    /** Re-runs the verify command attached to a pinned fix entry in Smart Terminal. */
+    rerunVerify: (entryId: string) => Promise<{ accepted: boolean; reason?: string }>
     onChanged: (cb: (state: SessionState) => void) => () => void
   }
   errors: {
@@ -245,7 +264,10 @@ export interface VibeBarApi {
     /** Lists configured quick-launch apps (built-in Cursor/Codex + any the user added). */
     list: () => Promise<QuickLaunchApp[]>
     /** Launches an app by id, opening the active project folder when one is selected. */
-    run: (id: string) => Promise<QuickLaunchResult>
+    run: (
+      id: string,
+      options?: { pasteAfterOpen?: boolean; fromCopyToast?: boolean }
+    ) => Promise<QuickLaunchResult>
     /** Opens a native picker to add a new app; returns the updated list. */
     add: () => Promise<QuickLaunchApp[]>
     /** Removes an app by id; returns the updated list. */
@@ -257,12 +279,19 @@ export interface VibeBarApi {
     /** Fires when the app list changes (kept in sync across overlay + detached windows). */
     onChanged: (cb: (apps: QuickLaunchApp[]) => void) => () => void
   }
+  mcp: {
+    /** Returns MCP server enabled/running state and Cursor mcp.json snippet. */
+    getStatus: () => Promise<McpServerStatus>
+    onChanged: (cb: (status: McpServerStatus) => void) => () => void
+  }
   app: {
     quit: () => Promise<{ ok: boolean }>
     /** First-run onboarding visibility state. */
     getOnboardingState: () => Promise<OnboardingState>
     /** Marks onboarding complete (skip / don't show again). */
     completeOnboarding: () => Promise<OnboardingState>
+    /** Re-opens the onboarding wizard from Settings. */
+    showOnboardingAgain: () => Promise<OnboardingState>
     /** Opens the centered "Close Vibe Bar" confirmation popup (the toolbar power button). */
     confirmQuit: () => Promise<{ ok: boolean }>
     /** Dismisses the confirmation popup without quitting (its "No" button). */

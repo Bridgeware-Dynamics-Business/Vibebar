@@ -5,12 +5,24 @@ import type { GitHubOpenResult } from '@shared/types.js'
 import type { AppStore } from '../settings/store.js'
 import { githubDesktopCandidates } from './desktopPaths.js'
 
+/** Protocol URLs GitHub Desktop registers for opening a local repo by path. */
+function openRepoProtocolUrls(repoPath: string): string[] {
+  const encoded = encodeURIComponent(repoPath)
+  const urls = [`x-github-client://openLocalRepo/${encoded}`]
+  if (process.platform === 'win32') {
+    urls.push(`github-windows://openLocalRepo/${encoded}`)
+  } else if (process.platform === 'darwin') {
+    urls.push(`github-mac://openLocalRepo/${encoded}`)
+  }
+  return urls
+}
+
 /**
  * Launches GitHub Desktop on the active project so the user can stage, commit, and push from a
  * full Git UI — the action half of VibeBar's Git integration (the badge is the awareness half).
- * Prefers the installed launcher (passing the repo path so Desktop opens that local repo), and
- * falls back to GitHub Desktop's `x-github-client://` protocol handler. This is the only place
- * VibeBar launches an external app, so it stays narrow and fully guarded.
+ * Prefers GitHub Desktop's registered protocol handler (reliable for opening a specific repo),
+ * then falls back to spawning the installed launcher. This is the only place VibeBar launches an
+ * external app, so it stays narrow and fully guarded.
  */
 export class GitHubService {
   private readonly store: AppStore
@@ -24,6 +36,15 @@ export class GitHubService {
       return { ok: false, error: 'Select a project first.' }
     }
 
+    for (const url of openRepoProtocolUrls(repoPath)) {
+      try {
+        await shell.openExternal(url)
+        return { ok: true, method: 'protocol' }
+      } catch {
+        // Try the next registered protocol or fall back to the executable.
+      }
+    }
+
     const override = this.store.getGitHubDesktopPath()
     const candidates = githubDesktopCandidates(process.env, process.platform, override)
     const launcher = candidates.find((p) => existsSync(p))
@@ -33,20 +54,13 @@ export class GitHubService {
         this.launch(launcher, repoPath)
         return { ok: true, method: 'desktop' }
       } catch {
-        // Fall through to the protocol handler.
+        // Fall through to the not-found message.
       }
     }
 
-    // Protocol fallback: GitHub Desktop registers x-github-client:// for local repos.
-    try {
-      const encoded = encodeURIComponent(repoPath)
-      await shell.openExternal(`x-github-client://openLocalRepo/${encoded}`)
-      return { ok: true, method: 'protocol' }
-    } catch {
-      return {
-        ok: false,
-        error: 'GitHub Desktop not found. Install it from desktop.github.com, then try again.'
-      }
+    return {
+      ok: false,
+      error: 'GitHub Desktop not found. Install it from desktop.github.com, then try again.'
     }
   }
 

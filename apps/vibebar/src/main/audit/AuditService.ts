@@ -91,6 +91,15 @@ export class AuditService {
     return pending
   }
 
+  /** Last completed report for the active project, if any (no freshness check). */
+  getCachedReport(): AuditReport | null {
+    const root = this.projects.getProfile()?.rootPath ?? null
+    if (root && this.lastReport && this.lastReportRoot === root && !this.lastReport.noProject) {
+      return this.lastReport
+    }
+    return null
+  }
+
   private async execute(): Promise<AuditReport> {
     const startedAt = Date.now()
     const profile = this.projects.getProfile()

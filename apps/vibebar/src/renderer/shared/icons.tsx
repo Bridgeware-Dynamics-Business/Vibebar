@@ -1,5 +1,6 @@
 import {
   AlertTriangle,
+  Activity,
   AppWindow,
   Ban,
   Bold,
@@ -63,12 +64,14 @@ import {
   SquareTerminal,
   Star,
   StickyNote,
+  Target,
   Trash2,
   Wrench,
   X
 } from 'lucide-react'
 
 const ICONS: Record<string, LucideIcon> = {
+  Activity,
   Sparkles,
   FolderSync,
   PackageOpen,
@@ -133,8 +136,9 @@ const ICONS: Record<string, LucideIcon> = {
   Bold,
   BookOpen,
   StickyNote,
+  Target,
   SeparatorHorizontal,
-  Terminal: TerminalIcon
+  Terminal: TerminalIcon,
 }
 
 export function Icon({

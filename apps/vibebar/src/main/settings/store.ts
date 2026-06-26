@@ -34,6 +34,8 @@ interface StoreSchema {
   terminalBounds: WindowBounds | null
   /** When true, the first-run onboarding wizard is suppressed. */
   onboardingComplete: boolean
+  /** When true, Settings replay opens the wizard even if a project is selected. */
+  onboardingReplayRequested: boolean
 }
 
 const DEFAULT_SETTINGS: VibeSettings = {
@@ -42,7 +44,9 @@ const DEFAULT_SETTINGS: VibeSettings = {
   errorConsoleDisplayIds: [],
   guardrailsEnabled: true,
   launchOnStartup: false,
-  hotkeysEnabled: true
+  hotkeysEnabled: true,
+  mcpServerEnabled: false,
+  pasteAfterOpenCursor: false
 }
 
 /**
@@ -84,7 +88,8 @@ export class AppStore {
         recentProjects: [],
         panelBounds: {},
         terminalBounds: null,
-        onboardingComplete: false
+        onboardingComplete: false,
+        onboardingReplayRequested: false
       }
     })
   }
@@ -251,5 +256,13 @@ export class AppStore {
 
   setOnboardingComplete(complete: boolean): void {
     this.store.set('onboardingComplete', complete)
+  }
+
+  isOnboardingReplayRequested(): boolean {
+    return Boolean(this.store.get('onboardingReplayRequested'))
+  }
+
+  setOnboardingReplayRequested(requested: boolean): void {
+    this.store.set('onboardingReplayRequested', requested)
   }
 }

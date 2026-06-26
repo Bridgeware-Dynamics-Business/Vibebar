@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { emptyProfile } from '@vibebar/project-detector'
 import type { ProjectProfile } from '@shared/types.js'
 import type { ProjectService } from '../project/ProjectService.js'
-import { SessionService } from './SessionService.js'
+import { SessionService, normalizeSessionEntries, SESSION_MAX_ENTRIES } from './SessionService.js'
 
 function mockProjects(rootPath: string | null): ProjectService {
   const profile: ProjectProfile | null = rootPath
@@ -30,6 +30,8 @@ describe('SessionService', () => {
     expect(state.noProject).toBe(true)
     expect(state.entries).toEqual([])
     expect(state.pinnedCount).toBe(0)
+    expect(state.intent).toBeNull()
+    expect(state.flight).toBeNull()
   })
 
   it('appends, pins, and clears entries in project-local session.json', async () => {
@@ -48,7 +50,7 @@ describe('SessionService', () => {
     expect(state.entries).toEqual([])
 
     const raw = await readFile(join(dir, '.vibebar', 'session.json'), 'utf8')
-    expect(JSON.parse(raw)).toEqual({ entries: [] })
+    expect(JSON.parse(raw)).toEqual({ entries: [], intent: null })
   })
 
   it('buildHandoffPrompt includes pinned items', async () => {
@@ -63,5 +65,41 @@ describe('SessionService', () => {
     expect(result.text).toContain('# VibeBar Session Handoff')
     expect(result.text).toContain('Pinned note')
     expect(result.text).toContain('Remember X')
+  })
+
+  it('pinRecentIfNonePinned pins the newest entries when none are pinned', async () => {
+    dir = await mkdtemp(join(tmpdir(), 'vibebar-session-'))
+    const svc = new SessionService(mockProjects(dir))
+    await svc.append({ type: 'prompt', title: 'Oldest', promptId: 'p1' })
+    await new Promise((r) => setTimeout(r, 5))
+    await svc.append({ type: 'prompt', title: 'Newest', promptId: 'p2' })
+
+    const state = await svc.pinRecentIfNonePinned(1)
+    expect(state.pinnedCount).toBe(1)
+    expect(state.entries.find((e) => e.title === 'Newest')?.pinned).toBe(true)
+  })
+
+  it('normalizeSessionEntries caps and dedupes on disk', async () => {
+    dir = await mkdtemp(join(tmpdir(), 'vibebar-session-'))
+    const svc = new SessionService(mockProjects(dir))
+    for (let i = 0; i < SESSION_MAX_ENTRIES + 5; i++) {
+      await svc.append({ type: 'note', title: 'dup', noteId: 'n', text: 'same' })
+    }
+    const state = await svc.getState()
+    expect(state.entries.length).toBeLessThanOrEqual(SESSION_MAX_ENTRIES)
+    expect(state.entries.filter((e) => e.title === 'dup').length).toBe(1)
+
+    const normalized = normalizeSessionEntries(
+      Array.from({ length: SESSION_MAX_ENTRIES + 3 }, (_, i) => ({
+        id: `id-${i}`,
+        type: 'note' as const,
+        title: `t-${i}`,
+        noteId: 'n',
+        text: 'x',
+        timestamp: i,
+        pinned: false
+      }))
+    )
+    expect(normalized.length).toBe(SESSION_MAX_ENTRIES)
   })
 })

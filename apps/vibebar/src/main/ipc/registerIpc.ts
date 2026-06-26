@@ -1,7 +1,7 @@
-import { app, clipboard, ipcMain } from 'electron'
+import { app, clipboard, dialog, ipcMain } from 'electron'
 import type { PromptCategory, PromptTemplate } from '@vibebar/prompt-engine'
 import { CH } from '@shared/channels.js'
-import type { AuditReport, PackChangedPreview, PackNode, PackResult, ScanResult, ShellType, VibeSettings } from '@shared/types.js'
+import type { AuditReport, PackChangedPreview, PackNode, PackResult, ScanResult, ShellType, VibeSettings, IntentContract } from '@shared/types.js'
 import type { SessionAppendInput } from '@shared/types.js'
 import type { DetachablePanelId } from '@shared/tools.js'
 import type { ResizeEdge } from '@shared/terminalApi.js'
@@ -14,11 +14,20 @@ import type { DetachedPanelController } from '../overlay/DetachedPanelController
 import type { OverlayManager } from '../overlay/OverlayManager.js'
 import type { NoteWindowController } from '../notes/NoteWindowController.js'
 import type { NotesService } from '../notes/NotesService.js'
-import { listTree, packContext, estimatePaths, resolvePresetPaths } from '../packer/contextPacker.js'
+import {
+  listTree,
+  packContext,
+  estimatePaths,
+  resolvePresetPaths,
+  packIgnorePatternsFromIgnoreText
+} from '../packer/contextPacker.js'
 import type { SessionService } from '../session/SessionService.js'
+import type { FlightRecorderService } from '../session/FlightRecorderService.js'
+import type { VerifyLoopService } from '../session/VerifyLoopService.js'
 import type { ProjectService } from '../project/ProjectService.js'
 import type { PromptStore } from '../prompts/PromptStore.js'
 import { scanText } from '../scanner/secretScanner.js'
+import { scanAiOutputRisks } from '../scanner/aiOutputRiskScanner.js'
 import { parsePayload } from '../security/validateIpc.js'
 import type { AppStore } from '../settings/store.js'
 import { computeOnboardingState } from '../settings/onboarding.js'
@@ -29,6 +38,8 @@ import type { GitHubService } from '../github/GitHubService.js'
 import type { QuickLaunchService } from '../quicklaunch/QuickLaunchService.js'
 import type { SnipController } from '../snip/SnipController.js'
 import type { HotkeyController } from '../hotkeys/HotkeyController.js'
+import type { ReadyCheckService } from '../readyCheck/ReadyCheckService.js'
+import type { McpServerController } from '../mcp/McpServerController.js'
 
 export interface IpcDeps {
   store: AppStore
@@ -49,7 +60,11 @@ export interface IpcDeps {
   notes: NotesService
   noteWindows: NoteWindowController
   session: SessionService
+  readyCheck: ReadyCheckService
+  flightRecorder: FlightRecorderService
+  verifyLoop: VerifyLoopService
   hotkeys?: HotkeyController
+  mcp: McpServerController
 }
 
 function headerLabel(deps: IpcDeps): string {
@@ -57,6 +72,10 @@ function headerLabel(deps: IpcDeps): string {
   if (!p) return 'project'
   const parts = [p.framework, p.language].filter((x) => x && x !== 'unknown')
   return parts.length ? `${p.folderName} (${parts.join(' \u00b7 ')})` : p.folderName
+}
+
+function packIgnorePatterns(deps: IpcDeps): string[] {
+  return packIgnorePatternsFromIgnoreText(deps.store.getCodeSyncConfig().ignoreText)
 }
 
 /**
@@ -83,8 +102,32 @@ export function registerIpc(deps: IpcDeps): void {
     notes,
     noteWindows,
     session,
-    hotkeys
+    readyCheck,
+    flightRecorder,
+    verifyLoop,
+    hotkeys,
+    mcp
   } = deps
+
+  function trackClipboardCopy(copied: boolean): void {
+    if (copied) quickLaunch.clipboardHandoff.recordCopy()
+  }
+
+  function writeClipboard(text: string): boolean {
+    try {
+      clipboard.writeText(text)
+      trackClipboardCopy(true)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  function broadcastMcpStatus(): void {
+    const status = mcp.getStatus()
+    overlay.broadcast(CH.mcpChanged, status)
+    detachedPanels.send(CH.mcpChanged, status)
+  }
 
   const handle = <T>(channel: string, fn: (payload: unknown) => T | Promise<T>): void => {
     ipcMain.handle(channel, async (_event, raw: unknown) => {
@@ -172,6 +215,7 @@ export function registerIpc(deps: IpcDeps): void {
     const promptId = (p as { promptId: string }).promptId
     const result = prompts.copy(promptId)
     if (result.copied) {
+      trackClipboardCopy(true)
       const template = prompts.list().prompts.find((t) => t.id === promptId)
       if (template) {
         await broadcastSession(
@@ -195,36 +239,47 @@ export function registerIpc(deps: IpcDeps): void {
   handle(CH.promptsHistory, () => prompts.history())
   handle(CH.promptsSetGuardrails, (p) => prompts.setGuardrails((p as { enabled: boolean }).enabled))
 
-  // Secret Scanner
-  handle(CH.scannerScan, (p): ScanResult => scanText((p as { text: string }).text))
+  // Paste scanner — secrets + AI output risk heuristics
+  handle(CH.scannerScan, (p): ScanResult => {
+    const text = (p as { text: string }).text
+    const secretScan = scanText(text)
+    return { ...secretScan, risks: scanAiOutputRisks(text) }
+  })
   handle(CH.scannerCopyRedacted, (p) => {
     const { redactedText } = scanText((p as { text: string }).text)
-    clipboard.writeText(redactedText)
-    return { copied: true, redactedText }
+    return { copied: writeClipboard(redactedText), redactedText }
   })
 
   // Context Packer
   handle(CH.packerTree, async (p): Promise<PackNode[]> => {
     const profile = projects.getProfile()
     if (!profile?.rootPath) return []
-    return listTree(profile.rootPath, (p as { dir: string }).dir)
+    return listTree(profile.rootPath, (p as { dir: string }).dir, packIgnorePatterns(deps))
   })
   handle(CH.packerPack, async (p): Promise<PackResult> => {
     const profile = projects.getProfile()
     if (!profile?.rootPath) {
       return { copied: false, text: '', fileCount: 0, skipped: 0, findings: [] }
     }
+    const ignore = packIgnorePatterns(deps)
     const out = await packContext({
       rootPath: profile.rootPath,
       relPaths: (p as { paths: string[] }).paths,
-      headerLabel: headerLabel(deps)
+      headerLabel: headerLabel(deps),
+      ignorePatterns: ignore,
+      charBudget: 32_000
     })
-    let copied = false
-    try {
-      clipboard.writeText(out.redactedText)
-      copied = true
-    } catch {
-      copied = false
+    let copied = writeClipboard(out.redactedText)
+    if (copied) {
+      await broadcastSession(
+        await session.append({
+          type: 'note',
+          title: `Context pack (${out.fileCount} file${out.fileCount === 1 ? '' : 's'})`,
+          noteId: 'context-pack',
+          text: `Packed ${out.fileCount} file(s) to clipboard`,
+          fullText: out.redactedText
+        })
+      )
     }
     return {
       copied,
@@ -243,7 +298,7 @@ export function registerIpc(deps: IpcDeps): void {
     if (paths.length === 0) {
       return { paths: [], charCount: 0, tokenEstimate: 0, fileCount: 0, skipped: 0, noFiles: true }
     }
-    const est = await estimatePaths(profile.rootPath, paths)
+    const est = await estimatePaths(profile.rootPath, paths, undefined, packIgnorePatterns(deps))
     return {
       paths,
       charCount: est.charCount,
@@ -256,7 +311,7 @@ export function registerIpc(deps: IpcDeps): void {
     const profile = projects.getProfile()
     if (!profile?.rootPath) return { paths: [], noProject: true }
     const preset = (p as { preset: 'tests' | 'config' | 'entry' }).preset
-    const paths = await resolvePresetPaths(profile.rootPath, preset)
+    const paths = await resolvePresetPaths(profile.rootPath, preset, packIgnorePatterns(deps))
     return { paths, noProject: false }
   })
   handle(CH.packerPackChanged, async (): Promise<PackResult> => {
@@ -271,14 +326,22 @@ export function registerIpc(deps: IpcDeps): void {
     const out = await packContext({
       rootPath: profile.rootPath,
       relPaths: paths,
-      headerLabel: headerLabel(deps)
+      headerLabel: headerLabel(deps),
+      ignorePatterns: packIgnorePatterns(deps),
+      charBudget: 32_000,
+      pathCategories: Object.fromEntries(paths.map((p) => [p, 'changed' as const]))
     })
-    let copied = false
-    try {
-      clipboard.writeText(out.redactedText)
-      copied = true
-    } catch {
-      copied = false
+    const copied = writeClipboard(out.redactedText)
+    if (copied) {
+      await broadcastSession(
+        await session.append({
+          type: 'note',
+          title: `Pack changed (${out.fileCount} file${out.fileCount === 1 ? '' : 's'})`,
+          noteId: 'context-pack-changed',
+          text: `Packed ${out.fileCount} changed file(s) to clipboard`,
+          fullText: out.redactedText
+        })
+      )
     }
     return {
       copied,
@@ -291,14 +354,19 @@ export function registerIpc(deps: IpcDeps): void {
 
   // Clipboard fallback
   handle(CH.clipboardWrite, (p) => {
-    clipboard.writeText((p as { text: string }).text)
-    return { copied: true }
+    const text = (p as { text: string }).text
+    return { copied: writeClipboard(text) }
   })
 
   // Settings
-  handle(CH.settingsGet, () => ({ settings: store.getSettings(), displays: overlay.displays() }))
+  handle(CH.settingsGet, () => ({
+    settings: store.getSettings(),
+    displays: overlay.displays(),
+    githubDesktopPath: store.getGitHubDesktopPath(),
+    mcpStatus: mcp.getStatus()
+  }))
   handle(CH.settingsDisplays, () => overlay.displays())
-  handle(CH.settingsSave, (p) => {
+  handle(CH.settingsSave, async (p) => {
     const partial = p as Partial<VibeSettings>
     const prev = store.getSettings()
     const next = store.saveSettings(partial)
@@ -310,14 +378,26 @@ export function registerIpc(deps: IpcDeps): void {
     } else {
       overlay.onSettingsChanged()
     }
-    // Re-apply the console's monitor selection when it changes (create/destroy per-display windows).
     if (partial.errorConsoleDisplayIds !== undefined) {
       errorConsole.onSettingsChanged()
     }
     if (partial.hotkeysEnabled !== undefined) {
       hotkeys?.refresh()
     }
-    return { settings: next, displays: overlay.displays() }
+    if (partial.mcpServerEnabled !== undefined) {
+      try {
+        await mcp.syncFromSettings()
+      } catch (err) {
+        console.error('[VibeBar] MCP server failed to start:', err)
+      }
+      broadcastMcpStatus()
+    }
+    return {
+      settings: next,
+      displays: overlay.displays(),
+      githubDesktopPath: store.getGitHubDesktopPath(),
+      mcpStatus: mcp.getStatus()
+    }
   })
 
   // Code Sync floating overlay
@@ -362,6 +442,33 @@ export function registerIpc(deps: IpcDeps): void {
     terminal.resizeBy(edge, dx, dy)
     return { ok: true }
   })
+  handle(CH.terminalFixWithContext, async (p) => {
+    const issueId = (p as { issueId?: string } | undefined)?.issueId
+    const intent = await session.getIntent()
+    const result = await terminal.fixWithContext(issueId, intent)
+    if (result.noResult || !result.text) return result
+    const copied = writeClipboard(result.text)
+    if (copied) {
+      const verifyCommand = result.verifyCommand ?? intent?.verifyCommand ?? null
+      await broadcastSession(
+        await session.append({
+          type: 'terminal-issue',
+          title: 'Fix with context',
+          issueId: issueId ?? 'fix-with-context',
+          command: terminal.getState().status.lastCommand ?? undefined,
+          fullText: result.text.slice(0, 8192),
+          verifyCommand,
+          verifyStatus: verifyCommand ? 'awaiting' : undefined
+        })
+      )
+    }
+    return { ...result, copied }
+  })
+  handle(CH.terminalDismissIssue, (p) => {
+    const { fingerprint } = p as { fingerprint: string }
+    terminal.dismissIssue(fingerprint)
+    return { ok: true }
+  })
 
   // Built-in interactive shell (expandable bottom terminal)
   handle(CH.shellStart, (p) => {
@@ -387,12 +494,14 @@ export function registerIpc(deps: IpcDeps): void {
   // opens the terminal and presents the full banner. Both carry copy-to-LLM context.
   handle(CH.auditRun, async (): Promise<AuditReport> => {
     const report = await audit.run()
+    void flightRecorder.recordAudit(report)
     const mirrored = terminal.mirrorAuditIfOpen(report)
     return { ...report, mirroredToTerminal: mirrored }
   })
   handle(CH.auditScan, async () => {
     await terminal.beginAudit()
     const report = await audit.run()
+    void flightRecorder.recordAudit(report)
     terminal.presentAudit(report)
     return { visible: true, findings: report.findings.length, noProject: report.noProject }
   })
@@ -401,6 +510,7 @@ export function registerIpc(deps: IpcDeps): void {
   handle(CH.auditRunInTerminal, async (p) => {
     const quiet = Boolean((p as { quiet?: boolean } | undefined)?.quiet)
     const report = await audit.run()
+    void flightRecorder.recordAudit(report)
     terminal.presentAudit(report, { quiet })
     return { findings: report.findings.length, noProject: report.noProject }
   })
@@ -426,12 +536,8 @@ export function registerIpc(deps: IpcDeps): void {
     const { dataUrl, fileName } = p as { dataUrl: string; fileName?: string }
     const result = await snip.save(dataUrl, fileName)
     if (result.ok && result.prompt) {
-      try {
-        clipboard.writeText(result.prompt)
-        return { ...result, copied: true }
-      } catch {
-        return { ...result, copied: false }
-      }
+      const copied = writeClipboard(result.prompt)
+      return { ...result, copied }
     }
     return result
   })
@@ -479,25 +585,75 @@ export function registerIpc(deps: IpcDeps): void {
     return state
   }
   handle(CH.sessionGetState, () => session.getState())
-  handle(CH.sessionAppend, async (p) =>
-    broadcastSession(await session.append(p as SessionAppendInput))
+  handle(CH.sessionAppend, async (p) => {
+    const input = p as SessionAppendInput
+    const verifyCmd = await verifyLoop.suggestForAppend(input)
+    const enriched = verifyLoop.enrichAppendInput(input, verifyCmd)
+    return broadcastSession(await session.append(enriched))
+  })
+  handle(CH.sessionSetIntent, async (p) =>
+    broadcastSession(
+      await session.setIntent({
+        goal: (p as IntentContract).goal,
+        constraints: (p as IntentContract).constraints ?? [],
+        filesInScope: (p as IntentContract).filesInScope ?? [],
+        acceptanceCriteria: (p as IntentContract).acceptanceCriteria ?? [],
+        verifyCommand: (p as IntentContract).verifyCommand ?? null
+      })
+    )
   )
+  handle(CH.sessionClearIntent, async () => broadcastSession(await session.clearIntent()))
+  handle(CH.sessionRerunVerify, async (p) => {
+    const { entryId } = p as { entryId: string }
+    const ext = await session.readExtended()
+    const entry = ext.entries.find((e) => e.id === entryId)
+    const command = entry?.verifyCommand?.trim()
+    if (!command) return { accepted: false, reason: 'No verify command on this entry.' }
+    verifyLoop.markPending(entryId, command)
+    terminal.show()
+    return terminal.run(command)
+  })
   handle(CH.sessionTogglePin, async (p) =>
     broadcastSession(await session.togglePin((p as { id: string }).id))
   )
   handle(CH.sessionClear, async () => broadcastSession(await session.clear()))
   handle(CH.sessionCopyHandoff, async (p) => {
-    const includeGitDiff = (p as { includeGitDiff?: boolean } | undefined)?.includeGitDiff ?? true
-    return session.buildHandoffPrompt(includeGitDiff)
+    const payload = p as { includeGitDiff?: boolean; pinRecentIfEmpty?: number } | undefined
+    const includeGitDiff = payload?.includeGitDiff ?? true
+    const pinRecent = payload?.pinRecentIfEmpty
+    if (pinRecent && pinRecent > 0) {
+      await broadcastSession(await session.pinRecentIfNonePinned(pinRecent))
+    }
+    const result = await session.buildHandoffPrompt(includeGitDiff)
+    if (result.copied) trackClipboardCopy(true)
+    return result
   })
   handle(CH.sessionCopyFixPrompts, () => session.buildFixPromptsBundle())
 
   // GitHub Desktop + live change tracking
   handle(CH.githubOpen, () => github.open(projects.getProfile()?.rootPath ?? null))
+  handle(CH.githubGetDesktopPath, () => ({ path: store.getGitHubDesktopPath() }))
+  handle(CH.githubSetDesktopPath, (p) => {
+    const path = (p as { path: string }).path
+    store.setGitHubDesktopPath(path)
+    return { path: store.getGitHubDesktopPath() }
+  })
+  handle(CH.githubLocateDesktop, async () => {
+    const result = await dialog.showOpenDialog({
+      title: 'Locate GitHub Desktop',
+      properties: ['openFile'],
+      filters: process.platform === 'win32' ? [{ name: 'Executable', extensions: ['exe'] }] : undefined
+    })
+    if (!result.canceled && result.filePaths[0]) {
+      store.setGitHubDesktopPath(result.filePaths[0])
+    }
+    return { path: store.getGitHubDesktopPath() }
+  })
   handle(CH.gitStatus, () => gitStatus.getStatus())
   handle(CH.gitCopyDiffPrompt, async () => {
     const result = await gitDiff.copyDiffPrompt()
     if (result.copied) {
+      trackClipboardCopy(true)
       await broadcastSession(
         await session.append({
           type: 'git-diff',
@@ -509,6 +665,25 @@ export function registerIpc(deps: IpcDeps): void {
     return result
   })
   handle(CH.gitChangedFiles, () => gitDiff.changedFiles())
+
+  // Ready Check — read-only pre-commit trust gate
+  handle(CH.readyCheckGet, () => readyCheck.evaluate())
+  handle(CH.readyCheckCopyReviewPrompt, async () => {
+    const result = await readyCheck.copyReviewPrompt()
+    if (result.copied && result.text) {
+      trackClipboardCopy(true)
+      await broadcastSession(
+        await session.append({
+          type: 'note',
+          title: 'Ready Check review prompt',
+          noteId: 'ready-check-review',
+          text: 'Copied Ready Check review prompt',
+          fullText: result.text
+        })
+      )
+    }
+    return result
+  })
 
   // In-app error console — a renderer reports an already-redacted error (validated above); main is
   // a pure local forwarder that surfaces the always-on-top console window. Nothing leaves the app.
@@ -533,9 +708,19 @@ export function registerIpc(deps: IpcDeps): void {
     return apps
   }
   handle(CH.quickLaunchList, () => quickLaunch.list())
-  handle(CH.quickLaunchRun, (p) =>
-    quickLaunch.launch((p as { id: string }).id, projects.getProfile()?.rootPath ?? null)
-  )
+  handle(CH.quickLaunchRun, async (p) => {
+    const { id, pasteAfterOpen, fromCopyToast } = p as {
+      id: string
+      pasteAfterOpen?: boolean
+      fromCopyToast?: boolean
+    }
+    const settings = store.getSettings()
+    const wantsPaste = Boolean(pasteAfterOpen || fromCopyToast) && settings.pasteAfterOpenCursor
+    return quickLaunch.launch(id, projects.getProfile()?.rootPath ?? null, {
+      pasteAfterOpen: wantsPaste,
+      fromCopyToast: Boolean(fromCopyToast)
+    })
+  })
   handle(CH.quickLaunchAdd, async () => broadcastQuickLaunch(await quickLaunch.add()))
   handle(CH.quickLaunchRemove, (p) =>
     broadcastQuickLaunch(quickLaunch.remove((p as { id: string }).id))
@@ -548,14 +733,33 @@ export function registerIpc(deps: IpcDeps): void {
     return broadcastQuickLaunch(quickLaunch.setVisible(id, visible))
   })
 
+  handle(CH.mcpGetStatus, () => mcp.getStatus())
+
   // Lifecycle — the overlay has no taskbar entry, so the renderer needs an explicit quit. The
   // power button opens a centered confirmation popup; its Yes reuses appQuit, its No cancels.
   handle(CH.appGetOnboardingState, () =>
-    computeOnboardingState(Boolean(projects.getProfile()), store.isOnboardingComplete())
+    computeOnboardingState(
+      Boolean(projects.getProfile()),
+      store.isOnboardingComplete(),
+      store.isOnboardingReplayRequested()
+    )
   )
   handle(CH.appCompleteOnboarding, () => {
     store.setOnboardingComplete(true)
-    return computeOnboardingState(Boolean(projects.getProfile()), true)
+    store.setOnboardingReplayRequested(false)
+    return computeOnboardingState(
+      Boolean(projects.getProfile()),
+      true,
+      false
+    )
+  })
+  handle(CH.appShowOnboardingAgain, () => {
+    store.setOnboardingReplayRequested(true)
+    return computeOnboardingState(
+      Boolean(projects.getProfile()),
+      store.isOnboardingComplete(),
+      true
+    )
   })
   handle(CH.appQuit, () => {
     app.quit()

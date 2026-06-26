@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { SettingsState } from '@shared/api.js'
-import type { DockSide, QuickLaunchApp } from '@shared/types.js'
+import type { DockSide, McpServerStatus, QuickLaunchApp } from '@shared/types.js'
 import { Icon } from '../../shared/icons'
 import { DetachButton, PanelHeader, Toggle } from '../../shared/ui'
 
@@ -12,11 +12,13 @@ const DOCKS: { id: DockSide; label: string }[] = [
 
 export function SettingsPanel({
   onClose,
+  onShowOnboardingAgain,
   solid,
   onToggleSolid,
   onDetach
 }: {
   onClose: () => void
+  onShowOnboardingAgain?: () => void
   solid?: boolean
   onToggleSolid?: () => void
   /** When provided, shows a Detach button that pops the panel out into a floating window. */
@@ -24,16 +26,40 @@ export function SettingsPanel({
 }): JSX.Element {
   const [state, setState] = useState<SettingsState | null>(null)
   const [quickLaunch, setQuickLaunch] = useState<QuickLaunchApp[]>([])
+  const [githubDesktopPath, setGithubDesktopPath] = useState('')
+  const [mcpStatus, setMcpStatus] = useState<McpServerStatus | null>(null)
+  const [snippetCopied, setSnippetCopied] = useState(false)
 
   useEffect(() => {
-    void window.vibebar.settings.get().then(setState)
+    void window.vibebar.settings.get().then((s) => {
+      setState(s)
+      setGithubDesktopPath(s.githubDesktopPath ?? '')
+      setMcpStatus(s.mcpStatus)
+    })
     void window.vibebar.quickLaunch.list().then(setQuickLaunch)
-    // Keep this panel in sync when the list changes from the toolbar or another window.
-    return window.vibebar.quickLaunch.onChanged(setQuickLaunch)
+    const offQuickLaunch = window.vibebar.quickLaunch.onChanged(setQuickLaunch)
+    const offMcp = window.vibebar.mcp.onChanged(setMcpStatus)
+    return () => {
+      offQuickLaunch()
+      offMcp()
+    }
   }, [])
 
   async function save(partial: Parameters<typeof window.vibebar.settings.save>[0]): Promise<void> {
-    setState(await window.vibebar.settings.save(partial))
+    const next = await window.vibebar.settings.save(partial)
+    setState(next)
+    if (next.mcpStatus) setMcpStatus(next.mcpStatus)
+  }
+
+  async function copyMcpSnippet(): Promise<void> {
+    const snippet = mcpStatus?.connectionSnippet ?? (await window.vibebar.mcp.getStatus()).connectionSnippet
+    try {
+      await navigator.clipboard.writeText(snippet)
+      setSnippetCopied(true)
+      setTimeout(() => setSnippetCopied(false), 2000)
+    } catch {
+      setSnippetCopied(false)
+    }
   }
 
   function toggleDisplay(id: string): void {
@@ -274,9 +300,107 @@ export function SettingsPanel({
             />
           </div>
           <p className="text-[11px] leading-relaxed text-vibe-muted">
-            Ctrl+Shift+P command palette · Ctrl+Shift+H hide/show toolbar · Ctrl+Shift+T Smart
+            Ctrl+Alt+Shift+P command palette · Ctrl+Shift+H hide/show toolbar · Ctrl+Shift+T Smart
             Terminal
           </p>
+          <button
+            type="button"
+            onClick={() => onShowOnboardingAgain?.()}
+            className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-vibe-border bg-white/[0.03] px-3 py-2 text-xs font-medium text-vibe-text hover:bg-white/10"
+          >
+            <Icon name="Sparkles" size={14} />
+            Show onboarding again
+          </button>
+        </section>
+
+        <section className="space-y-3">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-vibe-muted">
+            Cursor Agent
+          </h3>
+          <p className="text-xs text-vibe-muted">
+            Optional integrations for Cursor power users. MCP exposes read-only VibeBar state on
+            localhost only — no API keys, no chat UI.
+          </p>
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-vibe-text">Enable MCP server for Cursor</span>
+            <Toggle
+              checked={settings.mcpServerEnabled ?? false}
+              onChange={(next) => void save({ mcpServerEnabled: next })}
+            />
+          </div>
+          <div className="rounded-lg border border-vibe-border bg-white/[0.03] px-3 py-2 text-xs text-vibe-muted">
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <span>
+                Status:{' '}
+                <span className={mcpStatus?.running ? 'text-emerald-400' : 'text-vibe-text'}>
+                  {mcpStatus?.running ? 'Running' : 'Stopped'}
+                </span>
+                {mcpStatus?.enabled ? '' : ' (disabled)'}
+              </span>
+              <span>
+                {mcpStatus?.host ?? '127.0.0.1'}:{mcpStatus?.port ?? 17342}
+              </span>
+            </div>
+            {mcpStatus?.error && (
+              <p className="mb-2 text-amber-400">Error: {mcpStatus.error}</p>
+            )}
+            <pre className="vibe-scroll max-h-32 overflow-auto whitespace-pre-wrap rounded bg-black/30 p-2 font-mono text-[10px] text-vibe-text">
+              {mcpStatus?.connectionSnippet ?? '{\n  "mcpServers": {}\n}'}
+            </pre>
+            <button
+              type="button"
+              onClick={() => void copyMcpSnippet()}
+              className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-md border border-vibe-border py-1.5 text-[11px] text-vibe-text hover:bg-white/10"
+            >
+              <Icon name={snippetCopied ? 'Check' : 'Copy'} size={13} />
+              {snippetCopied ? 'Copied' : 'Copy mcp.json snippet'}
+            </button>
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-sm text-vibe-text">Paste clipboard after opening Cursor</span>
+              <p className="text-[11px] text-vibe-muted">
+                Opt-in one-shot paste when you tap Open Cursor or Quick Launch after a recent copy.
+              </p>
+            </div>
+            <Toggle
+              checked={settings.pasteAfterOpenCursor ?? false}
+              onChange={(next) => void save({ pasteAfterOpenCursor: next })}
+            />
+          </div>
+        </section>
+
+        <section>
+          <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-vibe-muted">
+            GitHub Desktop
+          </h3>
+          <p className="mb-2 text-xs text-vibe-muted">
+            Optional path override when auto-detection fails. Leave empty to auto-detect.
+          </p>
+          <div className="flex items-center gap-2 rounded-lg border border-vibe-border bg-white/[0.03] px-2.5 py-2">
+            <Icon name="Github" size={16} className="shrink-0 text-vibe-muted" />
+            <input
+              value={githubDesktopPath}
+              onChange={(e) => setGithubDesktopPath(e.target.value)}
+              onBlur={() =>
+                void window.vibebar.github.setDesktopPath(githubDesktopPath).then((r) => {
+                  setGithubDesktopPath(r.path)
+                })
+              }
+              placeholder="Auto-detect GitHub Desktop…"
+              className="min-w-0 flex-1 bg-transparent text-sm text-vibe-text outline-none placeholder:text-vibe-muted"
+            />
+            <button
+              type="button"
+              title="Locate GitHub Desktop executable"
+              onClick={() =>
+                void window.vibebar.github.locateDesktop().then((r) => setGithubDesktopPath(r.path))
+              }
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-vibe-border text-vibe-muted hover:border-white/20 hover:text-vibe-text"
+            >
+              <Icon name="FolderOpen" size={13} />
+            </button>
+          </div>
         </section>
 
         <section>

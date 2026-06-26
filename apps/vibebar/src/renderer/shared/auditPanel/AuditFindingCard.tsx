@@ -38,6 +38,16 @@ export function AuditFindingCard({
             fixExcerpt: finding.fixPrompt.slice(0, 400),
             fullText: finding.fixPrompt
           })
+        } else {
+          void window.vibebar.session.append({
+            type: 'audit-finding',
+            title: `${finding.title} (behavioral test)`,
+            fingerprint: `${finding.fingerprint}:test`,
+            severity: finding.severity,
+            file: finding.file ? `${finding.file}${finding.line ? `:${finding.line}` : ''}` : undefined,
+            fixExcerpt: finding.testPrompt.slice(0, 400),
+            fullText: finding.testPrompt
+          })
         }
         setCopied(which)
         window.setTimeout(() => setCopied(null), 1600)

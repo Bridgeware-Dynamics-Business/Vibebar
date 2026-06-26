@@ -22,6 +22,7 @@ import { PromptLibraryPanel } from './panels/PromptLibraryPanel'
 import { SessionHubPanel } from './panels/SessionHubPanel'
 import { SecurityAuditPanel } from './panels/SecurityAuditPanel'
 import { SettingsPanel } from './panels/SettingsPanel'
+import { ReadyCheckPanel } from './panels/ReadyCheckPanel'
 
 const DEFAULT_LAYOUT: OverlayLayout = { dock: 'left', orientation: 'vertical' }
 
@@ -32,6 +33,7 @@ export function App(): JSX.Element {
   const [gitStatus, setGitStatus] = useState<GitStatus | null>(null)
   const [quickLaunchApps, setQuickLaunchApps] = useState<QuickLaunchApp[]>([])
   const [sessionPinCount, setSessionPinCount] = useState(0)
+  const [intentEditorOpen, setIntentEditorOpen] = useState(false)
   const [activePanel, setActivePanel] = useState<ToolId | null>(null)
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
@@ -47,7 +49,7 @@ export function App(): JSX.Element {
     fallback,
     closeFallback
   } = useCopyHandoff()
-  const { onboarding, dismiss: dismissOnboarding, refresh: refreshOnboarding } = useOnboarding()
+  const { onboarding, dismiss: dismissOnboarding, refresh: refreshOnboarding, replay: replayOnboarding } = useOnboarding()
 
   const closeCommandPalette = useCallback(() => {
     setCommandPaletteOpen(false)
@@ -166,11 +168,29 @@ export function App(): JSX.Element {
 
   const handleQuickLaunch = useCallback(
     async (id: string) => {
-      const result = await window.vibebar.quickLaunch.run(id)
-      if (!result.ok && result.error) showNotice(result.error)
+      const result = await window.vibebar.quickLaunch.run(id, {
+        pasteAfterOpen: id === 'cursor'
+      })
+      if (!result.ok && result.error) {
+        showNotice(result.error)
+        return
+      }
+      if (result.pasteNotice) showNotice(result.pasteNotice)
     },
     [showNotice]
   )
+
+  const handleOpenCursorFromCopy = useCallback(async () => {
+    const result = await window.vibebar.quickLaunch.run('cursor', {
+      pasteAfterOpen: true,
+      fromCopyToast: true
+    })
+    if (!result.ok && result.error) {
+      showNotice(result.error)
+      return
+    }
+    if (result.pasteNotice) showNotice(result.pasteNotice)
+  }, [showNotice])
 
   const handleCopyGitDiff = useCallback(async () => {
     const result = await window.vibebar.git.copyDiffPrompt()
@@ -185,6 +205,17 @@ export function App(): JSX.Element {
     if (result.noChanges) {
       showNotice('No changes to copy.')
       return
+    }
+    if (result.gitError && !result.copied) {
+      showNotice(`Git error: ${result.gitError}`)
+      return
+    }
+    if (result.untrackedOnly && result.untrackedCount) {
+      showNotice(
+        `${result.untrackedCount} untracked file(s) — diff copied with file list. Use Pack changed for full contents.`
+      )
+    } else if (result.gitError) {
+      showNotice(`Git warning: ${result.gitError}`)
     }
     onCopyOutcome(result.copied, result.text, result.findings.length)
   }, [onCopyOutcome, showNotice])
@@ -204,15 +235,18 @@ export function App(): JSX.Element {
   }, [onCopyOutcome, showNotice])
 
   const handleCopySessionHandoff = useCallback(async () => {
-    const result = await window.vibebar.session.copyHandoff(true)
-    if (result.noProject) {
+    const state = await window.vibebar.session.getState()
+    if (state.noProject) {
       showNotice('Select a project first.')
       return
     }
-    if (result.pinnedCount === 0) {
-      showNotice('Pin items in Session Hub first.')
+    if (state.entries.length === 0) {
+      showNotice('Copy a prompt or diff first — Session Hub tracks clipboard exports.')
       return
     }
+    const pinRecent =
+      state.pinnedCount === 0 && state.entries.length > 0 ? 3 : undefined
+    const result = await window.vibebar.session.copyHandoff(true, pinRecent)
     onCopyOutcome(result.copied, result.text, result.findings.length)
   }, [onCopyOutcome, showNotice])
 
@@ -254,6 +288,12 @@ export function App(): JSX.Element {
     [activePanel, closePanel, showNotice]
   )
 
+  const handleSetCurrentTask = useCallback(() => {
+    setIntentEditorOpen(true)
+    setActivePanel('session-hub')
+    void window.vibebar.overlay.setPanel(true, 'session-hub')
+  }, [])
+
   const paletteActions = useMemo(
     () =>
       buildPaletteActions({
@@ -265,6 +305,7 @@ export function App(): JSX.Element {
         onViewAiDocs: () => handleTool('session-hub'),
         onAuditConfig: () => handleTool('security-audit'),
         onSnip: () => handleTool('snip'),
+        onSetCurrentTask: handleSetCurrentTask,
         recents: recentProjects,
         onOpenRecent: (path) => void handleOpenRecent(path)
       }),
@@ -274,6 +315,7 @@ export function App(): JSX.Element {
       handleCopyGitDiff,
       handlePackChanged,
       handleCopySessionHandoff,
+      handleSetCurrentTask,
       recentProjects,
       handleOpenRecent
     ]
@@ -325,6 +367,19 @@ export function App(): JSX.Element {
             onDetach={() => detachPanel('context-packer')}
           />
         )
+      case 'ready-check':
+        return (
+          <ReadyCheckPanel
+            onClose={closePanel}
+            onCopyOutcome={onCopyOutcome}
+            onOpenAudit={() => handleTool('security-audit')}
+            onOpenTerminal={() => handleTool('terminal')}
+            onCopyGitDiff={() => void handleCopyGitDiff()}
+            solid={solid}
+            onToggleSolid={toggleSolid}
+            onDetach={() => detachPanel('ready-check')}
+          />
+        )
       case 'security-audit':
         return (
           <SecurityAuditPanel
@@ -346,6 +401,8 @@ export function App(): JSX.Element {
             onCopyGitDiff={() => void handleCopyGitDiff()}
             onOpenTerminal={() => handleTool('terminal')}
             onOpenPromptLibrary={() => handleTool('prompt-library')}
+            intentEditorOpen={intentEditorOpen}
+            onIntentEditorConsumed={() => setIntentEditorOpen(false)}
             solid={solid}
             onToggleSolid={toggleSolid}
             onDetach={() => detachPanel('session-hub')}
@@ -365,6 +422,7 @@ export function App(): JSX.Element {
         return (
           <SettingsPanel
             onClose={closePanel}
+            onShowOnboardingAgain={replayOnboarding}
             solid={solid}
             onToggleSolid={toggleSolid}
             onDetach={() => detachPanel('settings')}
@@ -415,7 +473,6 @@ export function App(): JSX.Element {
           onOpenContextFolder={() => void handleOpenContextFolder()}
           onTool={handleTool}
           onQuickLaunch={(id) => void handleQuickLaunch(id)}
-          onCopyGitDiff={() => void handleCopyGitDiff()}
           sessionPinCount={sessionPinCount}
           onPower={() => void window.vibebar.app.confirmQuit()}
         />
@@ -457,6 +514,7 @@ export function App(): JSX.Element {
           refreshRecents()
           refreshOnboarding()
         }}
+        onOpenSessionHub={() => handleTool('session-hub')}
         quickLaunchApps={quickLaunchApps}
       />
 
@@ -469,7 +527,7 @@ export function App(): JSX.Element {
       <CopyHandoffToast
         notice={handoffNotice}
         onDismiss={dismissHandoff}
-        onOpenCursor={() => void window.vibebar.quickLaunch.run('cursor')}
+        onOpenCursor={() => void handleOpenCursorFromCopy()}
       />
 
       <AnimatePresence>

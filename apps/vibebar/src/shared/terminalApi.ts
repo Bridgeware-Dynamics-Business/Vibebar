@@ -37,6 +37,10 @@ export interface TerminalBridge {
   resize: (edge: ResizeEdge, dx: number, dy: number) => Promise<{ ok: boolean }>
   /** Write arbitrary text to the system clipboard (used for "copy fix prompt"). */
   copy: (text: string) => Promise<{ copied: boolean }>
+  /** Packages failure + MVC context into one clipboard bundle. */
+  fixWithContext: (issueId?: string) => Promise<{ copied: boolean; text: string; noResult?: boolean }>
+  /** Marks an issue fingerprint dismissed (persists across commands). */
+  dismissIssue: (fingerprint: string) => Promise<{ ok: boolean }>
   /** Runs the full security audit and presents findings in this terminal. */
   runAudit: (quiet: boolean) => Promise<{ findings: number; noProject: boolean }>
   /** Export the latest audit report (requires a prior scan). */

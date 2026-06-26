@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { GitStatus, ProjectAiDocs, ProjectProfile, SessionEntry, SessionState } from '@shared/types.js'
+import type { GitStatus, ProjectAiDocs, ProjectProfile, SessionEntry, SessionState, IntentContract } from '@shared/types.js'
 import { Icon } from '../../shared/icons'
 import { buildNoteBullet, SaveToNotePicker } from '../../shared/saveToNote'
 import { DetachButton, PanelHeader } from '../../shared/ui'
@@ -7,6 +7,7 @@ import {
   buildWhatsNextSuggestions,
   capSessionEntries,
   SESSION_DISPLAY_CAP,
+  SESSION_PIN_RECENT_DEFAULT,
   type WhatsNextSuggestion
 } from './sessionWhatsNext'
 
@@ -35,6 +36,205 @@ const FILTER_CHIPS: { id: FilterChip; label: string }[] = [
   { id: 'terminal-issue', label: 'Terminal' },
   { id: 'git-diff', label: 'Git' }
 ]
+
+const VERIFY_STATUS_LABEL: Record<NonNullable<SessionEntry['verifyStatus']>, string> = {
+  awaiting: 'awaiting verify',
+  verified: 'verified',
+  'still-broken': 'still broken'
+}
+
+function IntentContractStrip({
+  intent,
+  onSaved,
+  initiallyOpen
+}: {
+  intent: IntentContract | null
+  onSaved: () => void
+  initiallyOpen?: boolean
+}): JSX.Element {
+  const [open, setOpen] = useState(Boolean(initiallyOpen))
+  const [editing, setEditing] = useState(Boolean(initiallyOpen) || !intent?.goal)
+  const [goal, setGoal] = useState('')
+  const [constraints, setConstraints] = useState('')
+  const [filesInScope, setFilesInScope] = useState('')
+  const [acceptanceCriteria, setAcceptanceCriteria] = useState('')
+  const [verifyCommand, setVerifyCommand] = useState('')
+
+  useEffect(() => {
+    if (!editing && intent) {
+      setGoal(intent.goal)
+      setConstraints(intent.constraints.join('\n'))
+      setFilesInScope(intent.filesInScope.join('\n'))
+      setAcceptanceCriteria(intent.acceptanceCriteria.join('\n'))
+      setVerifyCommand(intent.verifyCommand ?? '')
+    }
+  }, [intent, editing])
+
+  function startEdit(): void {
+    setGoal(intent?.goal ?? '')
+    setConstraints(intent?.constraints.join('\n') ?? '')
+    setFilesInScope(intent?.filesInScope.join('\n') ?? '')
+    setAcceptanceCriteria(intent?.acceptanceCriteria.join('\n') ?? '')
+    setVerifyCommand(intent?.verifyCommand ?? '')
+    setEditing(true)
+    setOpen(true)
+  }
+
+  async function save(): Promise<void> {
+    const trimmed = goal.trim()
+    if (!trimmed) {
+      await window.vibebar.session.clearIntent()
+    } else {
+      await window.vibebar.session.setIntent({
+        goal: trimmed,
+        constraints: constraints.split('\n').map((s) => s.trim()).filter(Boolean),
+        filesInScope: filesInScope.split('\n').map((s) => s.trim()).filter(Boolean),
+        acceptanceCriteria: acceptanceCriteria.split('\n').map((s) => s.trim()).filter(Boolean),
+        verifyCommand: verifyCommand.trim() || null
+      })
+    }
+    setEditing(false)
+    onSaved()
+  }
+
+  return (
+    <div className="rounded-xl border border-vibe-border bg-white/[0.02]">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-xs"
+      >
+        <Icon name={open ? 'ChevronDown' : 'ChevronRight'} size={14} className="text-vibe-muted" />
+        <Icon name="Target" size={14} className="text-vibe-accent-2" />
+        <span className="font-medium text-vibe-text">Current task</span>
+        <span className="ml-auto truncate text-vibe-muted max-w-[55%]">
+          {intent?.goal ? intent.goal : 'Not set — scope your session'}
+        </span>
+      </button>
+      {open && (
+        <div className="space-y-2 border-t border-vibe-border px-3 py-2.5 text-xs">
+          {!editing && intent?.goal ? (
+            <>
+              <p className="whitespace-pre-wrap text-vibe-text">{intent.goal}</p>
+              {intent.verifyCommand && (
+                <p className="font-mono text-[10px] text-vibe-muted">Verify: {intent.verifyCommand}</p>
+              )}
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={startEdit}
+                  className="rounded-lg bg-white/10 px-2.5 py-1 text-[11px] font-medium text-vibe-text hover:bg-white/15"
+                >
+                  Edit task
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void window.vibebar.session.clearIntent().then(onSaved)}
+                  className="rounded-lg px-2.5 py-1 text-[11px] text-vibe-muted hover:text-vibe-text"
+                >
+                  Clear
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <label className="block text-[10px] font-semibold uppercase tracking-wide text-vibe-muted">
+                Goal
+              </label>
+              <textarea
+                value={goal}
+                onChange={(e) => setGoal(e.target.value)}
+                rows={2}
+                placeholder="What are you trying to ship in this session?"
+                className="w-full rounded-lg border border-vibe-border bg-black/20 px-2 py-1.5 text-xs text-vibe-text"
+              />
+              <label className="block text-[10px] font-semibold uppercase tracking-wide text-vibe-muted">
+                Verify command
+              </label>
+              <input
+                value={verifyCommand}
+                onChange={(e) => setVerifyCommand(e.target.value)}
+                placeholder="npm test"
+                className="w-full rounded-lg border border-vibe-border bg-black/20 px-2 py-1.5 font-mono text-xs text-vibe-text"
+              />
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void save()}
+                  className="rounded-lg bg-vibe-accent px-2.5 py-1 text-[11px] font-medium text-white"
+                >
+                  Save task
+                </button>
+                {intent && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditing(false)
+                      setOpen(false)
+                    }}
+                    className="rounded-lg px-2.5 py-1 text-[11px] text-vibe-muted"
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function FlightLogSection({ state }: { state: SessionState | null }): JSX.Element | null {
+  const [open, setOpen] = useState(false)
+  const flight = state?.flight
+  if (!flight) return null
+
+  return (
+    <div className="rounded-xl border border-vibe-border bg-white/[0.02]">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-xs"
+      >
+        <Icon name={open ? 'ChevronDown' : 'ChevronRight'} size={14} className="text-vibe-muted" />
+        <Icon name="Activity" size={14} className="text-vibe-muted" />
+        <span className="font-medium text-vibe-text">Flight log</span>
+        <span className="ml-auto text-vibe-muted">
+          {flight.recentCommands.length} cmd
+          {flight.lastGreen ? ' · last green' : ''}
+        </span>
+      </button>
+      {open && (
+        <div className="space-y-2 border-t border-vibe-border px-3 py-2.5 text-[11px] text-vibe-muted">
+          {flight.lastGreen && (
+            <p>
+              Last green: <span className="font-mono text-vibe-text">{flight.lastGreen.command}</span>
+              {flight.lastGreen.filesChangedSince.length > 0 &&
+                ` · ${flight.lastGreen.filesChangedSince.length} file(s) changed since`}
+            </p>
+          )}
+          {flight.lastAudit && (
+            <p>
+              Last audit: grade {flight.lastAudit.grade ?? '—'} · {flight.lastAudit.findingCount} finding(s)
+            </p>
+          )}
+          <ul className="space-y-1 font-mono text-[10px]">
+            {flight.recentCommands.slice(0, 6).map((c, i) => (
+              <li key={`${c.timestamp}-${i}`} className="truncate">
+                <span className={c.exitCode === 0 ? 'text-emerald-400/90' : 'text-red-300/90'}>
+                  {c.exitCode ?? '?'}
+                </span>{' '}
+                {c.command}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  )
+}
 
 function isToday(ts: number): boolean {
   const d = new Date(ts)
@@ -71,11 +271,13 @@ function matchesFilter(entry: SessionEntry, filter: FilterChip): boolean {
 function EntryRow({
   entry,
   onTogglePin,
-  onSaveToNote
+  onSaveToNote,
+  onRerunVerify
 }: {
   entry: SessionEntry
   onTogglePin: (id: string) => void
   onSaveToNote: (entry: SessionEntry) => void
+  onRerunVerify?: (entry: SessionEntry) => void
 }): JSX.Element {
   const preview =
     entry.fullText?.slice(0, 120) ??
@@ -94,10 +296,26 @@ function EntryRow({
               pinned
             </span>
           )}
+          {entry.verifyStatus && (
+            <span
+              className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                entry.verifyStatus === 'verified'
+                  ? 'bg-emerald-500/20 text-emerald-300'
+                  : entry.verifyStatus === 'still-broken'
+                    ? 'bg-red-500/20 text-red-300'
+                    : 'bg-amber-500/20 text-amber-200'
+              }`}
+            >
+              {VERIFY_STATUS_LABEL[entry.verifyStatus]}
+            </span>
+          )}
           <span className="text-sm font-medium text-vibe-text">{entry.title}</span>
         </div>
         {entry.type === 'audit-finding' && entry.file && (
           <p className="mt-1 font-mono text-[10px] text-vibe-muted">{entry.file}</p>
+        )}
+        {entry.verifyCommand && (
+          <p className="mt-1 font-mono text-[10px] text-vibe-muted">Verify: {entry.verifyCommand}</p>
         )}
         {preview && (
           <p className="mt-1 line-clamp-2 text-[11px] text-vibe-muted">{preview}</p>
@@ -123,6 +341,16 @@ function EntryRow({
         >
           <Icon name="StickyNote" size={14} />
         </button>
+        {entry.verifyCommand && onRerunVerify && (
+          <button
+            type="button"
+            title="Re-run verify in Smart Terminal"
+            onClick={() => onRerunVerify(entry)}
+            className="rounded-md p-1.5 text-vibe-muted hover:bg-white/10 hover:text-vibe-accent-2"
+          >
+            <Icon name="Play" size={14} />
+          </button>
+        )}
       </div>
     </div>
   )
@@ -189,7 +417,8 @@ function AiDocsSection({ profile }: { profile: ProjectProfile }): JSX.Element {
             </li>
           </ul>
           <p className="text-[10px] leading-relaxed">
-            AGENTS.md excerpt is included in session handoffs. Keep project AI docs current for better Cursor context.
+            AGENTS.md and .cursor/rules excerpts are included in session handoffs. Keep project AI
+            docs current for better Cursor context.
           </p>
           {confirmAppend ? (
             <div className="flex flex-wrap gap-2">
@@ -263,6 +492,8 @@ export function SessionHubPanel({
   onCopyGitDiff,
   onOpenTerminal,
   onOpenPromptLibrary,
+  intentEditorOpen,
+  onIntentEditorConsumed,
   solid,
   onToggleSolid,
   onDetach
@@ -275,6 +506,9 @@ export function SessionHubPanel({
   onCopyGitDiff?: () => void
   onOpenTerminal?: () => void
   onOpenPromptLibrary?: () => void
+  /** Opens the current-task editor when launched from the command palette. */
+  intentEditorOpen?: boolean
+  onIntentEditorConsumed?: () => void
   solid?: boolean
   onToggleSolid?: () => void
   onDetach?: () => void
@@ -302,13 +536,19 @@ export function SessionHubPanel({
   useEffect(() => {
     void refresh()
     void window.vibebar.terminal.getHints().then((h) => setTerminalIssueCount(h.issueCount))
-    const off = window.vibebar.session.onChanged(setState)
+    const off = window.vibebar.session.onChanged((s) => {
+      setState(s)
+    })
     const offProject = window.vibebar.project.onChanged(() => void refresh())
     return () => {
       off()
       offProject()
     }
   }, [refresh])
+
+  useEffect(() => {
+    if (intentEditorOpen) onIntentEditorConsumed?.()
+  }, [intentEditorOpen, onIntentEditorConsumed])
 
   const pinnedCount = state?.pinnedCount ?? 0
   const fixPinCount = useMemo(
@@ -346,7 +586,12 @@ export function SessionHubPanel({
   }, [filteredEntries])
 
   async function copyHandoff(): Promise<void> {
-    const result = await window.vibebar.session.copyHandoff(true)
+    const state = await window.vibebar.session.getState()
+    const pinRecent =
+      state.pinnedCount === 0 && (state.entries?.length ?? 0) > 0
+        ? SESSION_PIN_RECENT_DEFAULT
+        : undefined
+    const result = await window.vibebar.session.copyHandoff(true, pinRecent)
     if (result.noProject) return
     onCopyOutcome(result.copied, result.text, result.findings.length)
   }
@@ -368,6 +613,10 @@ export function SessionHubPanel({
     else if (id === 'open-terminal') onOpenTerminal?.()
     else if (id === 'copy-diff') onCopyGitDiff?.()
     else if (id === 'copy-prompt') onOpenPromptLibrary?.()
+  }
+
+  async function rerunVerify(entry: SessionEntry): Promise<void> {
+    await window.vibebar.session.rerunVerify(entry.id)
   }
 
   return (
@@ -392,11 +641,13 @@ export function SessionHubPanel({
               <button
                 type="button"
                 onClick={() => void copyHandoff()}
-                disabled={pinnedCount === 0}
+                disabled={(state?.entries.length ?? 0) === 0}
                 className="flex items-center gap-1.5 rounded-lg bg-vibe-accent px-3 py-1.5 text-xs font-medium text-white disabled:opacity-40"
               >
                 <Icon name="Copy" size={13} />
-                Copy handoff ({pinnedCount})
+                Copy handoff ({pinnedCount}
+                {pinnedCount === 0 && (state?.entries.length ?? 0) > 0 ? ` · pins last ${SESSION_PIN_RECENT_DEFAULT}` : ''}
+                )
               </button>
               <button
                 type="button"
@@ -465,6 +716,12 @@ export function SessionHubPanel({
           </div>
 
           <div className="vibe-scroll flex-1 space-y-4 overflow-y-auto p-4">
+            <IntentContractStrip
+              intent={state?.intent ?? null}
+              onSaved={() => void refresh()}
+              initiallyOpen={intentEditorOpen}
+            />
+            <FlightLogSection state={state} />
             <AiDocsSection profile={profile} />
 
             {(state?.entries.length ?? 0) === 0 ? (
@@ -492,6 +749,7 @@ export function SessionHubPanel({
                           entry={entry}
                           onTogglePin={(id) => void window.vibebar.session.togglePin(id)}
                           onSaveToNote={setNoteTarget}
+                          onRerunVerify={(e) => void rerunVerify(e)}
                         />
                       ))}
                     </div>
@@ -509,6 +767,7 @@ export function SessionHubPanel({
                           entry={entry}
                           onTogglePin={(id) => void window.vibebar.session.togglePin(id)}
                           onSaveToNote={setNoteTarget}
+                          onRerunVerify={(e) => void rerunVerify(e)}
                         />
                       ))}
                     </div>

@@ -5,7 +5,7 @@ import type { AppStore } from '../settings/store.js'
 
 /** Default global shortcuts — mirrored in Settings copy. */
 export const HOTKEY_TOGGLE_TOOLBAR = 'CommandOrControl+Shift+H'
-export const HOTKEY_COMMAND_PALETTE = 'CommandOrControl+Shift+P'
+export const HOTKEY_COMMAND_PALETTE = 'CommandOrControl+Alt+Shift+P'
 export const HOTKEY_TOGGLE_TERMINAL = 'CommandOrControl+Shift+T'
 
 /**

@@ -12,6 +12,8 @@ import type {
   QuickLaunchApp,
   SessionAppendInput,
   SessionState,
+  IntentContract,
+  McpServerStatus,
   VibeSettings
 } from '@shared/types.js'
 
@@ -104,7 +106,10 @@ const api: VibeBarApi = {
       ipcRenderer.invoke(CH.auditSetRuleDisabled, { ruleId, disabled })
   },
   github: {
-    open: () => ipcRenderer.invoke(CH.githubOpen)
+    open: () => ipcRenderer.invoke(CH.githubOpen),
+    getDesktopPath: () => ipcRenderer.invoke(CH.githubGetDesktopPath),
+    setDesktopPath: (path: string) => ipcRenderer.invoke(CH.githubSetDesktopPath, { path }),
+    locateDesktop: () => ipcRenderer.invoke(CH.githubLocateDesktop)
   },
   snip: {
     start: () => ipcRenderer.invoke(CH.snipStart),
@@ -118,6 +123,10 @@ const api: VibeBarApi = {
     onStatusChanged: (cb: (status: GitStatus) => void) => subscribe(CH.gitStatusChanged, cb),
     copyDiffPrompt: () => ipcRenderer.invoke(CH.gitCopyDiffPrompt),
     changedFiles: () => ipcRenderer.invoke(CH.gitChangedFiles)
+  },
+  readyCheck: {
+    get: () => ipcRenderer.invoke(CH.readyCheckGet),
+    copyReviewPrompt: () => ipcRenderer.invoke(CH.readyCheckCopyReviewPrompt)
   },
   notes: {
     getState: () => ipcRenderer.invoke(CH.notesGetState),
@@ -141,9 +150,13 @@ const api: VibeBarApi = {
     append: (entry: SessionAppendInput) => ipcRenderer.invoke(CH.sessionAppend, entry),
     togglePin: (id: string) => ipcRenderer.invoke(CH.sessionTogglePin, { id }),
     clear: () => ipcRenderer.invoke(CH.sessionClear),
-    copyHandoff: (includeGitDiff?: boolean) =>
-      ipcRenderer.invoke(CH.sessionCopyHandoff, { includeGitDiff }),
+    copyHandoff: (includeGitDiff?: boolean, pinRecentIfEmpty?: number) =>
+      ipcRenderer.invoke(CH.sessionCopyHandoff, { includeGitDiff, pinRecentIfEmpty }),
     copyFixPrompts: () => ipcRenderer.invoke(CH.sessionCopyFixPrompts),
+    setIntent: (intent: Omit<IntentContract, 'updatedAt'>) =>
+      ipcRenderer.invoke(CH.sessionSetIntent, intent),
+    clearIntent: () => ipcRenderer.invoke(CH.sessionClearIntent),
+    rerunVerify: (entryId: string) => ipcRenderer.invoke(CH.sessionRerunVerify, { entryId }),
     onChanged: (cb: (state: SessionState) => void) => subscribe(CH.sessionChanged, cb)
   },
   errors: {
@@ -154,7 +167,8 @@ const api: VibeBarApi = {
   },
   quickLaunch: {
     list: () => ipcRenderer.invoke(CH.quickLaunchList),
-    run: (id: string) => ipcRenderer.invoke(CH.quickLaunchRun, { id }),
+    run: (id: string, options?: { pasteAfterOpen?: boolean; fromCopyToast?: boolean }) =>
+      ipcRenderer.invoke(CH.quickLaunchRun, { id, ...options }),
     add: () => ipcRenderer.invoke(CH.quickLaunchAdd),
     remove: (id: string) => ipcRenderer.invoke(CH.quickLaunchRemove, { id }),
     locate: (id: string) => ipcRenderer.invoke(CH.quickLaunchLocate, { id }),
@@ -162,10 +176,15 @@ const api: VibeBarApi = {
       ipcRenderer.invoke(CH.quickLaunchSetVisible, { id, visible }),
     onChanged: (cb: (apps: QuickLaunchApp[]) => void) => subscribe(CH.quickLaunchChanged, cb)
   },
+  mcp: {
+    getStatus: () => ipcRenderer.invoke(CH.mcpGetStatus),
+    onChanged: (cb: (status: McpServerStatus) => void) => subscribe(CH.mcpChanged, cb)
+  },
   app: {
     quit: () => ipcRenderer.invoke(CH.appQuit),
     getOnboardingState: () => ipcRenderer.invoke(CH.appGetOnboardingState),
     completeOnboarding: () => ipcRenderer.invoke(CH.appCompleteOnboarding),
+    showOnboardingAgain: () => ipcRenderer.invoke(CH.appShowOnboardingAgain),
     confirmQuit: () => ipcRenderer.invoke(CH.appConfirmQuit),
     cancelQuit: () => ipcRenderer.invoke(CH.appCancelQuit)
   }

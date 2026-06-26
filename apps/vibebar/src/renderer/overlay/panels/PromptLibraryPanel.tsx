@@ -1,6 +1,8 @@
 import { filterTemplates, PROMPT_CATEGORIES } from '@vibebar/prompt-engine'
 import { useEffect, useMemo, useState } from 'react'
-import type { ProjectProfile, PromptListResult, PromptTemplate, HistoryEntry } from '@shared/types.js'
+import { buildContextHealthWarnings } from '@shared/contextHealth.js'
+import type { ProjectAiDocs, ProjectProfile, PromptListResult, PromptTemplate, HistoryEntry } from '@shared/types.js'
+import { ContextHealthBanners } from '../../shared/ContextHealthBanners'
 import { Icon } from '../../shared/icons'
 import { Chip, DetachButton, PanelHeader, Toggle } from '../../shared/ui'
 import { PromptCard } from './PromptCard'
@@ -37,6 +39,19 @@ export function PromptLibraryPanel({
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState<string>('All')
   const [draft, setDraft] = useState<PromptTemplate | null>(null)
+  const [draftMode, setDraftMode] = useState<'new' | 'edit'>('new')
+  const [aiDocs, setAiDocs] = useState<ProjectAiDocs | null>(null)
+
+  const libraryHealthWarnings = useMemo(
+    () =>
+      buildContextHealthWarnings({
+        profile,
+        agentsMd: aiDocs && !aiDocs.noProject ? aiDocs.agentsMd : undefined
+      }).filter((w) =>
+        (['stack-unknown', 'subfolder-not-root', 'no-agents-md'] as const).includes(w.id)
+      ),
+    [profile, aiDocs]
+  )
 
   async function reload(): Promise<void> {
     setData(await window.vibebar.prompts.list())
@@ -45,6 +60,11 @@ export function PromptLibraryPanel({
 
   useEffect(() => {
     void reload()
+  }, [profile?.rootPath])
+
+  useEffect(() => {
+    if (profile?.rootPath) void window.vibebar.project.getAiDocs().then(setAiDocs)
+    else setAiDocs(null)
   }, [profile?.rootPath])
 
   const filtered = useMemo(() => {
@@ -73,10 +93,16 @@ export function PromptLibraryPanel({
 
   async function startNew(): Promise<void> {
     const seedCategory = category === 'All' ? 'Security' : category
+    setDraftMode('new')
     setDraft(await window.vibebar.prompts.newDraft(seedCategory as never))
   }
 
-  async function saveNew(template: PromptTemplate): Promise<void> {
+  function startEdit(template: PromptTemplate): void {
+    setDraftMode('edit')
+    setDraft({ ...template })
+  }
+
+  async function saveDraft(template: PromptTemplate): Promise<void> {
     setData(await window.vibebar.prompts.create(template))
     setDraft(null)
   }
@@ -85,12 +111,17 @@ export function PromptLibraryPanel({
     return (
       <div className="flex h-full flex-col">
         <PanelHeader
-          title="New prompt"
+          title={draftMode === 'edit' ? 'Edit prompt' : 'New prompt'}
           onClose={() => setDraft(null)}
           solid={solid}
           onToggleSolid={onToggleSolid}
         />
-        <PromptEditor draft={draft} onSave={saveNew} onCancel={() => setDraft(null)} />
+        <PromptEditor
+          draft={draft}
+          mode={draftMode}
+          onSave={(t) => void saveDraft(t)}
+          onCancel={() => setDraft(null)}
+        />
       </div>
     )
   }
@@ -120,6 +151,8 @@ export function PromptLibraryPanel({
             {stackSummary(profile)}
           </span>
         </div>
+
+        <ContextHealthBanners warnings={libraryHealthWarnings} className="mt-3" />
 
         <div className="mt-3 flex items-center gap-2">
           <div className="flex flex-1 items-center gap-2 rounded-lg border border-vibe-border bg-black/30 px-2.5">
@@ -187,6 +220,7 @@ export function PromptLibraryPanel({
             prompt={prompt}
             onCopy={(id) => void handleCopy(id)}
             onToggleFavorite={(id) => void handleToggleFavorite(id)}
+            onEdit={startEdit}
             onDelete={(id) => void handleDelete(id)}
           />
         ))}

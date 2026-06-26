@@ -25,9 +25,45 @@ Browsing panels alone does not add entries. **Copy** actions do.
 
 Entries group under **Today** and **Earlier**. The footer shows up to two **What's next?** suggestions based on local heuristics (no LLM).
 
+## Flight log (Phase 4)
+
+Session Hub records **outcomes**, not just copies:
+
+| Recorded | When |
+|----------|------|
+| Terminal commands + exit codes | Smart Terminal command completes |
+| Test/verify runs | Commands matching `npm test`, `vitest`, `tsc`, etc. |
+| Audit runs + grade | Security Audit completes |
+| Changed-file snapshots | After commands and audits |
+| **Last green** | Last passing verify/test command + files changed since |
+
+Open the collapsible **Flight log** section to see recent commands and last-green summary. Handoffs include a **Last green verify** excerpt when available.
+
+## Current task (Intent Contract)
+
+Set a lightweight **current task** so handoffs, Fix With Context bundles, and Ready Check review prompts stay scoped:
+
+- Collapsible **Current task** strip in Session Hub
+- Command palette → **Set current task**
+- Stored in `.vibebar/session.json` alongside timeline entries
+
+Fields: goal, optional verify command, constraints, files in scope, acceptance criteria. When set, exports prepend `## Current task`.
+
+## Verify loop (minimal v1)
+
+When you copy a **fix prompt** or **Fix with context**, VibeBar can attach a suggested verify command (from project scripts or your current task).
+
+| Feature | Behavior |
+|---------|----------|
+| Auto-attach | Fix copies get `verifyCommand` when a test/lint script is detected |
+| Pin status | `awaiting verify` → `verified` or `still broken` after re-run |
+| Re-run | Play button on Session Hub entries runs verify in Smart Terminal |
+
+Compares exit code on re-run; updates the timeline entry badge automatically.
+
 ## Pinning
 
-Pin items you want in a handoff. Unpin when they are done so bundles stay focused.
+Pin items you want in a handoff. If none are pinned, **Copy handoff** automatically pins your last few clipboard exports first.
 
 The sparkles badge on the toolbar shows **pinned count only**, not total timeline size.
 

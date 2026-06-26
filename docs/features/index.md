@@ -5,7 +5,7 @@ VibeBar is a floating toolbar plus a set of panels and windows. This page is the
 ## Toolbar layout
 
 ```
-[Project] [AI Context] | [Library] [Terminal] [Audit] [Session] [Sync] [Packer] [Notes] [Snip] | [GitHub] [Quick Launch…] [Settings] [Power]
+[Project] [AI Context] | [Library] [Terminal] [Audit] [Session] [Sync] [Packer] [Ready Check] [Notes] [Snip] | [GitHub] [Quick Launch…] [Settings] [Power]
 ```
 
 ## Controls (left side)
@@ -25,6 +25,7 @@ VibeBar is a floating toolbar plus a set of panels and windows. This page is the
 | **Session Hub** | Panel | Session timeline, pins, handoffs, AI docs section. |
 | **Code Sync** | Window | Mirror folders into your AI context directory. |
 | **Context Packer** | Panel | Pack selected or changed files to the clipboard. |
+| **Ready Check** | Panel | Pre-commit trust gate — git, audit, terminal, secrets, project signals. |
 | **Notes** | Panel | Markdown notes with task lists under `Notes/`. |
 | **Snip to AI Context** | Action | Screen capture saved as PNG plus a vision prompt. |
 
@@ -32,7 +33,7 @@ VibeBar is a floating toolbar plus a set of panels and windows. This page is the
 
 ### Detachable panels
 
-Prompt Library, Security Audit, Session Hub, Context Packer, Notes, and Settings can pop out into always-on-top floating windows via the detach button in each panel header.
+Prompt Library, Security Audit, Session Hub, Context Packer, Ready Check, Notes, and Settings can pop out into always-on-top floating windows via the detach button in each panel header.
 
 Smart Terminal and Code Sync are always separate windows.
 
@@ -40,9 +41,9 @@ Smart Terminal and Code Sync are always separate windows.
 
 | Control | What it does |
 |---------|----------------|
-| **Open in GitHub Desktop** | Opens the repo. Badge shows change count. **Right-click** when dirty to copy a git diff prompt. |
+| **Open in GitHub Desktop** | Opens the repo. Badge shows change count. **Click** when dirty for git actions (copy diff, pack changed). |
 | **Quick Launch** | Built-in **Cursor** and **Codex** launchers, plus any apps you add in Settings. Opens on the current project path. |
-| **Settings** | Dock, monitors, behavior, Quick Launch, quit. |
+| **Settings** | Dock, monitors, behavior, Quick Launch, Cursor Agent (MCP + paste bridge), quit. |
 | **Power** | Quit confirmation (Settings → Quit closes immediately). |
 
 The Session Hub toolbar button shows a badge with your **pinned count**, not total timeline entries.
@@ -69,7 +70,7 @@ Project detection runs quietly when you switch folders. It feeds the Prompt Libr
 | Shortcut | Action |
 |----------|--------|
 | `Ctrl+Shift+H` | Hide or show toolbar |
-| `Ctrl+Shift+P` | Command palette |
+| `Ctrl+Alt+Shift+P` | Command palette |
 | `Ctrl+Shift+T` | Toggle Smart Terminal |
 
 Toggle hotkeys in **Settings → Behavior**. They cannot be remapped in the app today. See [Keyboard shortcuts](/reference/hotkeys).
@@ -82,7 +83,10 @@ Toggle hotkeys in **Settings → Behavior**. They cannot be remapped in the app 
 | [Security Audit](./security-audit) | Scanning, baselines, export |
 | [Session Hub](./session-hub) | Pins, handoffs, AI docs |
 | [Context Packer](./context-packer) | File bundles and presets |
+| [Ready Check](./ready-check) | Pre-commit trust gate |
 | [Smart Terminal](./smart-terminal) | Commands, failures, audit dock |
+| [Fix With Context](./fix-with-context) | One-click failure + MVC context bundle |
+| [MCP server](./mcp-server) | Cursor Agent reads VibeBar state (localhost) |
 | [Notes](./notes) | Project markdown notes |
 | [Code Sync](./code-sync) | Folder mirroring |
 | [Snip to AI Context](./snip-to-ai-context) | Screenshots |

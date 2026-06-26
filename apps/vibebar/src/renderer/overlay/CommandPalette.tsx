@@ -176,6 +176,7 @@ export function buildPaletteActions(handlers: {
   onViewAiDocs: () => void
   onAuditConfig: () => void
   onSnip: () => void
+  onSetCurrentTask?: () => void
   recents?: RecentProject[]
   onOpenRecent?: (path: string) => void
 }): CommandPaletteAction[] {
@@ -195,6 +196,13 @@ export function buildPaletteActions(handlers: {
       keywords: 'switch project folder browse recent workspace',
       icon: 'FolderOpen',
       run: handlers.onSelectProject
+    },
+    {
+      id: 'set-current-task',
+      label: 'Set current task',
+      keywords: 'intent task goal scope acceptance verify session brief',
+      icon: 'Target',
+      run: () => handlers.onSetCurrentTask?.()
     },
     {
       id: 'session-hub',
@@ -230,6 +238,13 @@ export function buildPaletteActions(handlers: {
       keywords: 'scan security audit check',
       icon: 'ScanSearch',
       run: () => handlers.onTool('security-audit')
+    },
+    {
+      id: 'ready-check',
+      label: 'Open Ready Check',
+      keywords: 'ready check commit pre-commit trust gate review blocked',
+      icon: 'ShieldCheck',
+      run: () => handlers.onTool('ready-check')
     },
     {
       id: 'terminal',

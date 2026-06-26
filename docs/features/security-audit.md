@@ -34,9 +34,20 @@ Each finding includes severity (critical through low), confidence, CWE reference
 
 The panel auto-runs when opened. You can set an **auto-scan interval** (minimum 3 seconds). Overlapping scans coalesce so you do not get pile-ups.
 
-### Paste scanner
+### Scan pasted AI output
 
-Paste suspicious text (from a log, chat, or snippet) into the paste scanner for a one-off secret or pattern check before you commit.
+Paste AI-suggested code or commands into the **Scan pasted AI output** section for a local, offline check before you apply changes:
+
+- **Secrets** — same patterns as the secret scanner (API keys, tokens, credentials)
+- **Risk patterns** — heuristics for dangerous advice, including:
+  - `--force`, `--legacy-peer-deps`, `sudo`, "run as admin"
+  - Skipped or weakened tests (`it.skip`, `test.skip`, test file removal commands)
+  - TypeScript/ESLint suppressions (`any`, `@ts-ignore`, `eslint-disable`)
+  - Unpinned `npm install` (package without an explicit version)
+
+Findings show **secret** (error) or **warn** / **error** severity chips. **Copy redacted** still redacts secrets only; review risk findings before applying the paste.
+
+Logic lives in `apps/vibebar/src/main/scanner/aiOutputRiskScanner.ts` (unit tested).
 
 ### Audit config
 

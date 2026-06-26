@@ -4,16 +4,18 @@ import type { PromptCategory, PromptTemplate } from '@shared/types.js'
 import { Chip } from '../../shared/ui'
 
 /**
- * Authoring form for a new prompt. Seeded from a stack-aware draft so a non-expert starts
+ * Authoring form for a new or custom prompt. Seeded from a stack-aware draft so a non-expert starts
  * with a working skeleton (detected framework, starter guardrails, wired variables) rather
  * than a blank box.
  */
 export function PromptEditor({
   draft,
+  mode = 'new',
   onSave,
   onCancel
 }: {
   draft: PromptTemplate
+  mode?: 'new' | 'edit'
   onSave: (template: PromptTemplate) => void
   onCancel: () => void
 }): JSX.Element {
@@ -105,7 +107,7 @@ export function PromptEditor({
           onClick={save}
           className="rounded-lg bg-vibe-accent px-4 py-1.5 text-sm font-medium text-white disabled:opacity-40"
         >
-          Save prompt
+          Save {mode === 'edit' ? 'changes' : 'prompt'}
         </button>
       </div>
     </div>

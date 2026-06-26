@@ -24,5 +24,11 @@ export {
 
 export { SyncManager } from './sync/manager.js'
 export { isUnderOrEqual, relUnder, conflictMessage } from './sync/pathConflict.js'
-export { DEFAULT_IGNORES, compileIgnoreMatchers, getIgnoreGlobList, isIgnoredRel } from './sync/ignore.js'
+export {
+  DEFAULT_IGNORES,
+  compileIgnoreMatchers,
+  getIgnoreGlobList,
+  isIgnoredRel,
+  parseUserIgnoreLines
+} from './sync/ignore.js'
 export { validateConfigSave, validateSyncStart } from './validate.js'

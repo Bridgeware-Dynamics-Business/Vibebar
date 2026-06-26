@@ -42,6 +42,8 @@ export interface ProjectProfile {
   isMonorepo: boolean
   /** True when an AI context folder already exists at the project root. */
   hasContextFolder: boolean
+  /** True when a recognized project manifest exists at the selected root (package.json, etc.). */
+  hasRootManifest: boolean
   /** Short tags used to gate prompt visibility, e.g. ['electron', 'typescript', 'vite']. */
   stacks: string[]
 }
@@ -61,6 +63,7 @@ export function emptyProfile(rootPath: string, folderName: string): ProjectProfi
     hasDb: false,
     isMonorepo: false,
     hasContextFolder: false,
+    hasRootManifest: false,
     stacks: ['any']
   }
 }

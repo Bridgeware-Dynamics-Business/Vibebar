@@ -148,19 +148,25 @@ function ExportMenu(): JSX.Element {
 function FindingCard({
   issue,
   onCopy,
+  onFixWithContext,
   copiedId,
+  copiedFixContext,
   onDismiss
 }: {
   issue: DetectedIssue
   onCopy: (issue: DetectedIssue, kind: 'fix' | 'test') => void
+  onFixWithContext?: (issue: DetectedIssue) => void
   copiedId: string | null
-  onDismiss?: (id: string) => void
+  copiedFixContext?: string | null
+  onDismiss?: (issue: DetectedIssue) => void
 }): JSX.Element {
   const [expanded, setExpanded] = useState(false)
   const [saveOpen, setSaveOpen] = useState(false)
   const s = styleFor(issue)
   const conf = issue.confidence ? AUDIT_CONFIDENCE_STYLE[issue.confidence] : null
   const hasDetail = Boolean(issue.codeContext || issue.evidence || issue.cwe || issue.references?.length)
+  const isTerminalIssue = issue.source !== 'audit'
+  const fixContextKey = `${issue.id}:fix-context`
 
   const noteMarkdown = buildNoteBullet({
     title: issue.title,
@@ -260,6 +266,17 @@ function FindingCard({
           <Icon name={copiedId === `${issue.id}:fix` ? 'Check' : 'Wrench'} size={12} />
           {copiedId === `${issue.id}:fix` ? 'Copied' : 'Copy fix prompt'}
         </button>
+        {isTerminalIssue && onFixWithContext && (
+          <button
+            type="button"
+            onClick={() => onFixWithContext(issue)}
+            title="Copy failure + git-changed files + stack context in one bundle"
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-indigo-500/90 px-2 py-1.5 text-[11px] font-medium text-white transition-colors hover:bg-indigo-500/75"
+          >
+            <Icon name={copiedFixContext === fixContextKey ? 'Check' : 'PackageOpen'} size={12} />
+            {copiedFixContext === fixContextKey ? 'Copied' : 'Fix with context'}
+          </button>
+        )}
         {issue.testPrompt && (
           <button
             type="button"
@@ -273,7 +290,7 @@ function FindingCard({
         {onDismiss && (
           <button
             type="button"
-            onClick={() => onDismiss(issue.id)}
+            onClick={() => onDismiss(issue)}
             title="Mark resolved"
             className="flex items-center justify-center rounded-md border border-vibe-border px-2 py-1.5 text-[11px] text-vibe-muted hover:bg-white/10 hover:text-vibe-text"
           >
@@ -307,8 +324,10 @@ function AuditDock({
   onRun,
   onClose,
   onCopy,
+  onFixWithContext,
   onCopyAll,
   copiedId,
+  copiedFixContext,
   copiedAll,
   onDismiss
 }: {
@@ -324,10 +343,12 @@ function AuditDock({
   onRun: () => void
   onClose: () => void
   onCopy: (issue: DetectedIssue, kind: 'fix' | 'test') => void
+  onFixWithContext?: (issue: DetectedIssue) => void
   onCopyAll: (issues: DetectedIssue[]) => void
   copiedId: string | null
+  copiedFixContext: string | null
   copiedAll: boolean
-  onDismiss?: (id: string) => void
+  onDismiss?: (issue: DetectedIssue) => void
 }): JSX.Element {
   const fromAudit = audit !== null || issues.some((i) => i.source === 'audit')
   const [query, setQuery] = useState('')
@@ -570,7 +591,9 @@ function AuditDock({
                   key={issue.id}
                   issue={issue}
                   onCopy={onCopy}
+                  onFixWithContext={onFixWithContext}
                   copiedId={copiedId}
+                  copiedFixContext={copiedFixContext}
                   onDismiss={onDismiss}
                 />
               ))}
@@ -582,7 +605,9 @@ function AuditDock({
               key={issue.id}
               issue={issue}
               onCopy={onCopy}
+              onFixWithContext={onFixWithContext}
               copiedId={copiedId}
+              copiedFixContext={copiedFixContext}
               onDismiss={onDismiss}
             />
           ))
@@ -624,9 +649,10 @@ export function TerminalApp(): JSX.Element {
   const [audit, setAudit] = useState<TerminalAuditSummary | null>(null)
   const [projectName, setProjectName] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [copiedFixContext, setCopiedFixContext] = useState<string | null>(null)
   const [copiedAll, setCopiedAll] = useState(false)
   const [handoffNotice, setHandoffNotice] = useState<CopyHandoffNotice | null>(null)
-  const [dismissedIds, setDismissedIds] = useState<Set<string>>(() => new Set())
+  const [dismissedFingerprints, setDismissedFingerprints] = useState<Set<string>>(() => new Set())
   const [solid, toggleSolid] = useFillToggle('terminal.solid')
 
   const [dockOpen, setDockOpen] = useState(false)
@@ -710,13 +736,19 @@ export function TerminalApp(): JSX.Element {
 
   const intervalMs = Math.max(3000, intervalValue * (intervalUnit === 'minutes' ? 60_000 : 1000))
 
+  function issueFingerprint(issue: DetectedIssue): string {
+    return issue.fingerprint ?? `${issue.id}:${issue.evidence.slice(0, 120)}`
+  }
+
   const visibleIssues = useMemo(
-    () => issues.filter((i) => !dismissedIds.has(i.id)),
-    [issues, dismissedIds]
+    () => issues.filter((i) => !dismissedFingerprints.has(issueFingerprint(i))),
+    [issues, dismissedFingerprints]
   )
 
-  const dismissIssue = useCallback((id: string) => {
-    setDismissedIds((prev) => new Set(prev).add(id))
+  const dismissIssue = useCallback((issue: DetectedIssue) => {
+    const fp = issueFingerprint(issue)
+    setDismissedFingerprints((prev) => new Set(prev).add(fp))
+    void window.terminal.dismissIssue(fp)
   }, [])
 
   useEffect(() => {
@@ -767,6 +799,16 @@ export function TerminalApp(): JSX.Element {
     void window.terminal.clear()
   }
 
+  async function fixWithContext(issue: DetectedIssue): Promise<void> {
+    const key = `${issue.id}:fix-context`
+    const { copied } = await window.terminal.fixWithContext(issue.id)
+    if (copied) {
+      setHandoffNotice(buildHandoffNotice(true))
+    }
+    setCopiedFixContext(key)
+    window.setTimeout(() => setCopiedFixContext((id) => (id === key ? null : id)), 1600)
+  }
+
   async function copyIssue(issue: DetectedIssue, kind: 'fix' | 'test'): Promise<void> {
     const text = kind === 'test' && issue.testPrompt ? issue.testPrompt : issue.prompt
     const key = `${issue.id}:${kind}`
@@ -790,6 +832,23 @@ export function TerminalApp(): JSX.Element {
                 command: status.lastCommand ?? undefined
               })
         })
+      } else {
+        void window.terminal.sessionAppend({
+          type: issue.source === 'audit' ? 'audit-finding' : 'terminal-issue',
+          title: `${issue.title} (behavioral test)`,
+          fullText: text,
+          ...(issue.source === 'audit'
+            ? {
+                fingerprint: `${issue.id}:test`,
+                severity: issue.auditSeverity ?? issue.severity,
+                file: issue.file ? `${issue.file}${issue.line ? `:${issue.line}` : ''}` : undefined,
+                fixExcerpt: text.slice(0, 400)
+              }
+            : {
+                issueId: `${issue.id}:test`,
+                command: status.lastCommand ?? undefined
+              })
+        })
       }
     }
     setCopiedId(key)
@@ -798,8 +857,18 @@ export function TerminalApp(): JSX.Element {
 
   async function copyAll(toCopy: DetectedIssue[]): Promise<void> {
     if (toCopy.length === 0) return
-    const { copied } = await window.terminal.copy(buildConsolidatedPrompt(toCopy, audit))
-    if (copied) setHandoffNotice(buildHandoffNotice(true))
+    const text = buildConsolidatedPrompt(toCopy, audit)
+    const { copied } = await window.terminal.copy(text)
+    if (copied) {
+      setHandoffNotice(buildHandoffNotice(true))
+      void window.terminal.sessionAppend({
+        type: 'note',
+        title: `Terminal: copy all (${toCopy.length} issue${toCopy.length === 1 ? '' : 's'})`,
+        noteId: 'terminal-bulk',
+        text: `${toCopy.length} issue(s) copied as one prompt`,
+        fullText: text
+      })
+    }
     setCopiedAll(true)
     window.setTimeout(() => setCopiedAll(false), 1600)
   }
@@ -898,8 +967,10 @@ export function TerminalApp(): JSX.Element {
             onRun={() => void runAudit(false)}
             onClose={() => setDockOpen(false)}
             onCopy={(i, kind) => void copyIssue(i, kind)}
+            onFixWithContext={(i) => void fixWithContext(i)}
             onCopyAll={(list) => void copyAll(list)}
             copiedId={copiedId}
+            copiedFixContext={copiedFixContext}
             copiedAll={copiedAll}
             onDismiss={dismissIssue}
           />

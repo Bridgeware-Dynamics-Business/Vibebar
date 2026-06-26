@@ -10,6 +10,9 @@ const DISPLAY_CAP = 100
 
 export { DISPLAY_CAP as SESSION_DISPLAY_CAP }
 
+/** Default pins when copying handoff with none pinned. */
+export const SESSION_PIN_RECENT_DEFAULT = 3
+
 /** Pure heuristics for Session Hub "what's next" footer (no LLM). */
 export function buildWhatsNextSuggestions(input: {
   state: SessionState | null

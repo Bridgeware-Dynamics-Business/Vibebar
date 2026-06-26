@@ -7,11 +7,13 @@ export function PromptCard({
   prompt,
   onCopy,
   onToggleFavorite,
+  onEdit,
   onDelete
 }: {
   prompt: PromptTemplate
   onCopy: (id: string) => void
   onToggleFavorite: (id: string) => void
+  onEdit?: (prompt: PromptTemplate) => void
   onDelete?: (id: string) => void
 }): JSX.Element {
   const [expanded, setExpanded] = useState(false)
@@ -109,7 +111,17 @@ export function PromptCard({
                 {preview}
               </pre>
               <div className="mt-2 flex items-center justify-between">
-                {onDelete && prompt.builtIn === false ? (
+                <div className="flex items-center gap-1">
+                  {onEdit && prompt.builtIn === false && (
+                    <button
+                      type="button"
+                      onClick={() => onEdit(prompt)}
+                      className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-vibe-muted hover:text-vibe-text"
+                    >
+                      <Icon name="Pencil" size={14} /> Edit
+                    </button>
+                  )}
+                  {onDelete && prompt.builtIn === false ? (
                   <button
                     type="button"
                     onClick={() => onDelete(prompt.id)}
@@ -120,6 +132,7 @@ export function PromptCard({
                 ) : (
                   <span />
                 )}
+                </div>
                 <button
                   type="button"
                   onClick={handleCopy}

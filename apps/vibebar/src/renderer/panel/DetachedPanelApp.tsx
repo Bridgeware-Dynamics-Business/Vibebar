@@ -10,12 +10,14 @@ import { PromptLibraryPanel } from '../overlay/panels/PromptLibraryPanel'
 import { SecurityAuditPanel } from '../overlay/panels/SecurityAuditPanel'
 import { SessionHubPanel } from '../overlay/panels/SessionHubPanel'
 import { SettingsPanel } from '../overlay/panels/SettingsPanel'
+import { ReadyCheckPanel } from '../overlay/panels/ReadyCheckPanel'
 
 const PANEL_TITLES: Record<DetachablePanelId, string> = {
   'prompt-library': 'Prompt Library',
   'security-audit': 'Security Audit',
   'session-hub': 'Session Hub',
   'context-packer': 'Context Packer',
+  'ready-check': 'Ready Check',
   notes: 'Notes',
   settings: 'Settings'
 }
@@ -102,6 +104,18 @@ export function DetachedPanelApp({ panelId }: { panelId: DetachablePanelId }): J
             onClose={hide}
             onCopyOutcome={onCopyOutcome}
             onPackChanged={() => void handlePackChanged()}
+            solid={solid}
+            onToggleSolid={toggleSolid}
+          />
+        )
+      case 'ready-check':
+        return (
+          <ReadyCheckPanel
+            onClose={hide}
+            onCopyOutcome={onCopyOutcome}
+            onOpenAudit={() => void window.vibebar.panel.detach('security-audit')}
+            onOpenTerminal={() => void window.vibebar.terminal.toggle()}
+            onCopyGitDiff={() => void handleCopyGitDiff()}
             solid={solid}
             onToggleSolid={toggleSolid}
           />

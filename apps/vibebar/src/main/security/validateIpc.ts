@@ -129,7 +129,9 @@ const SCHEMAS: Partial<Record<ChannelName, z.ZodTypeAny>> = {
       title: z.string().max(200),
       issueId: z.string().min(1).max(64),
       command: z.string().max(8000).optional(),
-      fullText: z.string().max(8192).optional()
+      fullText: z.string().max(8192).optional(),
+      verifyCommand: z.string().max(8000).nullable().optional(),
+      verifyStatus: z.enum(['awaiting', 'verified', 'still-broken']).optional()
     }),
     z.object({
       type: z.literal('audit-finding'),
@@ -138,7 +140,9 @@ const SCHEMAS: Partial<Record<ChannelName, z.ZodTypeAny>> = {
       severity: z.string().max(32),
       file: z.string().max(2048).optional(),
       fixExcerpt: z.string().max(2000).optional(),
-      fullText: z.string().max(8192).optional()
+      fullText: z.string().max(8192).optional(),
+      verifyCommand: z.string().max(8000).nullable().optional(),
+      verifyStatus: z.enum(['awaiting', 'verified', 'still-broken']).optional()
     }),
     z.object({
       type: z.literal('note'),
@@ -154,10 +158,22 @@ const SCHEMAS: Partial<Record<ChannelName, z.ZodTypeAny>> = {
     })
   ]),
   [CH.sessionTogglePin]: z.object({ id: z.string().min(1).max(64) }),
-  [CH.sessionCopyHandoff]: z.object({ includeGitDiff: z.boolean().optional() }),
+  [CH.sessionCopyHandoff]: z.object({
+    includeGitDiff: z.boolean().optional(),
+    pinRecentIfEmpty: z.number().int().min(1).max(20).optional()
+  }),
   [CH.sessionCopyFixPrompts]: z.object({}),
+  [CH.sessionSetIntent]: z.object({
+    goal: z.string().max(2000),
+    constraints: z.array(z.string().max(500)).max(32).optional(),
+    filesInScope: z.array(z.string().max(512)).max(64).optional(),
+    acceptanceCriteria: z.array(z.string().max(500)).max(32).optional(),
+    verifyCommand: z.string().max(8000).nullable().optional()
+  }),
+  [CH.sessionClearIntent]: z.object({}),
+  [CH.sessionRerunVerify]: z.object({ entryId: z.string().min(1).max(64) }),
   [CH.projectAppendAgentsMd]: z.object({ markdown: z.string().max(50_000) }),
-  [CH.auditAcceptRisk]: z.object({ fingerprint: z.string().min(1).max(128) }),
+  [CH.githubSetDesktopPath]: z.object({ path: z.string().max(4096) }),
   [CH.auditSetRuleDisabled]: z.object({
     ruleId: z.string().min(1).max(64),
     disabled: z.boolean()
@@ -171,6 +187,8 @@ const SCHEMAS: Partial<Record<ChannelName, z.ZodTypeAny>> = {
     dx: z.number().finite().min(-20000).max(20000),
     dy: z.number().finite().min(-20000).max(20000)
   }),
+  [CH.terminalFixWithContext]: z.object({ issueId: z.string().min(1).max(64).optional() }),
+  [CH.terminalDismissIssue]: z.object({ fingerprint: z.string().min(1).max(512) }),
   [CH.auditRunInTerminal]: z.object({ quiet: z.boolean() }),
 
   [CH.shellStart]: z.object({ shell: z.enum(['powershell', 'cmd', 'bash']) }),
@@ -179,7 +197,11 @@ const SCHEMAS: Partial<Record<ChannelName, z.ZodTypeAny>> = {
   [CH.shellInput]: z.object({ line: z.string().max(8000) }),
 
   // Quick Launch — the renderer only ever names an app by id; the path is resolved in main.
-  [CH.quickLaunchRun]: z.object({ id: z.string().min(1).max(64) }),
+  [CH.quickLaunchRun]: z.object({
+    id: z.string().min(1).max(64),
+    pasteAfterOpen: z.boolean().optional(),
+    fromCopyToast: z.boolean().optional()
+  }),
   [CH.quickLaunchRemove]: z.object({ id: z.string().min(1).max(64) }),
   [CH.quickLaunchLocate]: z.object({ id: z.string().min(1).max(64) }),
   [CH.quickLaunchSetVisible]: z.object({
@@ -194,7 +216,9 @@ const SCHEMAS: Partial<Record<ChannelName, z.ZodTypeAny>> = {
       errorConsoleDisplayIds: z.array(z.string().min(1).max(64)).max(16).optional(),
       guardrailsEnabled: z.boolean().optional(),
       launchOnStartup: z.boolean().optional(),
-      hotkeysEnabled: z.boolean().optional()
+      hotkeysEnabled: z.boolean().optional(),
+      mcpServerEnabled: z.boolean().optional(),
+      pasteAfterOpenCursor: z.boolean().optional()
     })
     .strict()
 }
