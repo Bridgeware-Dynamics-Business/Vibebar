@@ -1,4 +1,6 @@
 import type { CodeSyncConfig } from '@vibebar/codesync'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { DEFAULT_AGENT_COMPANION_MODEL_ID } from '@shared/agentCompanionModels.js'
 import type { AgentCompanionChat } from '@shared/agentCompanionChats.js'
 import { pruneAgentCompanionChats } from '@shared/agentCompanionChats.js'
@@ -99,6 +101,8 @@ export class AppStore {
   constructor() {
     this.store = new Store<StoreSchema>({
       name: 'vibebar',
+      // electron-store reads userData from Electron; in Vitest/CI we must pin a cwd explicitly.
+      ...(process.env.VITEST ? { cwd: join(tmpdir(), 'vibebar-test-config') } : {}),
       defaults: {
         settings: DEFAULT_SETTINGS,
         activeProjectPath: '',

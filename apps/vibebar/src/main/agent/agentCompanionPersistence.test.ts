@@ -1,7 +1,7 @@
-import { mkdirSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createAgentCompanionChat } from '@shared/agentCompanionChats.js'
 import { AppStore } from '../settings/store.js'
 import { AgentCompanionPersistence } from './agentCompanionPersistence.js'
@@ -16,7 +16,7 @@ describe('AgentCompanionPersistence', () => {
     tempRoots.length = 0
   })
 
-  it('writes project chats to a custom folder', () => {
+  it('writes project chats to a custom folder', async () => {
     const root = join(tmpdir(), `vibebar-acp-${Date.now()}`)
     mkdirSync(root, { recursive: true })
     tempRoots.push(root)
@@ -36,6 +36,9 @@ describe('AgentCompanionPersistence', () => {
     persistence.save('/projects/demo', { activeChatId: 'chat-1', chats: [chat] })
 
     const filePath = join(root, 'agent-companion', 'projects', '_projects_demo.json')
+    await vi.waitFor(() => {
+      expect(existsSync(filePath)).toBe(true)
+    })
     const saved = JSON.parse(readFileSync(filePath, 'utf8'))
     expect(saved.activeChatId).toBe('chat-1')
     expect(saved.chats[0].messages[0].text).toBe('Hello')
