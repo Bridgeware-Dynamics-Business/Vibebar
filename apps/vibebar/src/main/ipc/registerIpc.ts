@@ -426,8 +426,17 @@ export function registerIpc(deps: IpcDeps): void {
     if (
       partial.resourceMonitorEnabled !== undefined ||
       partial.resourceMonitorDisplayIds !== undefined ||
-      partial.resourceMonitorWidgets !== undefined
+      partial.resourceMonitorWidgets !== undefined ||
+      partial.resourceMonitorSyncWithToolbar !== undefined ||
+      partial.resourceMonitorPlacement !== undefined
     ) {
+      if (
+        partial.resourceMonitorSyncWithToolbar === true ||
+        partial.resourceMonitorPlacement !== undefined
+      ) {
+        store.clearResourceWidgetDetached()
+        store.clearResourceWidgetBounds()
+      }
       resourceMonitor.onSettingsChanged()
     }
     if (partial.hotkeysEnabled !== undefined) {

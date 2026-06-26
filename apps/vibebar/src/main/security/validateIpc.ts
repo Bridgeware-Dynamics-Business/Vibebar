@@ -237,7 +237,9 @@ const SCHEMAS: Partial<Record<ChannelName, z.ZodTypeAny>> = {
       autoRunVerifyAfterFix: z.boolean().optional(),
       resourceMonitorEnabled: z.boolean().optional(),
       resourceMonitorDisplayIds: z.array(z.string().min(1).max(64)).max(16).optional(),
-      resourceMonitorWidgets: z.array(z.enum(['ram', 'cpu', 'disk', 'appMem'])).max(4).optional()
+      resourceMonitorWidgets: z.array(z.enum(['ram', 'cpu', 'disk', 'appMem'])).max(4).optional(),
+      resourceMonitorSyncWithToolbar: z.boolean().optional(),
+      resourceMonitorPlacement: z.enum(['below', 'above']).optional()
     })
     .strict()
 }

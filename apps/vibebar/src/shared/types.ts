@@ -55,6 +55,10 @@ export interface VibeSettings {
   resourceMonitorDisplayIds?: string[]
   /** Which metric widgets to show. Default shows all of them. */
   resourceMonitorWidgets?: ResourceWidgetId[]
+  /** When true, widgets follow the toolbar until manually dragged away. Default on. */
+  resourceMonitorSyncWithToolbar?: boolean
+  /** Stack synced widgets below the power button (L) or above the project folder (reverse L). */
+  resourceMonitorPlacement?: 'below' | 'above'
 }
 
 /** A single poll of system resource usage, pushed to every open widget window. */

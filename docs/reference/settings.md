@@ -16,8 +16,10 @@ The **Error Console** section uses the same pattern. It appears bottom-left on s
 
 ## System resource usage
 
-Turn on **Show system resource usage** to float small, always-on-top widgets above every window. Each widget is its own draggable chip; drop them anywhere and their positions are restored on the next launch.
+Turn on **Show system resource usage** to float small, always-on-top widgets above every window. By default they form an **L-shaped stack** beside the toolbar (under the power button on left/right docks) and **follow the bar** when you move it.
 
+- **Sync with toolbar** (default on): widgets move with the toolbar until you drag one away — detached widgets stay where you put them while the rest keep the L layout.
+- **Below toolbar (L)** / **Above toolbar (reverse L)**: synced widgets form a **horizontal row** directly under or above the toolbar edge (not beside it along the side). Toggle sync off and on to reset widgets you dragged away.
 - Pick which metrics to show: **RAM usage**, **CPU load**, **Disk free space**, and **VibeBar memory**.
 - Pick which monitors show the widgets with the same **Show on all** / **Primary only** / per-display controls used elsewhere. None selected shows the primary display only.
 

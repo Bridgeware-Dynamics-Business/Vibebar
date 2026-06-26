@@ -301,10 +301,56 @@ export function SettingsPanel({
           </div>
           <p className="mb-2 text-xs text-vibe-muted">
             Floating widgets show live RAM, CPU, disk space, and VibeBar memory above all windows.
-            Drag each one anywhere; its position is remembered between launches.
+            By default they stack beside the toolbar in an L shape and follow it when you move the
+            bar. Drag any widget away to pin it independently.
           </p>
           {resourceEnabled && (
             <>
+              <div className="mb-3 flex items-center justify-between rounded-lg border border-vibe-border bg-white/[0.03] px-3 py-2">
+                <div>
+                  <span className="text-sm text-vibe-text">Sync with toolbar</span>
+                  <p className="text-[11px] text-vibe-muted">
+                    Widgets follow the toolbar until you drag one to a new spot.
+                  </p>
+                </div>
+                <Toggle
+                  checked={settings.resourceMonitorSyncWithToolbar !== false}
+                  onChange={(next) => void save({ resourceMonitorSyncWithToolbar: next })}
+                />
+              </div>
+              {settings.resourceMonitorSyncWithToolbar !== false && (
+                <div className="mb-3">
+                  <p className="mb-2 text-xs text-vibe-muted">Stack synced widgets</p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void save({ resourceMonitorPlacement: 'below' })}
+                      className={`flex-1 rounded-lg border py-2 text-xs transition-colors ${
+                        (settings.resourceMonitorPlacement ?? 'below') === 'below'
+                          ? 'border-vibe-accent bg-vibe-accent/15 text-white'
+                          : 'border-vibe-border bg-white/[0.03] text-vibe-muted hover:text-vibe-text'
+                      }`}
+                    >
+                      Below toolbar (L)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void save({ resourceMonitorPlacement: 'above' })}
+                      className={`flex-1 rounded-lg border py-2 text-xs transition-colors ${
+                        settings.resourceMonitorPlacement === 'above'
+                          ? 'border-vibe-accent bg-vibe-accent/15 text-white'
+                          : 'border-vibe-border bg-white/[0.03] text-vibe-muted hover:text-vibe-text'
+                      }`}
+                    >
+                      Above toolbar (reverse L)
+                    </button>
+                  </div>
+                  <p className="mt-2 text-[11px] text-vibe-muted">
+                    Below places a horizontal row directly under the toolbar. Above places the same
+                    row directly above it. Toggle sync off and on to reset widgets you moved manually.
+                  </p>
+                </div>
+              )}
               <div className="mb-3 space-y-1.5">
                 {RESOURCE_WIDGETS.map((w) => (
                   <label

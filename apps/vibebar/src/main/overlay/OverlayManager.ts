@@ -2,6 +2,7 @@ import { BrowserWindow, screen } from 'electron'
 import type { DetachablePanelId } from '@shared/tools.js'
 import { CH } from '@shared/channels.js'
 import type { DockSide, DisplayInfo, OverlayLayout } from '@shared/types.js'
+import type { ToolbarLayoutSnapshot } from '@shared/resourceWidgetLayout.js'
 import type { AppStore } from '../settings/store.js'
 import { mapDisplays, resolveEnabledDisplays, type DisplayLike } from '../settings/displayUtils.js'
 import {
@@ -62,9 +63,37 @@ export class OverlayManager {
   private visible = true
   /** Display id of the toolbar the user last clicked or focused — routes the palette hotkey. */
   private activeDisplayId: string | null = null
+  private toolbarLayoutListener: (() => void) | null = null
 
   constructor(store: AppStore) {
     this.store = store
+  }
+
+  /** Resource widgets subscribe to toolbar moves/dock changes for synced placement. */
+  setToolbarLayoutListener(listener: (() => void) | null): void {
+    this.toolbarLayoutListener = listener
+  }
+
+  /** Collapsed toolbar rects per enabled overlay display (for resource widget sync). */
+  getToolbarLayouts(): ToolbarLayoutSnapshot[] {
+    const layouts: ToolbarLayoutSnapshot[] = []
+    for (const [id, entry] of this.byDisplay) {
+      const workArea = this.workAreaFor(id)
+      if (!workArea) continue
+      layouts.push({
+        displayId: id,
+        dock: entry.dock,
+        workArea,
+        toolbarBounds: entry.win.isDestroyed()
+          ? this.currentBounds(id, entry.dock, workArea, entry.anchor, false, 0)
+          : entry.win.getBounds()
+      })
+    }
+    return layouts
+  }
+
+  private notifyToolbarLayoutChanged(): void {
+    this.toolbarLayoutListener?.()
   }
 
   start(): void {
@@ -143,6 +172,7 @@ export class OverlayManager {
       this.positionWindow(id)
     }
     this.restoreAndFocus(true)
+    this.notifyToolbarLayoutChanged()
   }
 
   /** Collapses any expanded panel shell (fixes empty wide overlay with no tools visible). */
@@ -242,6 +272,7 @@ export class OverlayManager {
       this.positionWindow(id)
       this.sendLayout(id)
     }
+    this.notifyToolbarLayoutChanged()
   }
 
   /** Marks the sender overlay as mid-drag so move handlers do not snap early. */
@@ -286,6 +317,7 @@ export class OverlayManager {
       entry.layoutReadyTimer = null
     }
     this.positionWindow(id)
+    this.notifyToolbarLayoutChanged()
   }
 
   private scheduleLayoutReady(id: string, entry: OverlayEntry): void {
@@ -316,6 +348,7 @@ export class OverlayManager {
     } else {
       this.positionWindow(id)
     }
+    this.notifyToolbarLayoutChanged()
   }
 
   private toolbarLengthFor(): number {

@@ -23,6 +23,24 @@ export function clampWindowBounds(bounds: WindowBounds, workArea: {
   return { x, y, width, height }
 }
 
+/** Clamps small resource-widget chips without inflating to panel minimum sizes. */
+export function clampResourceWidgetBounds(
+  bounds: WindowBounds,
+  workArea: { x: number; y: number; width: number; height: number }
+): WindowBounds {
+  const width = bounds.width
+  const height = bounds.height
+  const x = Math.min(
+    Math.max(bounds.x, workArea.x),
+    workArea.x + workArea.width - width
+  )
+  const y = Math.min(
+    Math.max(bounds.y, workArea.y),
+    workArea.y + workArea.height - height
+  )
+  return { x, y, width, height }
+}
+
 /** Debounced persistence of a window's bounds on move/resize. */
 export function trackWindowBounds(
   win: BrowserWindow,

@@ -35,6 +35,8 @@ interface StoreSchema {
   terminalBounds: WindowBounds | null
   /** Persisted resource widget bounds, keyed by `${displayId}:${widgetId}`. */
   resourceWidgetBounds: Record<string, WindowBounds>
+  /** Widgets the user dragged while sync was on — keyed by `${displayId}:${widgetId}`. */
+  resourceWidgetDetached: Record<string, boolean>
   /** When true, the first-run onboarding wizard is suppressed. */
   onboardingComplete: boolean
   /** When true, Settings replay opens the wizard even if a project is selected. */
@@ -59,7 +61,9 @@ const DEFAULT_SETTINGS: VibeSettings = {
   autoRunVerifyAfterFix: false,
   resourceMonitorEnabled: false,
   resourceMonitorDisplayIds: [],
-  resourceMonitorWidgets: ['ram', 'cpu', 'disk', 'appMem']
+  resourceMonitorWidgets: ['ram', 'cpu', 'disk', 'appMem'],
+  resourceMonitorSyncWithToolbar: true,
+  resourceMonitorPlacement: 'below'
 }
 
 /**
@@ -102,6 +106,7 @@ export class AppStore {
         panelBounds: {},
         terminalBounds: null,
         resourceWidgetBounds: {},
+        resourceWidgetDetached: {},
         onboardingComplete: false,
         onboardingReplayRequested: false,
         projectMemorySnapshots: {},
@@ -273,6 +278,29 @@ export class AppStore {
   setResourceWidgetBounds(key: string, bounds: WindowBounds): void {
     const all = this.store.get('resourceWidgetBounds') ?? {}
     this.store.set('resourceWidgetBounds', { ...all, [key]: bounds })
+  }
+
+  clearResourceWidgetBounds(): void {
+    this.store.set('resourceWidgetBounds', {})
+  }
+
+  isResourceWidgetDetached(key: string): boolean {
+    return Boolean(this.store.get('resourceWidgetDetached')?.[key])
+  }
+
+  setResourceWidgetDetached(key: string, detached: boolean): void {
+    const all = this.store.get('resourceWidgetDetached') ?? {}
+    if (detached) {
+      this.store.set('resourceWidgetDetached', { ...all, [key]: true })
+      return
+    }
+    const next = { ...all }
+    delete next[key]
+    this.store.set('resourceWidgetDetached', next)
+  }
+
+  clearResourceWidgetDetached(): void {
+    this.store.set('resourceWidgetDetached', {})
   }
 
   isOnboardingComplete(): boolean {
