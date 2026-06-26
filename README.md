@@ -22,7 +22,7 @@ New users: [What is VibeBar?](https://bridgeware-dynamics-business.github.io/Vib
 
 ## Download
 
-Get the latest Windows installer from **[Releases](https://github.com/Bridgeware-Dynamics-Business/Vibebar/releases)**. Then follow the [install guide](https://bridgeware-dynamics-business.github.io/Vibebar/guide/getting-started).
+Get the latest Windows installer from **[Releases]([https://github.com/Bridgeware-Dynamics-Business/Vibebar/releases](https://github.com/Bridgeware-Dynamics-Business/Vibebar/releases/tag/1.1.0-pr))**. Then follow the [install guide](https://bridgeware-dynamics-business.github.io/Vibebar/guide/getting-started).
 
 ## The toolbar
 
