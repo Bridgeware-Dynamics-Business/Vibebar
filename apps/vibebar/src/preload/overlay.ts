@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { PromptCategory, PromptTemplate } from '@vibebar/prompt-engine'
 import type { ErrorReport, VibeBarApi } from '@shared/api.js'
+import type { ResourceSnapshot } from '@shared/types.js'
 import { CH } from '@shared/channels.js'
 import type { DetachablePanelId } from '@shared/tools.js'
 import type {
@@ -178,6 +179,9 @@ const api: VibeBarApi = {
     clear: () => ipcRenderer.invoke(CH.errorsClear),
     close: () => ipcRenderer.invoke(CH.errorsClose),
     onPush: (cb: (reports: ErrorReport[]) => void) => subscribe(CH.errorsPush, cb)
+  },
+  resources: {
+    onPush: (cb: (snapshot: ResourceSnapshot) => void) => subscribe(CH.resourcesPush, cb)
   },
   quickLaunch: {
     list: () => ipcRenderer.invoke(CH.quickLaunchList),

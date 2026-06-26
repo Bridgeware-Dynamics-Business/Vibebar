@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { BrowserWindow } from 'electron'
+import type { ResourceWidgetId } from '@shared/types.js'
 import type { Rect } from './snapLogic.js'
 
 const moduleDir = dirname(fileURLToPath(import.meta.url))
@@ -234,6 +235,44 @@ export function createErrorConsoleWindow(bounds: Rect): BrowserWindow {
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   hardenWindow(win)
   loadEntry(win, 'errorconsole')
+  return win
+}
+
+/**
+ * Creates one floating system-resource widget: a tiny, frameless, transparent, always-on-top chip
+ * that hovers above every other window (like the toolbar) so a vibe coder can keep an eye on RAM,
+ * CPU, disk, or VibeBar's own memory. It is movable (the whole chip is a drag region in the
+ * renderer) but not resizable; the controller restores its saved position on launch. The target
+ * metric is selected via the `widget` query param read by the `resourcemonitor` renderer entry.
+ * Reuses the overlay preload, which exposes the `resources` bridge. Starts hidden; the controller
+ * shows it once loaded.
+ */
+export function createResourceWidgetWindow(widgetId: ResourceWidgetId, bounds: Rect): BrowserWindow {
+  const win = new BrowserWindow({
+    ...bounds,
+    frame: false,
+    transparent: true,
+    hasShadow: false,
+    resizable: false,
+    movable: true,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    skipTaskbar: true,
+    show: false,
+    type: 'toolbar',
+    backgroundColor: '#00000000',
+    webPreferences: {
+      preload: resolvePreload('overlay'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true
+    }
+  })
+  win.setAlwaysOnTop(true, 'screen-saver')
+  win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+  hardenWindow(win)
+  loadEntry(win, 'resourcemonitor', { widget: widgetId })
   return win
 }
 

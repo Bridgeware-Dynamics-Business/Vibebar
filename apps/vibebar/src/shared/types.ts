@@ -4,6 +4,9 @@ import type { PromptCategory, PromptTemplate, ResolvedVariable } from '@vibebar/
 export type DockSide = 'left' | 'right' | 'top'
 export type Orientation = 'vertical' | 'horizontal'
 
+/** Floating system-resource widgets the user can show on chosen monitors. */
+export type ResourceWidgetId = 'ram' | 'cpu' | 'disk' | 'appMem'
+
 export interface OverlayLayout {
   dock: DockSide
   orientation: Orientation
@@ -46,6 +49,22 @@ export interface VibeSettings {
   autoPinFixWithContext?: boolean
   /** After Fix with Context copy, queue verify command in Smart Terminal (opt-in). */
   autoRunVerifyAfterFix?: boolean
+  /** Master toggle for the floating system-resource widgets. Default off. */
+  resourceMonitorEnabled?: boolean
+  /** Display ids the resource widgets appear on. Empty means primary display only. */
+  resourceMonitorDisplayIds?: string[]
+  /** Which metric widgets to show. Default shows all of them. */
+  resourceMonitorWidgets?: ResourceWidgetId[]
+}
+
+/** A single poll of system resource usage, pushed to every open widget window. */
+export interface ResourceSnapshot {
+  /** Epoch ms when the sample was taken. */
+  at: number
+  ram: { usedPct: number; usedGb: number; totalGb: number }
+  cpu: { usagePct: number }
+  disk: { freeGb: number; totalGb: number; path: string }
+  appMem: { rssMb: number }
 }
 
 /** Live status of the optional VibeBar MCP server. */

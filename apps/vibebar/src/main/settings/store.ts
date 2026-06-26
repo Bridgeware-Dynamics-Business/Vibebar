@@ -33,6 +33,8 @@ interface StoreSchema {
   panelBounds: Record<string, WindowBounds>
   /** Persisted Smart Terminal window bounds. */
   terminalBounds: WindowBounds | null
+  /** Persisted resource widget bounds, keyed by `${displayId}:${widgetId}`. */
+  resourceWidgetBounds: Record<string, WindowBounds>
   /** When true, the first-run onboarding wizard is suppressed. */
   onboardingComplete: boolean
   /** When true, Settings replay opens the wizard even if a project is selected. */
@@ -54,7 +56,10 @@ const DEFAULT_SETTINGS: VibeSettings = {
   pasteAfterOpenCursor: false,
   prePasteSafetyGate: true,
   autoPinFixWithContext: false,
-  autoRunVerifyAfterFix: false
+  autoRunVerifyAfterFix: false,
+  resourceMonitorEnabled: false,
+  resourceMonitorDisplayIds: [],
+  resourceMonitorWidgets: ['ram', 'cpu', 'disk', 'appMem']
 }
 
 /**
@@ -96,6 +101,7 @@ export class AppStore {
         recentProjects: [],
         panelBounds: {},
         terminalBounds: null,
+        resourceWidgetBounds: {},
         onboardingComplete: false,
         onboardingReplayRequested: false,
         projectMemorySnapshots: {},
@@ -258,6 +264,15 @@ export class AppStore {
 
   setTerminalBounds(bounds: WindowBounds): void {
     this.store.set('terminalBounds', bounds)
+  }
+
+  getResourceWidgetBounds(key: string): WindowBounds | null {
+    return this.store.get('resourceWidgetBounds')?.[key] ?? null
+  }
+
+  setResourceWidgetBounds(key: string, bounds: WindowBounds): void {
+    const all = this.store.get('resourceWidgetBounds') ?? {}
+    this.store.set('resourceWidgetBounds', { ...all, [key]: bounds })
   }
 
   isOnboardingComplete(): boolean {

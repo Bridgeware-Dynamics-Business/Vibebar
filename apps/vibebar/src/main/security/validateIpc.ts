@@ -234,7 +234,10 @@ const SCHEMAS: Partial<Record<ChannelName, z.ZodTypeAny>> = {
       pasteAfterOpenCursor: z.boolean().optional(),
       prePasteSafetyGate: z.boolean().optional(),
       autoPinFixWithContext: z.boolean().optional(),
-      autoRunVerifyAfterFix: z.boolean().optional()
+      autoRunVerifyAfterFix: z.boolean().optional(),
+      resourceMonitorEnabled: z.boolean().optional(),
+      resourceMonitorDisplayIds: z.array(z.string().min(1).max(64)).max(16).optional(),
+      resourceMonitorWidgets: z.array(z.enum(['ram', 'cpu', 'disk', 'appMem'])).max(4).optional()
     })
     .strict()
 }

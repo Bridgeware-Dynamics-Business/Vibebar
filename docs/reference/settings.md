@@ -14,6 +14,15 @@ An empty enabled-display list means **primary display only**.
 
 The **Error Console** section uses the same pattern. It appears bottom-left on selected monitors and captures renderer errors (with redaction). Closing it on one monitor closes it on all.
 
+## System resource usage
+
+Turn on **Show system resource usage** to float small, always-on-top widgets above every window. Each widget is its own draggable chip; drop them anywhere and their positions are restored on the next launch.
+
+- Pick which metrics to show: **RAM usage**, **CPU load**, **Disk free space**, and **VibeBar memory**.
+- Pick which monitors show the widgets with the same **Show on all** / **Primary only** / per-display controls used elsewhere. None selected shows the primary display only.
+
+Widgets tint amber, then red, as a metric approaches a concerning level (for example, high memory pressure or low free disk space). Disk space reflects the active project's drive when a project is open, otherwise the system drive.
+
 ## Dock position
 
 **Left**, **Top**, or **Right**. There is no bottom dock.

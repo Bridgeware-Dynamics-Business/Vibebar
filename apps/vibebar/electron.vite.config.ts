@@ -63,6 +63,7 @@ export default defineConfig({
           terminal: r('src/renderer/terminal/index.html'),
           snip: r('src/renderer/snip/index.html'),
           errorconsole: r('src/renderer/errorconsole/index.html'),
+          resourcemonitor: r('src/renderer/resourcemonitor/index.html'),
           confirm: r('src/renderer/confirm/index.html')
         }
       }

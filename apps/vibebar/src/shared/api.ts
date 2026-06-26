@@ -38,6 +38,7 @@ import type {
   IntentContract,
   SnipCapture,
   SnipSaveResult,
+  ResourceSnapshot,
   VibeSettings
 } from './types.js'
 
@@ -276,6 +277,10 @@ export interface VibeBarApi {
     close: () => Promise<{ ok: boolean }>
     /** The console window subscribes to receive the current (capped, newest-first) error list. */
     onPush: (cb: (reports: ErrorReport[]) => void) => () => void
+  }
+  resources: {
+    /** A resource widget subscribes to receive each polled system-usage snapshot. */
+    onPush: (cb: (snapshot: ResourceSnapshot) => void) => () => void
   }
   quickLaunch: {
     /** Lists configured quick-launch apps (built-in Cursor/Codex + any the user added). */

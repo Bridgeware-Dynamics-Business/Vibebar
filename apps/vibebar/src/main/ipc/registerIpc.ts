@@ -43,6 +43,7 @@ import type { SnipController } from '../snip/SnipController.js'
 import type { HotkeyController } from '../hotkeys/HotkeyController.js'
 import type { ReadyCheckService } from '../readyCheck/ReadyCheckService.js'
 import type { McpServerController } from '../mcp/McpServerController.js'
+import type { ResourceMonitorController } from '../resourcemonitor/ResourceMonitorController.js'
 import { buildPrepareCursorBootstrap } from '../quicklaunch/prepareCursor.js'
 
 export interface IpcDeps {
@@ -61,6 +62,7 @@ export interface IpcDeps {
   quickLaunch: QuickLaunchService
   snip: SnipController
   errorConsole: ErrorConsoleController
+  resourceMonitor: ResourceMonitorController
   notes: NotesService
   noteWindows: NoteWindowController
   session: SessionService
@@ -103,6 +105,7 @@ export function registerIpc(deps: IpcDeps): void {
     quickLaunch,
     snip,
     errorConsole,
+    resourceMonitor,
     notes,
     noteWindows,
     session,
@@ -419,6 +422,13 @@ export function registerIpc(deps: IpcDeps): void {
     }
     if (partial.errorConsoleDisplayIds !== undefined) {
       errorConsole.onSettingsChanged()
+    }
+    if (
+      partial.resourceMonitorEnabled !== undefined ||
+      partial.resourceMonitorDisplayIds !== undefined ||
+      partial.resourceMonitorWidgets !== undefined
+    ) {
+      resourceMonitor.onSettingsChanged()
     }
     if (partial.hotkeysEnabled !== undefined) {
       hotkeys?.refresh()

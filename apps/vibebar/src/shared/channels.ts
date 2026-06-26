@@ -168,6 +168,9 @@ export const CH = {
   errorsClose: 'errors:close',
   errorsPush: 'errors:push',
 
+  // System resource widgets — main polls the OS and pushes a snapshot to each floating widget.
+  resourcesPush: 'resources:push',
+
   // Quick Launch — one-click external editor/app launchers (Cursor, Codex, custom)
   quickLaunchList: 'quickLaunch:list',
   quickLaunchRun: 'quickLaunch:run',
@@ -348,5 +351,6 @@ export const PUSH_CHANNELS: readonly string[] = [
   CH.quickLaunchChanged,
   CH.mcpChanged,
   CH.errorsPush,
+  CH.resourcesPush,
   CODESYNC_CHANNELS.log
 ]

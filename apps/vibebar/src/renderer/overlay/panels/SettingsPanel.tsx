@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react'
 import type { SettingsState } from '@shared/api.js'
-import type { DockSide, ProjectProfile, ProjectStackOverrides, QuickLaunchApp } from '@shared/types.js'
+import type {
+  DockSide,
+  ProjectProfile,
+  ProjectStackOverrides,
+  QuickLaunchApp,
+  ResourceWidgetId
+} from '@shared/types.js'
 import { Icon } from '../../shared/icons'
 import { DetachButton, PanelHeader, Toggle } from '../../shared/ui'
 
@@ -8,6 +14,13 @@ const DOCKS: { id: DockSide; label: string }[] = [
   { id: 'left', label: 'Left' },
   { id: 'top', label: 'Top' },
   { id: 'right', label: 'Right' }
+]
+
+const RESOURCE_WIDGETS: { id: ResourceWidgetId; label: string }[] = [
+  { id: 'ram', label: 'RAM usage' },
+  { id: 'cpu', label: 'CPU load' },
+  { id: 'disk', label: 'Disk free space' },
+  { id: 'appMem', label: 'VibeBar memory' }
 ]
 
 export function SettingsPanel({
@@ -89,6 +102,29 @@ export function SettingsPanel({
     void save({ errorConsoleDisplayIds: [] })
   }
 
+  function toggleResourceDisplay(id: string): void {
+    if (!state) return
+    const current = state.settings.resourceMonitorDisplayIds ?? []
+    const next = current.includes(id) ? current.filter((x) => x !== id) : [...current, id]
+    void save({ resourceMonitorDisplayIds: next })
+  }
+
+  function showResourceOnAll(): void {
+    if (!state) return
+    void save({ resourceMonitorDisplayIds: state.displays.map((d) => d.id) })
+  }
+
+  function showResourceOnPrimary(): void {
+    void save({ resourceMonitorDisplayIds: [] })
+  }
+
+  function toggleResourceWidget(id: ResourceWidgetId): void {
+    if (!state) return
+    const current = state.settings.resourceMonitorWidgets ?? []
+    const next = current.includes(id) ? current.filter((x) => x !== id) : [...current, id]
+    void save({ resourceMonitorWidgets: next })
+  }
+
   if (!state) {
     return (
       <div className="flex h-full flex-col">
@@ -112,6 +148,12 @@ export function SettingsPanel({
   const consoleOnPrimaryOnly = settings.errorConsoleDisplayIds.length === 0
   const consoleOnAll =
     displays.length > 0 && displays.every((d) => settings.errorConsoleDisplayIds.includes(d.id))
+  const resourceEnabled = Boolean(settings.resourceMonitorEnabled)
+  const resourceDisplayIds = settings.resourceMonitorDisplayIds ?? []
+  const resourceWidgets = settings.resourceMonitorWidgets ?? []
+  const resourceOnPrimaryOnly = resourceDisplayIds.length === 0
+  const resourceOnAll =
+    displays.length > 0 && displays.every((d) => resourceDisplayIds.includes(d.id))
 
   return (
     <div className="flex h-full flex-col">
@@ -245,6 +287,91 @@ export function SettingsPanel({
               )
             })}
           </div>
+        </section>
+
+        <section>
+          <div className="mb-2 flex items-center justify-between">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-vibe-muted">
+              System resource usage
+            </h3>
+            <Toggle
+              checked={resourceEnabled}
+              onChange={(next) => void save({ resourceMonitorEnabled: next })}
+            />
+          </div>
+          <p className="mb-2 text-xs text-vibe-muted">
+            Floating widgets show live RAM, CPU, disk space, and VibeBar memory above all windows.
+            Drag each one anywhere; its position is remembered between launches.
+          </p>
+          {resourceEnabled && (
+            <>
+              <div className="mb-3 space-y-1.5">
+                {RESOURCE_WIDGETS.map((w) => (
+                  <label
+                    key={w.id}
+                    className="flex cursor-pointer items-center gap-2 rounded-lg border border-vibe-border bg-white/[0.03] px-3 py-2 text-sm text-vibe-text"
+                  >
+                    <Icon name="Activity" size={16} className="text-vibe-muted" />
+                    <span className="flex-1">{w.label}</span>
+                    <input
+                      type="checkbox"
+                      checked={resourceWidgets.includes(w.id)}
+                      onChange={() => toggleResourceWidget(w.id)}
+                      className="accent-vibe-accent"
+                    />
+                  </label>
+                ))}
+              </div>
+              <p className="mb-2 text-xs text-vibe-muted">
+                Choose which displays show the widgets. None selected shows the primary display
+                only.
+              </p>
+              <div className="mb-2 flex gap-2">
+                <button
+                  type="button"
+                  onClick={showResourceOnAll}
+                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg border py-1.5 text-xs transition-colors ${
+                    resourceOnAll
+                      ? 'border-vibe-accent bg-vibe-accent/15 text-white'
+                      : 'border-vibe-border bg-white/[0.03] text-vibe-muted hover:text-vibe-text'
+                  }`}
+                >
+                  <Icon name="Monitor" size={14} /> Show on all
+                </button>
+                <button
+                  type="button"
+                  onClick={showResourceOnPrimary}
+                  className={`flex-1 rounded-lg border py-1.5 text-xs transition-colors ${
+                    resourceOnPrimaryOnly
+                      ? 'border-vibe-accent bg-vibe-accent/15 text-white'
+                      : 'border-vibe-border bg-white/[0.03] text-vibe-muted hover:text-vibe-text'
+                  }`}
+                >
+                  Primary only
+                </button>
+              </div>
+              <div className="space-y-1.5">
+                {displays.map((d) => {
+                  const checked = resourceOnPrimaryOnly ? d.isPrimary : resourceDisplayIds.includes(d.id)
+                  return (
+                    <label
+                      key={d.id}
+                      className="flex cursor-pointer items-center gap-2 rounded-lg border border-vibe-border bg-white/[0.03] px-3 py-2 text-sm text-vibe-text"
+                    >
+                      <Icon name="Monitor" size={16} className="text-vibe-muted" />
+                      <span className="flex-1">{d.label}</span>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleResourceDisplay(d.id)}
+                        className="accent-vibe-accent"
+                      />
+                    </label>
+                  )
+                })}
+              </div>
+            </>
+          )}
         </section>
 
         <section>

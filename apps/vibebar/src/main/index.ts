@@ -3,6 +3,8 @@ import { CH } from '@shared/channels.js'
 import { AuditService } from './audit/AuditService.js'
 import { CodeSyncController } from './codesync/CodeSyncController.js'
 import { ErrorConsoleController } from './errorconsole/ErrorConsoleController.js'
+import { ResourceMonitorController } from './resourcemonitor/ResourceMonitorController.js'
+import { ResourceSampler } from './resourcemonitor/collectResourceMetrics.js'
 import { GitStatusService } from './git/GitStatusService.js'
 import { GitDiffService } from './git/GitDiffService.js'
 import { GitHubService } from './github/GitHubService.js'
@@ -69,6 +71,7 @@ const quickLaunch = new QuickLaunchService(store)
 const hotkeys = new HotkeyController(store, overlay, terminal)
 const snip = new SnipController(projects)
 const errorConsole = new ErrorConsoleController(store)
+const resourceMonitor = new ResourceMonitorController(store, new ResourceSampler())
 const notes = new NotesService(projects)
 const readyCheck = new ReadyCheckService(projects, audit, terminal, gitDiff, sessionService, store)
 const mcp = new McpServerController({
@@ -122,6 +125,7 @@ async function bootstrap(): Promise<void> {
     quickLaunch,
     snip,
     errorConsole,
+    resourceMonitor,
     notes,
     noteWindows,
     session: sessionService,
@@ -139,6 +143,7 @@ async function bootstrap(): Promise<void> {
   overlay.start()
   overlay.collapseAllPanels()
   overlay.restoreAndFocus()
+  resourceMonitor.start()
   const winCount = overlay.windowCount()
   console.log(`[VibeBar] Toolbar windows: ${winCount}`)
   if (winCount === 0) {
@@ -189,6 +194,7 @@ if (!gotLock) {
     hotkeys.dispose()
     snip.dispose()
     errorConsole.dispose()
+    resourceMonitor.dispose()
     noteWindows.dispose()
   })
 }
