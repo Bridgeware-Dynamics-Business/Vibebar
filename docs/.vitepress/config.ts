@@ -1,13 +1,13 @@
 import { defineConfig } from 'vitepress'
 
 export default defineConfig({
-  title: 'VibeBar',
+  title: 'vibebar::',
   description:
-    'Documentation for VibeBar, the floating Windows companion for vibe coding with Cursor and other AI assistants.',
+    'Documentation for vibebar:: — the floating Windows companion for vibe coding with Cursor and other AI assistants.',
   base: '/Vibebar/',
   head: [['link', { rel: 'icon', href: '/Vibebar/favicon.svg' }]],
   themeConfig: {
-    logo: { text: 'VibeBar' },
+    logo: { text: 'vibebar::' },
     nav: [
       { text: 'Guide', link: '/guide/getting-started', activeMatch: '/guide/' },
       { text: 'Features', link: '/features/', activeMatch: '/features/' },
@@ -96,15 +96,15 @@ export default defineConfig({
     socialLinks: [
       { icon: 'github', link: 'https://github.com/Bridgeware-Dynamics-Business/Vibebar' }
     ],
-    siteTitle: 'VibeBar Docs',
+    siteTitle: 'vibebar:: Docs',
     editLink: {
       pattern:
         'https://github.com/Bridgeware-Dynamics-Business/Vibebar/edit/main/docs/:path',
       text: 'Edit this page on GitHub'
     },
     footer: {
-      message: 'VibeBar by Bridgeware Dynamics Business',
-      copyright: 'Copyright © 2026 Bridgeware Dynamics Business'
+      message: 'vibebar:: by Bridgeware Dynamics Business',
+      copyright: 'Copyright © 2026 Bridgeware Dynamics Business · v1.1.0'
     },
     search: {
       provider: 'local'

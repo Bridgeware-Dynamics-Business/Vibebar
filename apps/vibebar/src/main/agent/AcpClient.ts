@@ -7,6 +7,7 @@ import type {
   AgentCompanionPermissionRequest,
   AgentCompanionToolActivity
 } from '@shared/agentCompanionApi.js'
+import { APP_VERSION } from '@shared/appVersion.js'
 
 export interface AcpSessionUpdate {
   sessionUpdate?: string
@@ -25,7 +26,7 @@ export interface AcpClientHandlers {
   onLog: (line: string) => void
 }
 
-const CLIENT_INFO = { name: 'vibebar-agent-companion', version: '1.0.0' }
+const CLIENT_INFO = { name: 'vibebar-agent-companion', version: APP_VERSION }
 const REQUEST_TIMEOUT_MS = 120_000
 
 const DEFAULT_PERMISSION_OPTIONS: Array<{ id: string; label: string }> = [

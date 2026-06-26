@@ -49,7 +49,12 @@ When you publish a release, include:
 ```markdown
 ## Documentation
 https://bridgeware-dynamics-business.github.io/Vibebar/guide/getting-started
+
+## Version
+v1.1.0 (see CHANGELOG.md)
 ```
+
+See **[VERSIONING.md](../VERSIONING.md)** for the full release checklist (bump all `package.json` files, refresh lockfile, update CHANGELOG, tag `vX.Y.Z`, attach installers).
 
 ## Edit and redeploy docs
 

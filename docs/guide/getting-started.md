@@ -15,7 +15,7 @@ VibeBar is a desktop app. No server, no API keys, no account. Install it, pick a
 
 This is the easiest path.
 
-1. Go to [Releases](https://github.com/Bridgeware-Dynamics-Business/Vibebar/releases).
+1. Go to [Releases](https://github.com/Bridgeware-Dynamics-Business/Vibebar/releases/latest) (currently **v1.1.0**).
 2. Download the latest installer or portable `.exe`.
 3. Run it and launch VibeBar.
 

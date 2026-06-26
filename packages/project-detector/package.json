@@ -1,6 +1,6 @@
 {
   "name": "@vibebar/project-detector",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "Read-only project stack detection — builds a ProjectProfile from signal files.",
   "type": "module",

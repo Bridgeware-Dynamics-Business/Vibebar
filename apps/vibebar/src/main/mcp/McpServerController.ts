@@ -32,6 +32,7 @@ import {
   buildVerifyRecipeResource
 } from './resources.js'
 import { registerVibebarTools } from './tools.js'
+import { APP_VERSION } from '@shared/appVersion.js'
 
 export interface McpServiceDeps {
   projects: ProjectService
@@ -210,7 +211,7 @@ export class McpServerController {
 
   private createServer(): McpServer {
     const server = new McpServer(
-      { name: 'vibebar', version: '1.0.0' },
+      { name: 'vibebar', version: APP_VERSION },
       {
         instructions:
           'VibeBar Agent Command Center on localhost. Read resources for intent, flight log, failures, Ready Check brief, and verify recipe. Tools: pack_changed, ready_check, get/set_intent, get_last_green, get_context_health, fix_last_terminal_failure, get_regression_context, record_outcome. Session writes only — never edit source files directly.'

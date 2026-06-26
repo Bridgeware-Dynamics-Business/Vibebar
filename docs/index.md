@@ -2,7 +2,7 @@
 layout: home
 
 hero:
-  name: VibeBar
+  name: vibebar::
   text: Your AI coding companion for Windows
   tagline: A floating toolbar that sits beside your workflow. Copy project-aware prompts, run security scans, pack file context, and connect Cursor Agent to your live session state — all while you code.
   actions:
@@ -17,7 +17,7 @@ hero:
       link: /features/mcp-server
     - theme: alt
       text: Download for Windows
-      link: https://github.com/Bridgeware-Dynamics-Business/Vibebar/releases
+      link: https://github.com/Bridgeware-Dynamics-Business/Vibebar/releases/latest
 
 features:
   - title: Cursor Agent (MCP)
@@ -50,7 +50,7 @@ features:
 
 ## Project links
 
-- [Download latest release](https://github.com/Bridgeware-Dynamics-Business/Vibebar/releases)
+- [Download latest release](https://github.com/Bridgeware-Dynamics-Business/Vibebar/releases/latest) (v1.1.0)
 - [GitHub repository](https://github.com/Bridgeware-Dynamics-Business/Vibebar)
 - [Report a bug](https://github.com/Bridgeware-Dynamics-Business/Vibebar/issues/new/choose)
 - [Contributing](/contribute/contributing)

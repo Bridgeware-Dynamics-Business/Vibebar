@@ -128,6 +128,8 @@ npm run dist        # build an unsigned Windows installer + portable exe
 7. **Fill in the PR template** and make sure CI passes. A maintainer will review,
    may request changes, and will merge once it's approved.
 
+See [VERSIONING.md](VERSIONING.md) for how maintainers cut releases (`1.1.0` → `1.2.0`, etc.).
+
 ## What makes a PR easy to accept
 
 - It does one thing and the description explains the "why."
