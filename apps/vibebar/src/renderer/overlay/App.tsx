@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type { DetachablePanelId, ToolId } from '@shared/tools.js'
 import { isDetachablePanel } from '@shared/tools.js'
-import { inlinePanelDimensions } from '@shared/overlayMetrics.js'
+import { inlinePanelDimensions, orientationForDock } from '@shared/overlayMetrics.js'
 import type {
   GitStatus,
   McpServerStatus,
@@ -354,7 +354,8 @@ export function App(): JSX.Element {
     [closePanel]
   )
 
-  const isVertical = layout.orientation === 'vertical'
+  const isVertical = layout.dock !== 'top'
+  const toolbarOrientation = orientationForDock(layout.dock)
   const toolbarOrderClass = layout.dock === 'right' ? 'order-2' : 'order-1'
   const panelOrderClass = layout.dock === 'right' ? 'order-1' : 'order-2'
 
@@ -479,11 +480,31 @@ export function App(): JSX.Element {
       : { height: size.height, width: '100%' }
   }, [activePanel, isVertical])
 
+  /** Main already positions the tight overlay window at anchor — cluster stays flush in-window. */
   const toolbarClusterStyle: CSSProperties = useMemo(() => {
-    if (layout.dock === 'top') return { top: 0, left: layout.anchorOffset ?? 0 }
-    if (layout.dock === 'right') return { top: layout.anchorOffset ?? 0, right: 0 }
-    return { top: layout.anchorOffset ?? 0, left: 0 }
-  }, [layout.anchorOffset, layout.dock])
+    const transition = 'top 220ms cubic-bezier(0.4, 0, 0.2, 1), left 220ms cubic-bezier(0.4, 0, 0.2, 1), right 220ms cubic-bezier(0.4, 0, 0.2, 1)'
+    if (layout.dock === 'top') {
+      return { top: 0, left: 0, transition }
+    }
+    if (layout.dock === 'right') {
+      return { top: 0, right: 0, transition }
+    }
+    return { top: 0, left: 0, transition }
+  }, [layout.dock])
+
+  /** Tell main it is safe to resize after React paints the new dock orientation. */
+  useEffect(() => {
+    let cancelled = false
+    const id = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (!cancelled) void window.vibebar.overlay.layoutReady()
+      })
+    })
+    return () => {
+      cancelled = true
+      cancelAnimationFrame(id)
+    }
+  }, [layout.dock, layout.orientation, layout.anchorOffset])
 
   const clusterClass = `absolute flex gap-2 ${isVertical ? 'flex-row items-start' : 'flex-col items-stretch'}`
 
@@ -498,7 +519,7 @@ export function App(): JSX.Element {
           className={`${toolbarOrderClass} shrink-0 ${isVertical ? 'h-fit w-16' : 'h-16 w-fit'}`}
         >
           <Toolbar
-          orientation={layout.orientation}
+          orientation={toolbarOrientation}
           dock={layout.dock}
           profile={profile}
           recentProjects={recentProjects}

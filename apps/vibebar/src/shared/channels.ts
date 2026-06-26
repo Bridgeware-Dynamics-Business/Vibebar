@@ -16,6 +16,12 @@ export const CH = {
   overlaySetCommandPalette: 'overlay:setCommandPalette',
   /** Marks the sender's toolbar as the active one (last clicked) for hotkey routing. */
   overlaySetActive: 'overlay:setActive',
+  /** Renderer → main: user started dragging the toolbar strip (-webkit-app-region: drag). */
+  overlayDragBegin: 'overlay:dragBegin',
+  /** Renderer → main: user released the toolbar drag; snap to the nearest edge. */
+  overlayDragEnd: 'overlay:dragEnd',
+  /** Renderer → main: React committed the new dock layout — safe to resize the window. */
+  overlayLayoutReady: 'overlay:layoutReady',
   overlayLayout: 'overlay:layout',
   /** Main → renderer: open/close the command palette on this display only. */
   overlayCommandPalette: 'overlay:commandPalette',
@@ -196,6 +202,9 @@ export const INVOKABLE_CHANNELS: readonly string[] = [
   CH.overlayCollapsePanel,
   CH.overlaySetCommandPalette,
   CH.overlaySetActive,
+  CH.overlayDragBegin,
+  CH.overlayDragEnd,
+  CH.overlayLayoutReady,
   CH.projectSelect,
   CH.projectGet,
   CH.projectListRecents,

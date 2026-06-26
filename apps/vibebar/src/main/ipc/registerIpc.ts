@@ -178,9 +178,20 @@ export function registerIpc(deps: IpcDeps): void {
   handleEvent(CH.overlaySetActive, (event) => {
     overlay.setActiveForSender(event.sender)
   })
+  handleEvent(CH.overlayDragBegin, (event) => {
+    overlay.beginDragForSender(event.sender)
+  })
+  handleEvent(CH.overlayDragEnd, (event, payload) => {
+    const cursor = payload as { x: number; y: number }
+    overlay.endDragForSender(event.sender, cursor)
+  })
+  handleEvent(CH.overlayLayoutReady, (event) => {
+    overlay.layoutReadyForSender(event.sender)
+  })
 
   // Project
   const broadcastProject = (profile: ReturnType<ProjectService['getProfile']>): typeof profile => {
+    overlay.refreshToolbarSizes()
     overlay.broadcast(CH.projectChanged, profile)
     detachedPanels.send(CH.projectChanged, profile)
     noteWindows.broadcast(CH.projectChanged, profile)
@@ -761,6 +772,7 @@ export function registerIpc(deps: IpcDeps): void {
   // Quick Launch — mutations broadcast the new list so the toolbar and any detached Settings
   // window stay in sync regardless of which surface triggered the change.
   const broadcastQuickLaunch = (apps: ReturnType<QuickLaunchService['list']>): typeof apps => {
+    overlay.refreshToolbarSizes()
     overlay.broadcast(CH.quickLaunchChanged, apps)
     detachedPanels.send(CH.quickLaunchChanged, apps)
     return apps

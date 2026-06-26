@@ -5,21 +5,73 @@ import type { DockSide } from './types.js'
 /** Pixel height/width of the toolbar strip (must match Tailwind w-16 / h-16). */
 export const TOOLBAR_THICKNESS = 64
 
-/** Per-button slot including gap (h-11 + gap-2). */
-const SLOT_PX = 52
+/** Circle buttons (h-11 / w-11). */
+export const TOOLBAR_BUTTON_PX = 44
 
-/** Padding (p-2.5), power-button reserve, divider slack. */
-const CHROME_PX = 70
+/** Tailwind gap-2 between flex children. */
+export const TOOLBAR_GAP_PX = 8
 
-/**
- * Long-axis size for the collapsed toolbar window. Sized to actual button count — no flex spacer.
- */
-export function collapsedToolbarLength(quickLaunchCount = 2): number {
+/** Tailwind p-2.5 — horizontal padding per side. */
+export const TOOLBAR_PADDING_SIDE = 10
+
+/** Empty strip reserved for the absolute power button (must match Toolbar POWER_RESERVE). */
+export const POWER_BUTTON_RESERVE = 42
+
+/** Extra slack for hover rings, badges, and display scaling. */
+export const TOOLBAR_LENGTH_SLACK = 80
+
+export interface ToolbarLayoutInput {
+  quickLaunchCount: number
+  hasProject: boolean
+}
+
+/** Counts flex children exactly like Toolbar.tsx (buttons, dividers, power reserve). */
+export function toolbarFlexMetrics(input: ToolbarLayoutInput): {
+  buttonCount: number
+  dividerCount: number
+  flexItems: number
+} {
   const mainCount = TOOL_DEFS.filter((t) => !t.pinnedEnd).length
   const pinnedCount = TOOL_DEFS.filter((t) => t.pinnedEnd).length
-  // project + context folder + main tools + divider + pinned + quick-launch slots
-  const slots = 1 + 1 + mainCount + 1 + pinnedCount + quickLaunchCount
-  return slots * SLOT_PX + CHROME_PX
+  const buttonCount =
+    1 + (input.hasProject ? 1 : 0) + mainCount + pinnedCount + input.quickLaunchCount
+  const dividerCount = 2 + (input.quickLaunchCount > 0 ? 2 : 0)
+  const flexItems = buttonCount + dividerCount + 1
+  return { buttonCount, dividerCount, flexItems }
+}
+
+/**
+ * Long-axis window size for the collapsed toolbar. Mirrors the Toolbar flex row/column layout.
+ */
+export function collapsedToolbarLength(input: ToolbarLayoutInput | number, hasProject = false): number {
+  const normalized: ToolbarLayoutInput =
+    typeof input === 'number' ? { quickLaunchCount: input, hasProject } : input
+  const { buttonCount, dividerCount, flexItems } = toolbarFlexMetrics(normalized)
+  const gapTotal = Math.max(0, flexItems - 1) * TOOLBAR_GAP_PX
+
+  return (
+    TOOLBAR_PADDING_SIDE * 2 +
+    buttonCount * TOOLBAR_BUTTON_PX +
+    dividerCount +
+    gapTotal +
+    POWER_BUTTON_RESERVE +
+    TOOLBAR_LENGTH_SLACK
+  )
+}
+
+/** Probe dimensions for edge detection — use target dock shape, not stale window bounds. */
+export function toolbarProbeSize(
+  dock: DockSide,
+  barLength: number
+): { width: number; height: number } {
+  return dock === 'top'
+    ? { width: barLength, height: TOOLBAR_THICKNESS }
+    : { width: TOOLBAR_THICKNESS, height: barLength }
+}
+
+/** Orientation is fully determined by dock — never rely on a separately cached value in the renderer. */
+export function orientationForDock(dock: DockSide): 'vertical' | 'horizontal' {
+  return dock === 'top' ? 'horizontal' : 'vertical'
 }
 
 /** Default window size for each panel — shared by detached pop-outs and in-toolbar menus. */

@@ -14,7 +14,7 @@ export interface OverlayLayout {
 /** Per-monitor placement of the toolbar: which edge it docks to and where along that edge. */
 export interface DisplayLayout {
   dock: DockSide
-  /** Free-axis position (y for left/right, x for top) in that display's work-area coordinates. */
+  /** Free-axis position (y for left/right, x for top): leading edge in screen coordinates. */
   anchor: number
 }
 

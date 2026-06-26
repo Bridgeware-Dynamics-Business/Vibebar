@@ -54,6 +54,7 @@ html.vibe-overlay-root body {
 
 .vibe-drag {
   -webkit-app-region: drag;
+  touch-action: none;
 }
 
 .vibe-no-drag {

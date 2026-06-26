@@ -248,6 +248,31 @@ function ProjectSwitcher({
   )
 }
 
+function useToolbarWindowDrag(): { onDragPointerDown: (e: React.PointerEvent<HTMLDivElement>) => void } {
+  const draggingRef = useRef(false)
+
+  const onDragPointerDown = (e: React.PointerEvent<HTMLDivElement>): void => {
+    if (e.button !== 0) return
+    const target = e.target as HTMLElement
+    if (target.closest('.vibe-no-drag')) return
+    if (draggingRef.current) return
+    draggingRef.current = true
+    void window.vibebar.overlay.dragBegin()
+
+    const finish = (ev: PointerEvent): void => {
+      if (!draggingRef.current) return
+      draggingRef.current = false
+      window.removeEventListener('pointerup', finish)
+      window.removeEventListener('pointercancel', finish)
+      void window.vibebar.overlay.dragEnd({ x: ev.screenX, y: ev.screenY })
+    }
+    window.addEventListener('pointerup', finish)
+    window.addEventListener('pointercancel', finish)
+  }
+
+  return { onDragPointerDown }
+}
+
 export function Toolbar({
   orientation,
   dock,
@@ -291,12 +316,14 @@ export function Toolbar({
   const dividerClass = isVertical
     ? 'h-px w-7 shrink-0 bg-vibe-border'
     : 'h-7 w-px shrink-0 bg-vibe-border'
+  const { onDragPointerDown } = useToolbarWindowDrag()
 
   return (
     <div
       className={`vibe-glass is-solid vibe-drag relative flex min-h-0 shrink-0 items-center gap-2 p-2.5 ${OUTWARD_CORNERS[dock]} ${
         isVertical ? 'h-fit w-full flex-col' : 'h-full w-fit flex-row'
       }`}
+      onPointerDown={onDragPointerDown}
     >
       <PowerButton dock={dock} onClick={onPower} />
       <ProjectSwitcher

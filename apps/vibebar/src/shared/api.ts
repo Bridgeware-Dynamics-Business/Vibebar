@@ -91,6 +91,12 @@ export interface VibeBarApi {
     setCommandPalette: (open: boolean) => Promise<OverlayLayout>
     /** Records this overlay as the one the user last interacted with (for hotkey routing). */
     setActive: () => Promise<void>
+    /** Notifies main that the user is dragging this toolbar (suppresses premature snap). */
+    dragBegin: () => Promise<void>
+    /** Notifies main that the drag finished; snaps to the nearest monitor edge. */
+    dragEnd: (cursor: { x: number; y: number }) => Promise<void>
+    /** Confirms the renderer painted the new dock layout — main may resize the window. */
+    layoutReady: () => Promise<void>
     onLayout: (cb: (layout: OverlayLayout) => void) => () => void
     /** Fires when the command palette should open or close on this display. */
     onCommandPalette: (cb: (state: { open: boolean }) => void) => () => void

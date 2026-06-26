@@ -7,20 +7,24 @@ import { mapDisplays, resolveEnabledDisplays, type DisplayLike } from '../settin
 import {
   collapsedToolbarLength,
   panelInwardExtent,
-  TOOLBAR_THICKNESS
+  TOOLBAR_THICKNESS,
+  toolbarProbeSize
 } from '@shared/overlayMetrics.js'
 import {
-  SNAP_THRESHOLD,
+  centerAnchor,
   dockedRect,
-  nearestDock,
   orientationFor,
-  snapTarget,
+  probeAtCursor,
+  resolveDockOnDrop,
+  resolvePlacement,
+  type Point,
   type Rect
 } from './snapLogic.js'
 import { createOverlayWindow } from './windowFactory.js'
 
-const COLLAPSED_LENGTH = collapsedToolbarLength()
-const MOVE_SETTLE_MS = 110
+const MOVE_SETTLE_MS = 450
+/** Fallback if the renderer never acks layoutReady after an orientation change. */
+const LAYOUT_READY_TIMEOUT_MS = 600
 
 interface OverlayEntry {
   win: BrowserWindow
@@ -31,6 +35,11 @@ interface OverlayEntry {
   panelInward: number
   /** Command palette open — window expands to the full work area for the modal overlay. */
   paletteOpen: boolean
+  /** True while the user is actively dragging this toolbar (renderer dragBegin → dragEnd). */
+  dragging: boolean
+  /** Waiting for renderer to paint the new dock orientation before resizing the window. */
+  awaitingLayoutReady: boolean
+  layoutReadyTimer: ReturnType<typeof setTimeout> | null
   moveTimer: ReturnType<typeof setTimeout> | null
 }
 
@@ -130,7 +139,7 @@ export class OverlayManager {
       const wa = this.workAreaFor(id)
       if (!wa) continue
       entry.dock = this.store.getSettings().dock
-      entry.anchor = this.centerAnchor(entry.dock, wa)
+      entry.anchor = this.centerAnchorFor(id, entry.dock, wa)
       this.positionWindow(id)
     }
     this.restoreAndFocus(true)
@@ -221,6 +230,101 @@ export class OverlayManager {
     return this.byDisplay.size
   }
 
+  /** Resizes every toolbar window after the button count changes (e.g. quick-launch edits). */
+  refreshToolbarSizes(): void {
+    for (const id of this.byDisplay.keys()) {
+      const entry = this.byDisplay.get(id)!
+      if (entry.dragging) continue
+      const workArea = this.workAreaFor(id)
+      if (workArea && entry.dock === 'top') {
+        entry.anchor = centerAnchor('top', workArea, this.toolbarLengthFor())
+      }
+      this.positionWindow(id)
+      this.sendLayout(id)
+    }
+  }
+
+  /** Marks the sender overlay as mid-drag so move handlers do not snap early. */
+  beginDragForSender(sender: Electron.WebContents): void {
+    for (const entry of this.byDisplay.values()) {
+      if (entry.win.webContents.id === sender.id) {
+        entry.dragging = true
+        if (entry.moveTimer) {
+          clearTimeout(entry.moveTimer)
+          entry.moveTimer = null
+        }
+        return
+      }
+    }
+  }
+
+  /** Snaps the sender overlay after the user releases a toolbar drag. */
+  endDragForSender(sender: Electron.WebContents, cursor?: Point): void {
+    for (const [id, entry] of this.byDisplay) {
+      if (entry.win.webContents.id === sender.id) {
+        entry.dragging = false
+        this.handleMoveEnd(id, cursor)
+        return
+      }
+    }
+  }
+
+  /** Renderer committed the new dock layout — safe to resize the overlay window. */
+  layoutReadyForSender(sender: Electron.WebContents): void {
+    for (const [id, entry] of this.byDisplay) {
+      if (entry.win.webContents.id !== sender.id) continue
+      this.finishLayoutReady(id, entry)
+      return
+    }
+  }
+
+  private finishLayoutReady(id: string, entry: OverlayEntry): void {
+    if (!entry.awaitingLayoutReady) return
+    entry.awaitingLayoutReady = false
+    if (entry.layoutReadyTimer) {
+      clearTimeout(entry.layoutReadyTimer)
+      entry.layoutReadyTimer = null
+    }
+    this.positionWindow(id)
+  }
+
+  private scheduleLayoutReady(id: string, entry: OverlayEntry): void {
+    entry.awaitingLayoutReady = true
+    if (entry.layoutReadyTimer) clearTimeout(entry.layoutReadyTimer)
+    entry.layoutReadyTimer = setTimeout(() => {
+      entry.layoutReadyTimer = null
+      if (entry.awaitingLayoutReady) this.finishLayoutReady(id, entry)
+    }, LAYOUT_READY_TIMEOUT_MS)
+  }
+
+  /**
+   * Sends layout to the renderer. When orientation flips to vertical, defers setBounds until
+   * layoutReady so the strip is not laid out tall inside a short top-dock window. When flipping
+   * to horizontal (top dock), resizes immediately so the wide bar is not clipped in a narrow
+   * side-dock window while the renderer repaints.
+   */
+  private syncLayoutAndBounds(id: string, orientationChanged: boolean): void {
+    const entry = this.byDisplay.get(id)
+    if (!entry) return
+    const becomingHorizontal = orientationChanged && entry.dock === 'top'
+    if (becomingHorizontal) {
+      this.positionWindow(id)
+    }
+    this.sendLayout(id)
+    if (orientationChanged) {
+      this.scheduleLayoutReady(id, entry)
+    } else {
+      this.positionWindow(id)
+    }
+  }
+
+  private toolbarLengthFor(): number {
+    const apps = this.store.getQuickLaunchApps()
+    const visible = apps.filter((app) => app.visible !== false).length
+    const hasProject = Boolean(this.store.getActiveProjectPath())
+    return collapsedToolbarLength({ quickLaunchCount: visible, hasProject })
+  }
+
   private anchorOffset(entry: OverlayEntry, workArea: Rect): number {
     return entry.dock === 'top' ? entry.anchor - workArea.x : entry.anchor - workArea.y
   }
@@ -235,21 +339,20 @@ export class OverlayManager {
   }
 
   private currentBounds(
+    id: string,
     dock: DockSide,
     workArea: Rect,
     anchor: number,
     panelOpen: boolean,
     panelInward: number
   ): Rect {
-    const length = COLLAPSED_LENGTH
+    const length = this.toolbarLengthFor()
     const extent = panelOpen ? panelInward : 0
     return dockedRect(dock, workArea, TOOLBAR_THICKNESS, length, extent, anchor)
   }
 
-  private centerAnchor(dock: DockSide, workArea: Rect): number {
-    return dock === 'top'
-      ? workArea.x + (workArea.width - COLLAPSED_LENGTH) / 2
-      : workArea.y + (workArea.height - COLLAPSED_LENGTH) / 2
+  private centerAnchorFor(id: string, dock: DockSide, workArea: Rect): number {
+    return centerAnchor(dock, workArea, this.toolbarLengthFor())
   }
 
   private reconcile = (): void => {
@@ -263,6 +366,7 @@ export class OverlayManager {
     for (const [id, entry] of this.byDisplay) {
       if (!enabledIds.has(id)) {
         if (entry.moveTimer) clearTimeout(entry.moveTimer)
+        if (entry.layoutReadyTimer) clearTimeout(entry.layoutReadyTimer)
         entry.win.destroy()
         this.byDisplay.delete(id)
       }
@@ -271,14 +375,15 @@ export class OverlayManager {
     for (const d of enabled) {
       const id = String(d.id)
       if (this.byDisplay.has(id)) {
-        this.positionWindow(id)
+        const entry = this.byDisplay.get(id)!
+        if (!entry.dragging) this.positionWindow(id)
         continue
       }
       // Restore this monitor's own saved placement; fall back to the global default dock.
       const saved = this.store.getDisplayLayout(id)
       const dock = saved?.dock ?? settings.dock
-      const anchor = saved?.anchor ?? this.centerAnchor(dock, d.workArea)
-      const bounds = this.currentBounds(dock, d.workArea, anchor, false, 0)
+      const anchor = saved?.anchor ?? this.centerAnchorFor(id, dock, d.workArea)
+      const bounds = this.currentBounds(id, dock, d.workArea, anchor, false, 0)
       const win = createOverlayWindow(bounds, (w) => {
         if (this.visible) {
           w.show()
@@ -292,6 +397,9 @@ export class OverlayManager {
         panelOpen: false,
         panelInward: 0,
         paletteOpen: false,
+        dragging: false,
+        awaitingLayoutReady: false,
+        layoutReadyTimer: null,
         moveTimer: null
       }
       this.byDisplay.set(id, entry)
@@ -322,7 +430,7 @@ export class OverlayManager {
     if (!entry || !workArea) return
     const bounds = entry.paletteOpen
       ? { ...workArea }
-      : this.currentBounds(entry.dock, workArea, entry.anchor, entry.panelOpen, entry.panelInward)
+      : this.currentBounds(id, entry.dock, workArea, entry.anchor, entry.panelOpen, entry.panelInward)
     this.repositioning = true
     entry.win.setBounds(bounds)
     this.repositioning = false
@@ -334,8 +442,8 @@ export class OverlayManager {
 
   private attachMoveHandler(id: string, entry: OverlayEntry): void {
     entry.win.on('move', () => {
-      if (this.repositioning) return
-      this.handleMoveLive(id)
+      if (this.repositioning || entry.dragging) return
+      // Fallback when dragEnd IPC is missed (rare); never snap during an active drag.
       if (entry.moveTimer) clearTimeout(entry.moveTimer)
       entry.moveTimer = setTimeout(() => this.handleMoveEnd(id), MOVE_SETTLE_MS)
     })
@@ -349,50 +457,45 @@ export class OverlayManager {
   }
 
   /**
-   * Magnetic snapping during the drag, scoped to the monitor being dragged. As the toolbar
-   * nears an edge it locks flush, preserving the perpendicular (free-axis) position so it still
-   * follows the cursor along the edge. Beyond the catch distance it floats freely. Other
-   * monitors are never touched, so each bar moves and stays independently.
+   * Snaps the toolbar to the nearest edge after a drag ends. Uses this overlay's display work
+   * area (not getDisplayMatching) so multi-monitor setups never land on the wrong screen.
+   * Dock/orientation changes happen here only — never mid-drag — so resizing the frameless
+   * window during an active drag cannot throw it off-screen on Windows.
    */
-  private handleMoveLive(id: string): void {
+  private handleMoveEnd(id: string, cursor?: Point): void {
     const entry = this.byDisplay.get(id)
-    if (!entry || entry.paletteOpen) return
+    if (!entry || entry.paletteOpen || entry.dragging) return
+    const workArea = this.workAreaFor(id)
+    if (!workArea) return
+
     const winBounds = entry.win.getBounds()
-    const workArea = screen.getDisplayMatching(winBounds).workArea
-    const target = snapTarget(winBounds, workArea, SNAP_THRESHOLD)
-    if (!target) return
+    const barLength = this.toolbarLengthFor()
+    let probe: Rect = winBounds
+    if (cursor) {
+      const seed = probeAtCursor(cursor, { width: winBounds.width, height: winBounds.height })
+      const dockGuess = resolveDockOnDrop(seed, workArea)
+      probe = probeAtCursor(cursor, toolbarProbeSize(dockGuess, barLength))
+    }
 
     const prevDock = entry.dock
-    entry.dock = target
-    entry.anchor = target === 'top' ? winBounds.x : winBounds.y
-    this.positionWindow(id)
-    // Flip orientation live (vertical <-> horizontal) the moment this monitor's edge changes.
-    if (target !== prevDock) this.sendLayout(id)
-  }
+    const placement = resolvePlacement(probe, workArea, barLength)
+    entry.dock = placement.dock
+    entry.anchor = placement.anchor
 
-  private handleMoveEnd(id: string): void {
-    const entry = this.byDisplay.get(id)
-    if (!entry || entry.paletteOpen) return
-    const winBounds = entry.win.getBounds()
-    const workArea = screen.getDisplayMatching(winBounds).workArea
-    const prevDock = entry.dock
-    entry.dock = nearestDock(winBounds, workArea)
-    entry.anchor = entry.dock === 'top' ? winBounds.x : winBounds.y
-    this.positionWindow(id)
+    const orientationChanged = prevDock !== entry.dock
+    this.syncLayoutAndBounds(id, orientationChanged)
     this.persist(id, entry)
-    if (entry.dock !== prevDock) this.sendLayout(id)
   }
 
-  /** Applies a dock to every monitor (the Settings "Dock position" buttons act globally). */
   setDock(dock: DockSide): OverlayLayout {
     this.store.setDock(dock)
     for (const [id, entry] of this.byDisplay) {
       const wa = this.workAreaFor(id)
+      const prevDock = entry.dock
       entry.dock = dock
-      if (wa) entry.anchor = this.centerAnchor(dock, wa)
-      this.positionWindow(id)
+      if (wa) entry.anchor = this.centerAnchorFor(id, dock, wa)
+      this.syncLayoutAndBounds(id, prevDock !== dock)
       this.persist(id, entry)
-      this.sendLayout(id)
     }
     return { dock, orientation: orientationFor(dock) }
   }
@@ -467,6 +570,7 @@ export class OverlayManager {
     screen.removeListener('display-metrics-changed', this.reconcile)
     for (const entry of this.byDisplay.values()) {
       if (entry.moveTimer) clearTimeout(entry.moveTimer)
+      if (entry.layoutReadyTimer) clearTimeout(entry.layoutReadyTimer)
       entry.win.destroy()
     }
     this.byDisplay.clear()

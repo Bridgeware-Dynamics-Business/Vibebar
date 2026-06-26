@@ -34,6 +34,10 @@ const api: VibeBarApi = {
     setCommandPalette: (open: boolean) =>
       ipcRenderer.invoke(CH.overlaySetCommandPalette, { open }),
     setActive: () => ipcRenderer.invoke(CH.overlaySetActive),
+    dragBegin: () => ipcRenderer.invoke(CH.overlayDragBegin),
+    dragEnd: (cursor: { x: number; y: number }) =>
+      ipcRenderer.invoke(CH.overlayDragEnd, cursor),
+    layoutReady: () => ipcRenderer.invoke(CH.overlayLayoutReady),
     onLayout: (cb: (layout: OverlayLayout) => void) => subscribe(CH.overlayLayout, cb),
     onCommandPalette: (cb: (state: { open: boolean }) => void) =>
       subscribe(CH.overlayCommandPalette, cb)

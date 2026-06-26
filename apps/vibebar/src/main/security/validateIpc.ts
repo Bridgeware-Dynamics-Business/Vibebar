@@ -36,6 +36,7 @@ const SCHEMAS: Partial<Record<ChannelName, z.ZodTypeAny>> = {
     panelId: z.enum(DETACHABLE_PANEL_IDS).optional()
   }),
   [CH.overlaySetCommandPalette]: z.object({ open: z.boolean() }),
+  [CH.overlayDragEnd]: z.object({ x: z.number(), y: z.number() }),
 
   [CH.projectOpenRecent]: z.object({ path: z.string().min(1).max(4096) }),
 
