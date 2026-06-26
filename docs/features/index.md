@@ -5,7 +5,7 @@ VibeBar is a floating toolbar plus a set of panels and windows. This page is the
 ## Toolbar layout
 
 ```
-[Project] [AI Context] | [Library] [Terminal] [Audit] [Session] [Sync] [Packer] [Ready Check] [Notes] [Snip] | [GitHub] [Quick Launch…] [Settings] [Power]
+[Project] [AI Context] | [Library] [Terminal] [Audit] [Session] [Sync] [Packer] [Ready Check] [Notes] [Snip] | [GitHub] [Quick Launch…] [Cursor Agent] [Settings] [Power]
 ```
 
 ## Controls (left side)
@@ -33,7 +33,7 @@ VibeBar is a floating toolbar plus a set of panels and windows. This page is the
 
 ### Detachable panels
 
-Prompt Library, Security Audit, Session Hub, Context Packer, Ready Check, Notes, and Settings can pop out into always-on-top floating windows via the detach button in each panel header.
+Prompt Library, Security Audit, Session Hub, Context Packer, Ready Check, Notes, Cursor Agent, and Settings can pop out into always-on-top floating windows via the detach button in each panel header.
 
 Smart Terminal and Code Sync are always separate windows.
 
@@ -43,7 +43,8 @@ Smart Terminal and Code Sync are always separate windows.
 |---------|----------------|
 | **Open in GitHub Desktop** | Opens the repo. Badge shows change count. **Click** when dirty for git actions (copy diff, pack changed). |
 | **Quick Launch** | Built-in **Cursor** and **Codex** launchers, plus any apps you add in Settings. Opens on the current project path. |
-| **Settings** | Dock, monitors, behavior, Quick Launch, Cursor Agent (MCP + paste bridge), quit. |
+| **Cursor Agent** | MCP connection menu (plug icon): enable the localhost server, view live status, copy the `mcp.json` snippet, and tune Cursor automation toggles. Glows green while Cursor is connected. |
+| **Settings** | Dock, monitors, behavior, Quick Launch, stack overrides, quit. |
 | **Power** | Quit confirmation (Settings → Quit closes immediately). |
 
 The Session Hub toolbar button shows a badge with your **pinned count**, not total timeline entries.
@@ -61,6 +62,9 @@ flowchart TB
   CS[Code Sync] --> AC[AI Context folder]
   SN[Snip] --> AC
   SH -->|Copy handoff| CUR[Cursor chat]
+  SH --> MCP[Cursor Agent / MCP]
+  RC[Ready Check] --> MCP
+  MCP -->|reads state on localhost| CUR
 ```
 
 Project detection runs quietly when you switch folders. It feeds the Prompt Library, Context Packer presets, and terminal project commands.

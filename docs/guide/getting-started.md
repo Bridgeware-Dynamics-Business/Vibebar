@@ -69,6 +69,16 @@ Many teams keep assistant-readable material in `<project>/AI Context/`. VibeBar 
 
 That folder is where Code Sync mirrors land, screenshot snips save, and you can add your own docs.
 
+## Connect Cursor Agent (optional)
+
+For the tightest Cursor loop, open the **Cursor Agent** button (plug icon) on the toolbar and enable the MCP server. Cursor can then read your live session state — intent, Ready Check, git status, audit summary, and more — without you pasting anything.
+
+1. Click **Cursor Agent** → **Enable MCP server for Cursor**. Status should read **Running** on `127.0.0.1:17342`.
+2. Click **Copy mcp.json snippet** and merge it into `%USERPROFILE%\.cursor\mcp.json` (or a project-level `.cursor/mcp.json`).
+3. Restart Cursor or reload MCP servers, then keep VibeBar open.
+
+The toolbar button glows green while Cursor is actively connected. See [MCP server](/features/mcp-server) for the full resource and tool catalog.
+
 ## Dock and monitors
 
 Open **Settings** to move the toolbar to the **left, top, or right** edge, or to choose which monitors show it. There is no bottom dock option.

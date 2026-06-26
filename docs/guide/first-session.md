@@ -49,6 +49,10 @@ Paste the copied prompt into Cursor chat. It already includes finding details an
 
 The copy toast may offer **Open Cursor** if Quick Launch is configured.
 
+::: tip Skip the paste with MCP
+If you enable the MCP server from the **Cursor Agent** toolbar button, Cursor can read your intent, Ready Check, git status, and audit summary on its own — no clipboard needed. See [MCP server](/features/mcp-server).
+:::
+
 ### 4. Verify in Smart Terminal
 
 Press `Ctrl+Shift+T` to open Smart Terminal, then run your tests:

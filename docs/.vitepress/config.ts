@@ -40,6 +40,7 @@ export default defineConfig({
           items: [
             { text: 'Prompt Library', link: '/features/prompt-library' },
             { text: 'Security Audit', link: '/features/security-audit' },
+            { text: 'Ready Check', link: '/features/ready-check' },
             { text: 'Session Hub', link: '/features/session-hub' },
             { text: 'Context Packer', link: '/features/context-packer' },
             { text: 'Smart Terminal', link: '/features/smart-terminal' },
@@ -47,6 +48,13 @@ export default defineConfig({
             { text: 'Code Sync', link: '/features/code-sync' },
             { text: 'Snip to AI Context', link: '/features/snip-to-ai-context' },
             { text: 'Command palette', link: '/features/command-palette' }
+          ]
+        },
+        {
+          text: 'Cursor Agent',
+          items: [
+            { text: 'MCP server', link: '/features/mcp-server' },
+            { text: 'Fix With Context', link: '/features/fix-with-context' }
           ]
         }
       ],

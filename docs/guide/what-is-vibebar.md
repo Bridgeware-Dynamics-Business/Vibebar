@@ -19,11 +19,13 @@ VibeBar is built for developers who:
 |------|------|
 | A good starting prompt | [Prompt Library](/features/prompt-library) |
 | Security issues in the repo | [Security Audit](/features/security-audit) |
+| Check if changes are safe to commit | [Ready Check](/features/ready-check) |
 | Raw file content for the model | [Context Packer](/features/context-packer) |
 | Remember what you did this session | [Session Hub](/features/session-hub) |
 | Run tests and fix failures | [Smart Terminal](/features/smart-terminal) |
 | Capture a UI bug visually | [Snip to AI Context](/features/snip-to-ai-context) |
 | Keep assistant docs in the repo | [Code Sync](/features/code-sync) + `AI Context/` folder |
+| Let Cursor read your session directly | [Cursor Agent / MCP server](/features/mcp-server) |
 
 ## How it fits your day
 
