@@ -9,6 +9,7 @@ export type ToolId =
   | 'snip'
   | 'ready-check'
   | 'github'
+  | 'cursor-agent'
   | 'settings'
 
 /** `action` tools fire a one-shot side effect (no panel, no toggled window). */
@@ -39,6 +40,7 @@ export const TOOL_DEFS: ToolDef[] = [
   { id: 'notes', label: 'Notes', icon: 'StickyNote', kind: 'panel' },
   { id: 'snip', label: 'Snip to AI Context', icon: 'Crop', kind: 'action' },
   { id: 'github', label: 'Open in GitHub Desktop', icon: 'Github', kind: 'action', pinnedEnd: true },
+  { id: 'cursor-agent', label: 'Cursor Agent', icon: 'PlugZap', kind: 'panel', pinnedEnd: true },
   { id: 'settings', label: 'Settings', icon: 'Settings', kind: 'panel', pinnedEnd: true }
 ]
 
@@ -57,6 +59,7 @@ export const DETACHABLE_PANEL_IDS = [
   'context-packer',
   'ready-check',
   'notes',
+  'cursor-agent',
   'settings'
 ] as const
 

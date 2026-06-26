@@ -30,6 +30,7 @@ export const PANEL_SIZES: Record<DetachablePanelId, { width: number; height: num
   'context-packer': { width: 460, height: 680 },
   'ready-check': { width: 480, height: 640 },
   notes: { width: 460, height: 720 },
+  'cursor-agent': { width: 420, height: 680 },
   settings: { width: 440, height: 640 }
 }
 

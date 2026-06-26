@@ -5,6 +5,7 @@ import { ClipboardFallbackModal } from '../shared/ClipboardFallbackModal'
 import { CopyHandoffToast, useCopyHandoff } from '../shared/copyHandoff'
 import { useFillToggle } from '../shared/ui'
 import { ContextPackerPanel } from '../overlay/panels/ContextPackerPanel'
+import { CursorAgentPanel } from '../overlay/panels/CursorAgentPanel'
 import { NotesPanel } from '../overlay/panels/NotesPanel'
 import { PromptLibraryPanel } from '../overlay/panels/PromptLibraryPanel'
 import { SecurityAuditPanel } from '../overlay/panels/SecurityAuditPanel'
@@ -19,6 +20,7 @@ const PANEL_TITLES: Record<DetachablePanelId, string> = {
   'context-packer': 'Context Packer',
   'ready-check': 'Ready Check',
   notes: 'Notes',
+  'cursor-agent': 'Cursor Agent',
   settings: 'Settings'
 }
 
@@ -66,6 +68,11 @@ export function DetachedPanelApp({ panelId }: { panelId: DetachablePanelId }): J
     if (preview.noProject || preview.noFiles || preview.paths.length === 0) return
     const result = await window.vibebar.packer.packChanged()
     onCopyOutcome(result.copied, result.text, result.findings.length)
+  }, [onCopyOutcome])
+
+  const handlePrepareCursor = useCallback(async () => {
+    const result = await window.vibebar.quickLaunch.prepareCursor()
+    if (result.text) onCopyOutcome(true, result.text, 0)
   }, [onCopyOutcome])
 
   const shellClass = solid
@@ -129,8 +136,25 @@ export function DetachedPanelApp({ panelId }: { panelId: DetachablePanelId }): J
             onToggleSolid={toggleSolid}
           />
         )
+      case 'cursor-agent':
+        return (
+          <CursorAgentPanel
+            profile={profile}
+            onClose={hide}
+            onPrepareCursor={() => void handlePrepareCursor()}
+            solid={solid}
+            onToggleSolid={toggleSolid}
+          />
+        )
       case 'settings':
-        return <SettingsPanel onClose={hide} solid={solid} onToggleSolid={toggleSolid} />
+        return (
+          <SettingsPanel
+            onClose={hide}
+            onOpenCursorAgent={() => void window.vibebar.panel.detach('cursor-agent')}
+            solid={solid}
+            onToggleSolid={toggleSolid}
+          />
+        )
       case 'prompt-library':
       default:
         return (

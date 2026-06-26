@@ -5,6 +5,7 @@ import { isDetachablePanel } from '@shared/tools.js'
 import { inlinePanelDimensions } from '@shared/overlayMetrics.js'
 import type {
   GitStatus,
+  McpServerStatus,
   OverlayLayout,
   ProjectProfile,
   QuickLaunchApp,
@@ -17,6 +18,7 @@ import { buildPaletteActions, CommandPalette } from './CommandPalette'
 import { OnboardingWizard, useOnboarding } from './OnboardingWizard'
 import { Toolbar } from './Toolbar'
 import { ContextPackerPanel } from './panels/ContextPackerPanel'
+import { CursorAgentPanel } from './panels/CursorAgentPanel'
 import { NotesPanel } from './panels/NotesPanel'
 import { PromptLibraryPanel } from './panels/PromptLibraryPanel'
 import { SessionHubPanel } from './panels/SessionHubPanel'
@@ -31,6 +33,7 @@ export function App(): JSX.Element {
   const [profile, setProfile] = useState<ProjectProfile | null>(null)
   const [recentProjects, setRecentProjects] = useState<RecentProject[]>([])
   const [gitStatus, setGitStatus] = useState<GitStatus | null>(null)
+  const [mcpStatus, setMcpStatus] = useState<McpServerStatus | null>(null)
   const [quickLaunchApps, setQuickLaunchApps] = useState<QuickLaunchApp[]>([])
   const [sessionPinCount, setSessionPinCount] = useState(0)
   const [intentEditorOpen, setIntentEditorOpen] = useState(false)
@@ -79,6 +82,7 @@ export function App(): JSX.Element {
     })
     refreshRecents()
     void window.vibebar.git.getStatus().then(setGitStatus)
+    void window.vibebar.mcp.getStatus().then(setMcpStatus)
     void window.vibebar.quickLaunch.list().then(setQuickLaunchApps)
     void window.vibebar.session.getState().then((s) => setSessionPinCount(s.pinnedCount))
     void window.vibebar.terminal.isOpen().then(({ open }) => {
@@ -91,6 +95,7 @@ export function App(): JSX.Element {
       refreshOnboarding()
     })
     const offGit = window.vibebar.git.onStatusChanged(setGitStatus)
+    const offMcp = window.vibebar.mcp.onChanged(setMcpStatus)
     const offQuickLaunch = window.vibebar.quickLaunch.onChanged(setQuickLaunchApps)
     const offSession = window.vibebar.session.onChanged((s) => setSessionPinCount(s.pinnedCount))
     const offPalette = window.vibebar.overlay.onCommandPalette(({ open }) => {
@@ -115,6 +120,7 @@ export function App(): JSX.Element {
       offLayout()
       offProject()
       offGit()
+      offMcp()
       offQuickLaunch()
       offSession()
       offPalette()
@@ -438,11 +444,23 @@ export function App(): JSX.Element {
             onDetach={() => detachPanel('notes')}
           />
         )
+      case 'cursor-agent':
+        return (
+          <CursorAgentPanel
+            profile={profile}
+            onClose={closePanel}
+            onPrepareCursor={() => void handlePrepareCursor()}
+            solid={solid}
+            onToggleSolid={toggleSolid}
+            onDetach={() => detachPanel('cursor-agent')}
+          />
+        )
       case 'settings':
         return (
           <SettingsPanel
             onClose={closePanel}
             onShowOnboardingAgain={replayOnboarding}
+            onOpenCursorAgent={() => handleTool('cursor-agent')}
             solid={solid}
             onToggleSolid={toggleSolid}
             onDetach={() => detachPanel('settings')}
@@ -486,6 +504,7 @@ export function App(): JSX.Element {
           recentProjects={recentProjects}
           activePanel={activePanel}
           gitStatus={gitStatus}
+          mcpStatus={mcpStatus}
           quickLaunchApps={quickLaunchApps}
           onSelectProject={() => void handleSelectProject()}
           onOpenRecent={(path) => void handleOpenRecent(path)}

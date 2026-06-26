@@ -304,6 +304,13 @@ export function buildPaletteActions(handlers: {
       run: () => handlers.onTool('notes')
     },
     {
+      id: 'cursor-agent',
+      label: 'Open Cursor Agent',
+      keywords: 'mcp cursor agent connection plug snippet server status',
+      icon: 'PlugZap',
+      run: () => handlers.onTool('cursor-agent')
+    },
+    {
       id: 'settings',
       label: 'Open Settings',
       keywords: 'preferences config hotkeys',

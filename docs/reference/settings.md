@@ -44,7 +44,7 @@ Built-in launchers: **Cursor** and **Codex**. For each app you can:
 
 ## Cursor Agent
 
-Optional integrations for Cursor power users. See [MCP server](/features/mcp-server) for full setup.
+These settings now live in their own toolbar menu — open the **Cursor Agent** button (plug icon) on the toolbar, not Settings. The Settings panel keeps a shortcut card that opens it. See [MCP server](/features/mcp-server) for full setup.
 
 | Setting | Default | Effect |
 |---------|---------|--------|
@@ -54,7 +54,7 @@ Optional integrations for Cursor power users. See [MCP server](/features/mcp-ser
 | **Auto-pin Fix with Context** | Off | Pins the Session Hub entry when **Fix with Context** copies to clipboard |
 | **Auto-run verify after Fix with Context** | Off | Queues suggested verify in Smart Terminal after fix copy |
 
-When MCP is enabled, Settings shows **Running/Stopped**, port, **last agent access** time, and a **Copy mcp.json snippet** button for Cursor's MCP config.
+The Cursor Agent menu shows the connection status (**Running/Stopped/Failed**), the full endpoint URL, **last agent access** time, a setup checklist, and a **Copy mcp.json snippet** button for Cursor's MCP config. The toolbar button turns green while Cursor is actively connected.
 
 ## Stack detection override
 

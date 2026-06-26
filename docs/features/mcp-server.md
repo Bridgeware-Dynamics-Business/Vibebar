@@ -4,7 +4,7 @@ Optional **localhost MCP server** so Cursor Agent can read VibeBar project state
 
 ## What it does
 
-When enabled in **Settings → Cursor Agent**, VibeBar runs a Streamable HTTP MCP server on `127.0.0.1:17342` (localhost only).
+When enabled from the **Cursor Agent** toolbar button (plug icon), VibeBar runs a Streamable HTTP MCP server on `127.0.0.1:17342` (localhost only).
 
 ### Read-only resources
 
@@ -37,11 +37,11 @@ When enabled in **Settings → Cursor Agent**, VibeBar runs a Streamable HTTP MC
 | `get_regression_context` | `{ maxTokens?: number }` | MVC pack for files changed since last green |
 | `record_outcome` | `{ outcome, entryId? }` | Updates pinned verify status (`verified` / `still-broken` / `abandoned`) |
 
-All resources and tools update **last agent access** in Settings (same as Phase A).
+All resources and tools update the **last agent access** time shown in the Cursor Agent menu.
 
 ## Cursor setup
 
-1. Open VibeBar **Settings → Cursor Agent**.
+1. Open the **Cursor Agent** button (plug icon) on the VibeBar toolbar.
 2. Enable **Enable MCP server for Cursor** — status should show **Running** on port `17342`.
 3. Click **Copy mcp.json snippet** and merge into your Cursor MCP config.
 
@@ -65,11 +65,11 @@ On Windows, Cursor reads MCP config from `%USERPROFILE%\.cursor\mcp.json` (or pr
 
 **Session Hub → Prepare Cursor** or **Command Palette → Prepare Cursor** builds an ~8k-char bootstrap (intent, verify recipe, Ready Check brief, MCP usage hint), copies it to the clipboard, and opens Cursor on the project path.
 
-When **Paste clipboard after opening Cursor** is enabled in Settings, VibeBar also attempts a one-shot paste (Windows: best-effort SendKeys).
+When **Paste clipboard after opening Cursor** is enabled in the Cursor Agent menu, VibeBar also attempts a one-shot paste (Windows: best-effort SendKeys).
 
 ## Paste after open (Quick Launch bridge)
 
-Separate from MCP: **Settings → Cursor Agent → Paste clipboard after opening Cursor** (default **off**).
+Separate from MCP: **Cursor Agent menu → Paste clipboard after opening Cursor** (default **off**).
 
 When enabled **and** you explicitly open Cursor from:
 
@@ -97,7 +97,7 @@ VibeBar launches Cursor on your project path and attempts a one-shot paste (Wind
 
 | Issue | Fix |
 |-------|-----|
-| Status **Stopped** while enabled | Another process may own port `17342`, or startup failed — check the error line in Settings |
+| Status **Stopped** while enabled | Another process may own port `17342`, or startup failed — check the error line in the Cursor Agent menu |
 | Cursor cannot connect | Confirm VibeBar is running, project selected, and URL matches `http://127.0.0.1:17342/mcp` |
 | Empty audit resource | Run Security Audit once so a cached report exists |
 | Empty failures resource | Run a failing command in Smart Terminal with parseable output |

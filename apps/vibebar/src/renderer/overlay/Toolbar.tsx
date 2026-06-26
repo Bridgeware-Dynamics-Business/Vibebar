@@ -4,6 +4,7 @@ import { TOOL_DEFS, type ToolId } from '@shared/tools.js'
 import type {
   DockSide,
   GitStatus,
+  McpServerStatus,
   Orientation,
   ProjectProfile,
   QuickLaunchApp,
@@ -85,6 +86,21 @@ function CircleButton({
       )}
     </motion.button>
   )
+}
+
+/** Tooltip + green "connected" affordance for the Cursor Agent (MCP) button. */
+function cursorAgentButtonInfo(
+  status: McpServerStatus | null
+): { label: string; success?: boolean } {
+  if (!status || !status.enabled) return { label: 'Cursor Agent — MCP disabled' }
+  if (status.error) return { label: `Cursor Agent — failed to start: ${status.error}` }
+  if (!status.running) return { label: 'Cursor Agent — starting…' }
+  const connected =
+    status.lastAgentAccessAt != null && Date.now() - status.lastAgentAccessAt < 60_000
+  return {
+    label: connected ? 'Cursor Agent — connected' : `Cursor Agent — running on ${status.host}:${status.port}`,
+    success: connected
+  }
 }
 
 /** A descriptive tooltip + badge count for the GitHub Desktop button. */
@@ -239,6 +255,7 @@ export function Toolbar({
   recentProjects,
   activePanel,
   gitStatus,
+  mcpStatus,
   quickLaunchApps,
   onSelectProject,
   onOpenRecent,
@@ -255,6 +272,7 @@ export function Toolbar({
   recentProjects: RecentProject[]
   activePanel: ToolId | null
   gitStatus: GitStatus | null
+  mcpStatus: McpServerStatus | null
   quickLaunchApps: QuickLaunchApp[]
   onSelectProject: () => void
   onOpenRecent: (path: string) => void
@@ -318,13 +336,15 @@ export function Toolbar({
       <div className={dividerClass} />
       {pinned.map((tool) => {
         const git = tool.id === 'github' ? gitButtonInfo(gitStatus) : null
+        const cursorAgent = tool.id === 'cursor-agent' ? cursorAgentButtonInfo(mcpStatus) : null
         return (
           <Fragment key={tool.id}>
             <CircleButton
               icon={tool.icon}
-              label={git?.label ?? tool.label}
+              label={git?.label ?? cursorAgent?.label ?? tool.label}
               active={activePanel === tool.id}
               badge={git?.badge}
+              success={cursorAgent?.success}
               onClick={() => onTool(tool.id)}
             />
             {tool.id === 'github' && visibleQuickLaunch.length > 0 && (

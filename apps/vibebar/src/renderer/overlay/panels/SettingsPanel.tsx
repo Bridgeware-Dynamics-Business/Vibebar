@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { SettingsState } from '@shared/api.js'
-import type { DockSide, McpServerStatus, ProjectProfile, ProjectStackOverrides, QuickLaunchApp } from '@shared/types.js'
+import type { DockSide, ProjectProfile, ProjectStackOverrides, QuickLaunchApp } from '@shared/types.js'
 import { Icon } from '../../shared/icons'
 import { DetachButton, PanelHeader, Toggle } from '../../shared/ui'
 
@@ -10,26 +10,18 @@ const DOCKS: { id: DockSide; label: string }[] = [
   { id: 'right', label: 'Right' }
 ]
 
-function formatAgentAccessAgo(timestamp: number | null | undefined): string {
-  if (timestamp == null) return 'No agent access yet'
-  const deltaMs = Date.now() - timestamp
-  if (deltaMs < 60_000) return 'Cursor connected recently'
-  const mins = Math.floor(deltaMs / 60_000)
-  if (mins < 60) return `Last agent access: ${mins}m ago`
-  const hours = Math.floor(mins / 60)
-  if (hours < 48) return `Last agent access: ${hours}h ago`
-  return `Last agent access: ${Math.floor(hours / 24)}d ago`
-}
-
 export function SettingsPanel({
   onClose,
   onShowOnboardingAgain,
+  onOpenCursorAgent,
   solid,
   onToggleSolid,
   onDetach
 }: {
   onClose: () => void
   onShowOnboardingAgain?: () => void
+  /** Opens the dedicated Cursor Agent / MCP panel from the redirect card. */
+  onOpenCursorAgent?: () => void
   solid?: boolean
   onToggleSolid?: () => void
   /** When provided, shows a Detach button that pops the panel out into a floating window. */
@@ -38,8 +30,6 @@ export function SettingsPanel({
   const [state, setState] = useState<SettingsState | null>(null)
   const [quickLaunch, setQuickLaunch] = useState<QuickLaunchApp[]>([])
   const [githubDesktopPath, setGithubDesktopPath] = useState('')
-  const [mcpStatus, setMcpStatus] = useState<McpServerStatus | null>(null)
-  const [snippetCopied, setSnippetCopied] = useState(false)
   const [profile, setProfile] = useState<ProjectProfile | null>(null)
   const [stackOverrides, setStackOverrides] = useState<ProjectStackOverrides>({})
 
@@ -47,20 +37,17 @@ export function SettingsPanel({
     void window.vibebar.settings.get().then((s) => {
       setState(s)
       setGithubDesktopPath(s.githubDesktopPath ?? '')
-      setMcpStatus(s.mcpStatus)
     })
     void window.vibebar.project.get().then(setProfile)
     void window.vibebar.project.getStackOverrides().then(setStackOverrides)
     void window.vibebar.quickLaunch.list().then(setQuickLaunch)
     const offQuickLaunch = window.vibebar.quickLaunch.onChanged(setQuickLaunch)
-    const offMcp = window.vibebar.mcp.onChanged(setMcpStatus)
     const offProject = window.vibebar.project.onChanged((p) => {
       setProfile(p)
       void window.vibebar.project.getStackOverrides().then(setStackOverrides)
     })
     return () => {
       offQuickLaunch()
-      offMcp()
       offProject()
     }
   }, [])
@@ -68,18 +55,6 @@ export function SettingsPanel({
   async function save(partial: Parameters<typeof window.vibebar.settings.save>[0]): Promise<void> {
     const next = await window.vibebar.settings.save(partial)
     setState(next)
-    if (next.mcpStatus) setMcpStatus(next.mcpStatus)
-  }
-
-  async function copyMcpSnippet(): Promise<void> {
-    const snippet = mcpStatus?.connectionSnippet ?? (await window.vibebar.mcp.getStatus()).connectionSnippet
-    try {
-      await navigator.clipboard.writeText(snippet)
-      setSnippetCopied(true)
-      setTimeout(() => setSnippetCopied(false), 2000)
-    } catch {
-      setSnippetCopied(false)
-    }
   }
 
   function toggleDisplay(id: string): void {
@@ -333,100 +308,28 @@ export function SettingsPanel({
           </button>
         </section>
 
-        <section className="space-y-3">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-vibe-muted">
+        <section>
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-vibe-muted">
             Cursor Agent
           </h3>
-          <p className="text-xs text-vibe-muted">
-            Optional integrations for Cursor power users. MCP exposes read-only VibeBar state on
-            localhost only — no API keys, no chat UI.
+          <p className="mb-2 text-xs text-vibe-muted">
+            MCP connection status, the mcp.json snippet, and Cursor automation toggles now live in
+            their own toolbar menu.
           </p>
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-vibe-text">Enable MCP server for Cursor</span>
-            <Toggle
-              checked={settings.mcpServerEnabled ?? false}
-              onChange={(next) => void save({ mcpServerEnabled: next })}
-            />
-          </div>
-          <div className="rounded-lg border border-vibe-border bg-white/[0.03] px-3 py-2 text-xs text-vibe-muted">
-            <div className="mb-1 flex items-center justify-between gap-2">
-              <span>
-                Status:{' '}
-                <span className={mcpStatus?.running ? 'text-emerald-400' : 'text-vibe-text'}>
-                  {mcpStatus?.running ? 'Running' : 'Stopped'}
-                </span>
-                {mcpStatus?.enabled ? '' : ' (disabled)'}
-              </span>
-              <span>
-                {mcpStatus?.host ?? '127.0.0.1'}:{mcpStatus?.port ?? 17342}
-              </span>
-            </div>
-            {mcpStatus?.error && (
-              <p className="mb-2 text-amber-400">Error: {mcpStatus.error}</p>
-            )}
-            <p className="mb-2 text-[11px] text-vibe-muted">
-              {formatAgentAccessAgo(mcpStatus?.lastAgentAccessAt)}
-            </p>
-            <pre className="vibe-scroll max-h-32 overflow-auto whitespace-pre-wrap rounded bg-black/30 p-2 font-mono text-[10px] text-vibe-text">
-              {mcpStatus?.connectionSnippet ?? '{\n  "mcpServers": {}\n}'}
-            </pre>
-            <button
-              type="button"
-              onClick={() => void copyMcpSnippet()}
-              className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-md border border-vibe-border py-1.5 text-[11px] text-vibe-text hover:bg-white/10"
-            >
-              <Icon name={snippetCopied ? 'Check' : 'Copy'} size={13} />
-              {snippetCopied ? 'Copied' : 'Copy mcp.json snippet'}
-            </button>
-          </div>
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="text-sm text-vibe-text">Auto-pin Fix with Context</span>
-              <p className="text-[11px] text-vibe-muted">
-                When Fix with Context copies, pin the session entry for handoff.
-              </p>
-            </div>
-            <Toggle
-              checked={settings.autoPinFixWithContext ?? false}
-              onChange={(next) => void save({ autoPinFixWithContext: next })}
-            />
-          </div>
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="text-sm text-vibe-text">Paste clipboard after opening Cursor</span>
-              <p className="text-[11px] text-vibe-muted">
-                Opt-in one-shot paste when you tap Open Cursor or Quick Launch after a recent copy.
-              </p>
-            </div>
-            <Toggle
-              checked={settings.pasteAfterOpenCursor ?? false}
-              onChange={(next) => void save({ pasteAfterOpenCursor: next })}
-            />
-          </div>
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="text-sm text-vibe-text">Pre-paste safety gate</span>
-              <p className="text-[11px] text-vibe-muted">
-                Scan clipboard for secrets, oversized prompts, and risky shell patterns before paste.
-              </p>
-            </div>
-            <Toggle
-              checked={settings.prePasteSafetyGate !== false && Boolean(settings.pasteAfterOpenCursor)}
-              onChange={(next) => void save({ prePasteSafetyGate: next })}
-            />
-          </div>
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="text-sm text-vibe-text">Auto-run verify after Fix with Context</span>
-              <p className="text-[11px] text-vibe-muted">
-                Queue the suggested verify command in Smart Terminal after copying a fix bundle.
-              </p>
-            </div>
-            <Toggle
-              checked={settings.autoRunVerifyAfterFix ?? false}
-              onChange={(next) => void save({ autoRunVerifyAfterFix: next })}
-            />
-          </div>
+          <button
+            type="button"
+            onClick={() => onOpenCursorAgent?.()}
+            className="flex w-full items-center gap-2.5 rounded-lg border border-vibe-border bg-white/[0.03] px-3 py-2.5 text-left transition-colors hover:bg-white/10"
+          >
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-vibe-accent/50 bg-vibe-accent/15 text-vibe-accent">
+              <Icon name="PlugZap" size={15} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm text-vibe-text">Open Cursor Agent</span>
+              <span className="block text-[11px] text-vibe-muted">Plug icon on the toolbar</span>
+            </span>
+            <Icon name="ChevronRight" size={16} className="shrink-0 text-vibe-muted" />
+          </button>
         </section>
 
         {profile &&

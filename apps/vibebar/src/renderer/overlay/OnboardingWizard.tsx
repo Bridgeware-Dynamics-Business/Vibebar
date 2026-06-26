@@ -136,7 +136,8 @@ export function OnboardingWizard({
               <p className="text-sm text-vibe-muted">
                 Quick Launch opens Cursor on your project. Use <strong className="text-vibe-text">Prepare Cursor</strong>{' '}
                 (Session Hub or Command Palette) for an agent bootstrap, and enable the optional{' '}
-                <strong className="text-vibe-text">MCP server</strong> in Settings so Cursor can read session state.
+                <strong className="text-vibe-text">MCP server</strong> from the{' '}
+                <strong className="text-vibe-text">Cursor Agent</strong> toolbar button so Cursor can read session state.
               </p>
               <div className="rounded-lg border border-vibe-border bg-white/[0.03] px-3 py-2 text-sm text-vibe-text">
                 {cursorApp?.path ? (
