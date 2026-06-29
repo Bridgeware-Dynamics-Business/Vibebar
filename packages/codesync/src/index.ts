@@ -25,6 +25,11 @@ export {
 export { SyncManager } from './sync/manager.js'
 export { isUnderOrEqual, relUnder, conflictMessage } from './sync/pathConflict.js'
 export {
+  resolveSyncDestRoot,
+  sourceContextFolderName,
+  sourceFolderBasename
+} from './sync/destRoot.js'
+export {
   DEFAULT_IGNORES,
   compileIgnoreMatchers,
   getIgnoreGlobList,

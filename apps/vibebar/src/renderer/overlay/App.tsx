@@ -203,6 +203,17 @@ export function App(): JSX.Element {
     if (!result.ok && result.error) showNotice(result.error)
   }, [showNotice])
 
+  const handleCopyContextFolderPath = useCallback(async () => {
+    const { path } = await window.vibebar.project.getContextFolderPath()
+    if (!path) {
+      showNotice('Select a project first.')
+      return
+    }
+    const result = await window.vibebar.clipboard.write(path)
+    if (result.copied) showNotice('Copied AI context folder path to clipboard.')
+    else showNotice('Could not copy to clipboard.')
+  }, [showNotice])
+
   const handleQuickLaunch = useCallback(
     async (id: string) => {
       const result = await window.vibebar.quickLaunch.run(id, {
@@ -619,6 +630,7 @@ export function App(): JSX.Element {
           onShowProjectMenu={() => void handleShowProjectMenu()}
           onAddContextFolder={() => void handleAddContextFolder()}
           onOpenContextFolder={() => void handleOpenContextFolder()}
+          onCopyContextFolderPath={() => void handleCopyContextFolderPath()}
           onTool={handleTool}
           onQuickLaunch={(id) => void handleQuickLaunch(id)}
           agentDrawerOpen={agentDrawerOpen}

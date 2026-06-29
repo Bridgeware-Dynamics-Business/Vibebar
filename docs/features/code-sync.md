@@ -15,9 +15,9 @@ Code Sync mirrors folders from your project into an AI context directory so assi
 
 | Source | Destination | Why |
 |--------|-------------|-----|
-| `src/components/` | `AI Context/components/` | UI work with Cursor |
-| `docs/` | `AI Context/docs/` | Specs and references |
-| API routes folder | `AI Context/api/` | Backend context |
+| `src/components/` | `AI Context/` | Creates `AI Context/components context/` for UI work with Cursor |
+| `docs/` | `AI Context/` | Creates `AI Context/docs context/` for specs and references |
+| API routes folder | `AI Context/` | Creates `AI Context/api context/` (or similar) for backend context |
 
 Edit files in the **source** tree. The mirror overwrites destination copies on sync. Do not treat the mirror as the source of truth.
 

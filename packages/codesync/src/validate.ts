@@ -1,4 +1,4 @@
-import { stat } from 'node:fs/promises'
+import { mkdir, stat } from 'node:fs/promises'
 import { DEFAULT_DEBOUNCE_MS, DEFAULT_MAX_FILE_BYTES, MAX_SYNC_INSTANCES } from './shared/constants.js'
 import { isUnderOrEqual } from './sync/pathConflict.js'
 
@@ -44,6 +44,9 @@ export async function validateSyncStart(payload: unknown): Promise<ValidatedSync
   }
   await stat(sourceRoot).catch(() => {
     throw new Error('Source folder is not accessible')
+  })
+  await mkdir(destRoot, { recursive: true }).catch(() => {
+    throw new Error('Sync folder is not accessible')
   })
   await stat(destRoot).catch(() => {
     throw new Error('Sync folder is not accessible')

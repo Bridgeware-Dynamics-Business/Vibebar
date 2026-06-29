@@ -219,6 +219,7 @@ export function Toolbar({
   onShowProjectMenu,
   onAddContextFolder,
   onOpenContextFolder,
+  onCopyContextFolderPath,
   onTool,
   onQuickLaunch,
   agentDrawerOpen = false,
@@ -237,6 +238,7 @@ export function Toolbar({
   onShowProjectMenu: () => void
   onAddContextFolder: () => void
   onOpenContextFolder: () => void
+  onCopyContextFolderPath: () => void
   onTool: (id: ToolId) => void
   onQuickLaunch: (id: string) => void
   agentDrawerOpen?: boolean
@@ -272,13 +274,17 @@ export function Toolbar({
           icon={profile.hasContextFolder ? 'FolderCheck' : 'FolderPlus'}
           label={
             profile.hasContextFolder
-              ? 'Open AI context folder in file explorer'
-              : 'Add AI context folder'
+              ? 'Open AI context folder in file explorer (right-click to copy path)'
+              : 'Add AI context folder (right-click to copy path)'
           }
           success={profile.hasContextFolder}
           onClick={() => {
             if (profile.hasContextFolder) onOpenContextFolder()
             else onAddContextFolder()
+          }}
+          onContextMenu={(e) => {
+            e.preventDefault()
+            onCopyContextFolderPath()
           }}
         />
       )}

@@ -1,4 +1,5 @@
 import type { SyncInstanceConfig } from '@vibebar/codesync/api'
+import { resolveSyncDestRoot, sourceContextFolderName } from '@vibebar/codesync'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Icon } from '../shared/icons'
 import { FillToggle, useFillToggle } from '../shared/ui'
@@ -131,16 +132,17 @@ export function CodeSyncApp(): JSX.Element {
       localLog(inst.id, 'Choose both folders first.')
       return
     }
+    const destRoot = resolveSyncDestRoot(inst.syncPath, inst.sourcePath)
     const result = await window.codesync.startSync({
       instanceId: inst.id,
       sourceRoot: inst.sourcePath,
-      destRoot: inst.syncPath,
+      destRoot,
       ignoreText,
       maxFileBytes: mbToBytes(maxMb),
       debounceMs: Number.isFinite(debounceMs) ? debounceMs : 350
     })
     if (result.ok) {
-      localLog(inst.id, 'Sync started.')
+      localLog(inst.id, `Sync started → ${destRoot}`)
       void refreshStatus()
     } else {
       localLog(inst.id, `Start failed: ${result.error}`)
@@ -237,11 +239,22 @@ export function CodeSyncApp(): JSX.Element {
                   value={inst.sourcePath}
                   onBrowse={() => void browse(inst.id, 'sourcePath')}
                 />
-                <FolderField
-                  label="Sync folder"
-                  value={inst.syncPath}
-                  onBrowse={() => void browse(inst.id, 'syncPath')}
-                />
+                <div className="space-y-1">
+                  <FolderField
+                    label="AI context folder (parent)"
+                    value={inst.syncPath}
+                    onBrowse={() => void browse(inst.id, 'syncPath')}
+                  />
+                  {inst.sourcePath && inst.syncPath ? (
+                    <p className="text-[11px] text-vibe-muted">
+                      Mirrors into{' '}
+                      <code className="text-vibe-accent-2">
+                        {sourceContextFolderName(inst.sourcePath)}
+                      </code>{' '}
+                      under this folder.
+                    </p>
+                  ) : null}
+                </div>
               </div>
 
               <div className="mt-3 flex gap-2">
@@ -323,8 +336,9 @@ export function CodeSyncApp(): JSX.Element {
           </div>
         </div>
         <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-300">
-          Warning: files in each sync folder that are not in its source (and not ignored) are
-          deleted during sync.
+          Warning: files in each instance&apos;s mirror folder (e.g.{' '}
+          <code className="text-amber-200">components context</code>) that are not in its source
+          (and not ignored) are deleted during sync.
         </p>
         <div className="flex items-center gap-3">
           <button
