@@ -28,6 +28,10 @@ import type { OverlayManager } from '../overlay/OverlayManager.js'
 import type { AppStore } from '../settings/store.js'
 import { AcpClient } from './AcpClient.js'
 import { AgentCompanionPersistence } from './agentCompanionPersistence.js'
+import {
+  AGENT_COMPANION_TOOLS_CLEAR_DELAY_MS,
+  finalizeRunningToolActivity
+} from '@shared/agentCompanionActivity.js'
 import { findAgentCli } from './findAgentCli.js'
 import { listAgentModels } from './listAgentModels.js'
 
@@ -83,6 +87,7 @@ export class AcpAgentController {
   private customAgentPath: string | null = null
   private pushTimer: ReturnType<typeof setTimeout> | null = null
   private pushPending = false
+  private toolsClearTimer: ReturnType<typeof setTimeout> | null = null
   /** Bumped on cancel/disconnect so in-flight connect() exits without overwriting state. */
   private connectGeneration = 0
   private readonly chatPersistence: AgentCompanionPersistence
@@ -320,7 +325,7 @@ export class AcpAgentController {
     this.error = null
     this.assistantBuffer = ''
     this.assistantMessageId = randomUUID()
-    this.tools.length = 0
+    this.clearToolsNow()
     this.pushState(true)
 
     try {
@@ -381,6 +386,8 @@ export class AcpAgentController {
       this.messages.push({ id: randomUUID(), role: 'system', text: 'Stopped.' })
     }
 
+    finalizeRunningToolActivity(this.tools)
+    this.scheduleToolsClear()
     this.pushState(true)
     return { ok: true }
   }
@@ -461,6 +468,7 @@ export class AcpAgentController {
   }
 
   dispose(): void {
+    this.cancelToolsClear()
     this.persistActiveChat()
     this.flushPushState()
     this.client?.dispose()
@@ -616,6 +624,28 @@ export class AcpAgentController {
     this.pushState(true)
   }
 
+  private cancelToolsClear(): void {
+    if (!this.toolsClearTimer) return
+    clearTimeout(this.toolsClearTimer)
+    this.toolsClearTimer = null
+  }
+
+  private clearToolsNow(): void {
+    this.cancelToolsClear()
+    this.tools.length = 0
+  }
+
+  private scheduleToolsClear(): void {
+    this.cancelToolsClear()
+    if (this.tools.length === 0) return
+    this.toolsClearTimer = setTimeout(() => {
+      this.toolsClearTimer = null
+      if (this.tools.length === 0) return
+      this.tools.length = 0
+      this.pushState(true)
+    }, AGENT_COMPANION_TOOLS_CLEAR_DELAY_MS)
+  }
+
   private onPermission(req: AgentCompanionPermissionRequest): void {
     this.pendingPermission = req
     this.pushState(true)
@@ -629,9 +659,11 @@ export class AcpAgentController {
   private onRunComplete(): void {
     this.streaming = false
     this.connection = this.client?.running ? 'ready' : 'idle'
+    finalizeRunningToolActivity(this.tools)
     this.finishAssistantMessage()
     this.persistActiveChat()
     this.pushState(true)
+    this.scheduleToolsClear()
   }
 
   private onError(message: string): void {
@@ -640,8 +672,10 @@ export class AcpAgentController {
       this.connection = 'error'
     }
     this.streaming = false
+    finalizeRunningToolActivity(this.tools)
     this.finishAssistantMessage()
     this.pushState(true)
+    this.scheduleToolsClear()
   }
 
   private finishAssistantMessage(): void {

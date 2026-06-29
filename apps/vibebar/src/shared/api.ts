@@ -104,6 +104,8 @@ export interface VibeBarApi {
   }
   project: {
     select: () => Promise<ProjectProfile | null>
+    /** Native OS menu for recent projects (right-click the project button). */
+    showMenu: () => Promise<ProjectProfile | null>
     get: () => Promise<ProjectProfile | null>
     /** Recently opened project folders (paths validated on disk). */
     listRecents: () => Promise<RecentProject[]>
@@ -113,6 +115,12 @@ export interface VibeBarApi {
     addContextFolder: () => Promise<ProjectProfile | null>
     /** Reveals the project's AI context folder in the OS file explorer (creates it if missing). */
     openContextFolder: () => Promise<{ ok: boolean; error?: string }>
+    /**
+     * Resolves the AI context folder path for inserting into text (read-only, never creates it).
+     * `path` is null when no project is selected; `exists` is false when the folder is the
+     * canonical path that would be created on demand.
+     */
+    getContextFolderPath: () => Promise<{ path: string | null; exists: boolean }>
     /** Reads AGENTS.md, Cursor rules, and AI context README from the active project. */
     getAiDocs: () => Promise<ProjectAiDocs>
     /** Appends markdown to AGENTS.md (creates the file if missing). */

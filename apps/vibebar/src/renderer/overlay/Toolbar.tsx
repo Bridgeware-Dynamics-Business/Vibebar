@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { Fragment, useEffect, useRef, useState } from 'react'
+import { Fragment, useRef } from 'react'
 import { TOOL_DEFS, type DetachablePanelId, type ToolId } from '@shared/tools.js'
 import type {
   DockSide,
@@ -7,8 +7,7 @@ import type {
   McpServerStatus,
   Orientation,
   ProjectProfile,
-  QuickLaunchApp,
-  RecentProject
+  QuickLaunchApp
 } from '@shared/types.js'
 import { Icon } from '../shared/icons'
 import { LaunchButtonWithDrawer } from './components/LaunchButtonWithDrawer'
@@ -158,94 +157,28 @@ function PowerButton({ dock, onClick }: { dock: DockSide; onClick: () => void })
 
 function ProjectSwitcher({
   profile,
-  recents,
-  dock,
-  orientation,
   onBrowse,
-  onOpenRecent
+  onShowMenu
 }: {
   profile: ProjectProfile | null
-  recents: RecentProject[]
-  dock: DockSide
-  orientation: Orientation
   onBrowse: () => void
-  onOpenRecent: (path: string) => void
+  onShowMenu: () => void
 }): JSX.Element {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-    const onDoc = (e: MouseEvent): void => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', onDoc)
-    return () => document.removeEventListener('mousedown', onDoc)
-  }, [open])
-
-  const popoverClass =
-    orientation === 'vertical'
-      ? dock === 'right'
-        ? 'right-full top-0 mr-2'
-        : 'left-full top-0 ml-2'
-      : 'left-0 top-full mt-2'
-
   return (
-    <div ref={ref} className="relative shrink-0">
-      <CircleButton
-        icon="FolderOpen"
-        label={profile ? `Project: ${profile.folderName}` : 'Select a project'}
-        accent={Boolean(profile)}
-        active={open}
-        onClick={() => setOpen((v) => !v)}
-      />
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.96 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.96 }}
-            className={`vibe-no-drag vibe-glass is-solid absolute z-50 min-w-[200px] max-w-[260px] rounded-xl border border-vibe-border py-1 shadow-xl ${popoverClass}`}
-          >
-            {recents.length > 0 && (
-              <>
-                <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-vibe-muted">
-                  Recent
-                </p>
-                {recents.map((r) => (
-                  <button
-                    key={r.path}
-                    type="button"
-                    onClick={() => {
-                      setOpen(false)
-                      onOpenRecent(r.path)
-                    }}
-                    className={`flex w-full flex-col px-3 py-2 text-left text-sm hover:bg-white/10 ${
-                      profile?.rootPath === r.path ? 'text-vibe-accent-2' : 'text-vibe-text'
-                    }`}
-                  >
-                    <span className="truncate font-medium">{r.label}</span>
-                    <span className="truncate text-[10px] text-vibe-muted">{r.path}</span>
-                  </button>
-                ))}
-                <div className="my-1 h-px bg-vibe-border" />
-              </>
-            )}
-            <button
-              type="button"
-              onClick={() => {
-                setOpen(false)
-                onBrowse()
-              }}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-vibe-text hover:bg-white/10"
-            >
-              <Icon name="Search" size={14} className="text-vibe-muted" />
-              Browse…
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+    <CircleButton
+      icon="FolderOpen"
+      label={
+        profile
+          ? `Project: ${profile.folderName} (right-click for recent projects)`
+          : 'Select a project folder'
+      }
+      accent={Boolean(profile)}
+      onClick={onBrowse}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        onShowMenu()
+      }}
+    />
   )
 }
 
@@ -278,13 +211,12 @@ export function Toolbar({
   orientation,
   dock,
   profile,
-  recentProjects,
   activePanel,
   gitStatus,
   mcpStatus,
   quickLaunchApps,
   onSelectProject,
-  onOpenRecent,
+  onShowProjectMenu,
   onAddContextFolder,
   onOpenContextFolder,
   onTool,
@@ -297,13 +229,12 @@ export function Toolbar({
   orientation: Orientation
   dock: DockSide
   profile: ProjectProfile | null
-  recentProjects: RecentProject[]
   activePanel: DetachablePanelId | null
   gitStatus: GitStatus | null
   mcpStatus: McpServerStatus | null
   quickLaunchApps: QuickLaunchApp[]
   onSelectProject: () => void
-  onOpenRecent: (path: string) => void
+  onShowProjectMenu: () => void
   onAddContextFolder: () => void
   onOpenContextFolder: () => void
   onTool: (id: ToolId) => void
@@ -333,11 +264,8 @@ export function Toolbar({
       <PowerButton dock={dock} onClick={onPower} />
       <ProjectSwitcher
         profile={profile}
-        recents={recentProjects}
-        dock={dock}
-        orientation={orientation}
         onBrowse={onSelectProject}
-        onOpenRecent={onOpenRecent}
+        onShowMenu={onShowProjectMenu}
       />
       {profile && (
         <CircleButton

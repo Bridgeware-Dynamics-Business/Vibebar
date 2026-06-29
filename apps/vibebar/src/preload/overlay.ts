@@ -45,11 +45,13 @@ const api: VibeBarApi = {
   },
   project: {
     select: () => ipcRenderer.invoke(CH.projectSelect),
+    showMenu: () => ipcRenderer.invoke(CH.projectShowMenu),
     get: () => ipcRenderer.invoke(CH.projectGet),
     listRecents: () => ipcRenderer.invoke(CH.projectListRecents),
     openRecent: (path: string) => ipcRenderer.invoke(CH.projectOpenRecent, { path }),
     addContextFolder: () => ipcRenderer.invoke(CH.projectAddContextFolder),
     openContextFolder: () => ipcRenderer.invoke(CH.projectOpenContextFolder),
+    getContextFolderPath: () => ipcRenderer.invoke(CH.projectGetContextFolderPath),
     getAiDocs: () => ipcRenderer.invoke(CH.projectGetAiDocs),
     appendAgentsMd: (markdown: string) => ipcRenderer.invoke(CH.projectAppendAgentsMd, { markdown }),
     getMemoryDiff: () => ipcRenderer.invoke(CH.projectGetMemoryDiff),

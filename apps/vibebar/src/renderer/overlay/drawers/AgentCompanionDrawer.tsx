@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import type {
   AgentCompanionMode,
-  AgentCompanionState
+  AgentCompanionState,
+  AgentCompanionToolActivity
 } from '@shared/agentCompanionApi.js'
+import { sliceVisibleToolActivity } from '@shared/agentCompanionActivity.js'
 import { Icon } from '../../shared/icons'
 import { DetachButton, FillToggle, useFillToggle } from '../../shared/ui'
 import { AgentCompanionContextPanel } from './AgentCompanionContext'
@@ -10,6 +12,68 @@ import { AgentModelSelect } from './AgentModelSelect'
 import { AgentChatHistoryBar } from './AgentChatHistoryBar'
 
 const MODES: AgentCompanionMode[] = ['agent', 'plan', 'ask']
+
+function AgentActivityList({ tools }: { tools: AgentCompanionToolActivity[] }): JSX.Element | null {
+  const [expanded, setExpanded] = useState(false)
+  const { visible, hiddenCount } = sliceVisibleToolActivity(tools, expanded)
+
+  useEffect(() => {
+    if (tools.length === 0) setExpanded(false)
+  }, [tools.length])
+
+  if (tools.length === 0) return null
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-[10px] font-semibold uppercase tracking-wide text-vibe-muted">
+          Activity
+        </div>
+        {hiddenCount > 0 && (
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="text-[10px] font-medium text-vibe-accent-2 hover:text-vibe-text"
+          >
+            {expanded ? 'Show less' : `+${hiddenCount} more`}
+          </button>
+        )}
+      </div>
+      {visible.map((tool) => (
+        <div
+          key={tool.id}
+          className="flex items-start gap-2 rounded-lg border border-vibe-border bg-white/[0.02] px-2.5 py-2"
+        >
+          <Icon
+            name={
+              tool.status === 'running'
+                ? 'Loader2'
+                : tool.status === 'failed'
+                  ? 'CircleX'
+                  : 'CircleCheck'
+            }
+            size={14}
+            className={`mt-0.5 shrink-0 ${
+              tool.status === 'running'
+                ? 'animate-spin text-vibe-accent-2'
+                : tool.status === 'failed'
+                  ? 'text-red-400'
+                  : 'text-emerald-400'
+            }`}
+          />
+          <div className="min-w-0 flex-1">
+            <div className="text-[11px] font-medium text-vibe-text">{tool.label}</div>
+            {tool.detail && (
+              <div className="mt-0.5 truncate font-mono text-[10px] text-vibe-muted">
+                {tool.detail}
+              </div>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
 
 function connectionLabel(state: AgentCompanionState): string {
   switch (state.connection) {
@@ -232,45 +296,7 @@ export function AgentCompanionDrawer({
                 <div className="whitespace-pre-wrap break-words">{msg.text || '…'}</div>
               </div>
             ))}
-            {state.tools.length > 0 && (
-              <div className="space-y-1.5">
-                <div className="text-[10px] font-semibold uppercase tracking-wide text-vibe-muted">
-                  Activity
-                </div>
-                {state.tools.map((tool) => (
-                  <div
-                    key={tool.id}
-                    className="flex items-start gap-2 rounded-lg border border-vibe-border bg-white/[0.02] px-2.5 py-2"
-                  >
-                    <Icon
-                      name={
-                        tool.status === 'running'
-                          ? 'Loader2'
-                          : tool.status === 'failed'
-                            ? 'CircleX'
-                            : 'CircleCheck'
-                      }
-                      size={14}
-                      className={`mt-0.5 shrink-0 ${
-                        tool.status === 'running'
-                          ? 'animate-spin text-vibe-accent-2'
-                          : tool.status === 'failed'
-                            ? 'text-red-400'
-                            : 'text-emerald-400'
-                      }`}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[11px] font-medium text-vibe-text">{tool.label}</div>
-                      {tool.detail && (
-                        <div className="mt-0.5 truncate font-mono text-[10px] text-vibe-muted">
-                          {tool.detail}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            <AgentActivityList tools={state.tools} />
           </>
         )}
 

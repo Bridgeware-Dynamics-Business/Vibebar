@@ -1,4 +1,4 @@
-import { app, clipboard, dialog, ipcMain } from 'electron'
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu } from 'electron'
 import type { PromptCategory, PromptTemplate } from '@vibebar/prompt-engine'
 import { CH } from '@shared/channels.js'
 import type { AuditReport, PackChangedPreview, PackNode, PackResult, ScanResult, ShellType, VibeSettings, IntentContract } from '@shared/types.js'
@@ -207,7 +207,50 @@ export function registerIpc(deps: IpcDeps): void {
     return profile
   }
 
-  handle(CH.projectSelect, async () => broadcastProject(await projects.select()))
+  handleEvent(CH.projectSelect, async (event) => {
+    const parent = BrowserWindow.fromWebContents(event.sender)
+    if (parent && !parent.isDestroyed()) parent.focus()
+    return broadcastProject(await projects.select(parent))
+  })
+  handleEvent(CH.projectShowMenu, async (event) => {
+    const parent = BrowserWindow.fromWebContents(event.sender)
+    const recents = projects.listRecents()
+
+    return new Promise<ReturnType<ProjectService['getProfile']>>((resolve) => {
+      let picked = false
+      const template: Electron.MenuItemConstructorOptions[] = [
+        ...recents.map((r) => ({
+          label: r.label,
+          sublabel: r.path,
+          click: () => {
+            picked = true
+            void (async () => {
+              const profile = await projects.openPath(r.path)
+              resolve(profile ? broadcastProject(profile) : projects.getProfile())
+            })()
+          }
+        })),
+        ...(recents.length > 0 ? [{ type: 'separator' as const }] : []),
+        {
+          label: 'Browse…',
+          click: () => {
+            picked = true
+            void (async () => {
+              if (parent && !parent.isDestroyed()) parent.focus()
+              resolve(broadcastProject(await projects.select(parent)))
+            })()
+          }
+        }
+      ]
+
+      Menu.buildFromTemplate(template).popup({
+        window: parent && !parent.isDestroyed() ? parent : undefined,
+        callback: () => {
+          if (!picked) resolve(projects.getProfile())
+        }
+      })
+    })
+  })
   handle(CH.projectGet, () => projects.getProfile())
   handle(CH.projectListRecents, () => projects.listRecents())
   handle(CH.projectOpenRecent, async (p) => {
@@ -223,6 +266,7 @@ export function registerIpc(deps: IpcDeps): void {
     return profile
   })
   handle(CH.projectOpenContextFolder, () => projects.openContextFolder())
+  handle(CH.projectGetContextFolderPath, () => projects.getContextFolderPath())
   handle(CH.projectGetAiDocs, () => projects.getAiDocs())
   handle(CH.projectAppendAgentsMd, async (p) => {
     const { markdown } = p as { markdown: string }

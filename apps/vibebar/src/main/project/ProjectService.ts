@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { basename, join } from 'node:path'
-import { dialog, shell } from 'electron'
+import { dialog, shell, type BrowserWindow } from 'electron'
 import {
   AI_CONTEXT_DIR,
   detectProject,
@@ -129,11 +129,15 @@ export class ProjectService {
     return this.store.getRecentProjectsValid((p) => existsSync(p))
   }
 
-  async select(): Promise<ProjectProfile | null> {
-    const result = await dialog.showOpenDialog({
+  async select(parent?: BrowserWindow | null): Promise<ProjectProfile | null> {
+    const opts = {
       title: 'Select a project folder',
-      properties: ['openDirectory']
-    })
+      properties: ['openDirectory'] as const
+    }
+    const result =
+      parent && !parent.isDestroyed()
+        ? await dialog.showOpenDialog(parent, opts)
+        : await dialog.showOpenDialog(opts)
     if (result.canceled || !result.filePaths[0]) return this.profile
     return this.openPath(result.filePaths[0])
   }
@@ -189,6 +193,20 @@ export class ProjectService {
     // openPath returns an empty string on success, or an error message on failure.
     const error = await shell.openPath(dir)
     return error ? { ok: false, error } : { ok: true }
+  }
+
+  /**
+   * Resolves the AI context folder path for inserting into text (e.g. an autocomplete in a note).
+   * Read-only: never creates the folder. When none exists yet, the canonical path the "Add context
+   * folder" action would create is returned with `exists: false` so the caller can still offer it.
+   * `path` is null only when no project is selected.
+   */
+  async getContextFolderPath(): Promise<{ path: string | null; exists: boolean }> {
+    const root = this.profile?.rootPath
+    if (!root) return { path: null, exists: false }
+    const existing = await findContextFolder(root)
+    if (existing) return { path: existing, exists: true }
+    return { path: join(root, AI_CONTEXT_DIR), exists: false }
   }
 
   /**

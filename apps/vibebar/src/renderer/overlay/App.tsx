@@ -175,6 +175,12 @@ export function App(): JSX.Element {
     refreshOnboarding()
   }, [refreshRecents, refreshOnboarding])
 
+  const handleShowProjectMenu = useCallback(async () => {
+    setProfile(await window.vibebar.project.showMenu())
+    refreshRecents()
+    refreshOnboarding()
+  }, [refreshRecents, refreshOnboarding])
+
   const handleOpenRecent = useCallback(
     async (path: string) => {
       setProfile(await window.vibebar.project.openRecent(path))
@@ -599,13 +605,12 @@ export function App(): JSX.Element {
           orientation={toolbarOrientation}
           dock={layout.dock}
           profile={profile}
-          recentProjects={recentProjects}
           activePanel={activePanel}
           gitStatus={gitStatus}
           mcpStatus={mcpStatus}
           quickLaunchApps={quickLaunchApps}
           onSelectProject={() => void handleSelectProject()}
-          onOpenRecent={(path) => void handleOpenRecent(path)}
+          onShowProjectMenu={() => void handleShowProjectMenu()}
           onAddContextFolder={() => void handleAddContextFolder()}
           onOpenContextFolder={() => void handleOpenContextFolder()}
           onTool={handleTool}
