@@ -1,11 +1,12 @@
 import { existsSync, readFileSync } from 'node:fs'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { AgentCompanionChat } from '@shared/agentCompanionChats.js'
 import { pruneAgentCompanionChats } from '@shared/agentCompanionChats.js'
 import type { AppStore } from '../settings/store.js'
 
 export const AGENT_COMPANION_HISTORY_SUBDIR = 'agent-companion'
+export const VIBEBAR_LOCAL_DIR = '.vibebar'
 
 export interface AgentCompanionProjectState {
   activeChatId: string | null
@@ -26,8 +27,32 @@ function projectFilePath(historyDir: string, projectPath: string): string {
   return join(historyDir, AGENT_COMPANION_HISTORY_SUBDIR, 'projects', `${projectKey(projectPath)}.json`)
 }
 
+/** Default on-disk root for project-scoped Agent Companion history (inside `.vibebar/`). */
+export function defaultProjectHistoryRoot(projectPath: string): string {
+  return join(projectPath, VIBEBAR_LOCAL_DIR)
+}
+
+/** Ensures `.vibebar/` is listed in the project `.gitignore` (best-effort, idempotent). */
+export async function ensureVibebarGitignored(projectRoot: string): Promise<void> {
+  const gitignore = join(projectRoot, '.gitignore')
+  try {
+    const raw = existsSync(gitignore) ? await readFile(gitignore, 'utf8') : ''
+    const normalized = raw
+      .split('\n')
+      .map((line) => line.trim().replace(/\/+$/, ''))
+      .filter(Boolean)
+    if (normalized.some((line) => line === '.vibebar' || line === VIBEBAR_LOCAL_DIR)) return
+    const prefix = raw.length && !raw.endsWith('\n') ? '\n' : ''
+    const block = `${prefix}\n# VibeBar local state (session timeline, agent chats)\n${VIBEBAR_LOCAL_DIR}/\n`
+    await writeFile(gitignore, block, { encoding: 'utf8', flag: existsSync(gitignore) ? 'a' : 'w' })
+  } catch {
+    /* ignore — gitignore is best-effort */
+  }
+}
+
 /**
- * Persists Agent Companion chat threads either in electron-store (default) or a user-chosen folder.
+ * Persists Agent Companion chat threads in the project's `.vibebar/agent-companion/` folder by
+ * default (git-ignored), with optional user-chosen folder or electron-store fallback when no project.
  */
 export class AgentCompanionPersistence {
   constructor(private readonly store: AppStore) {}
@@ -37,10 +62,13 @@ export class AgentCompanionPersistence {
     return dir || null
   }
 
-  /** Full path shown in the UI — custom folder or the electron-store config file. */
-  getDisplayPath(): string {
+  /** Full path shown in the UI — custom folder, project `.vibebar/agent-companion`, or app config. */
+  getDisplayPath(projectPath?: string | null): string {
     const custom = this.store.getAgentCompanionHistoryDir()
-    if (custom) return custom
+    if (custom) return join(custom, AGENT_COMPANION_HISTORY_SUBDIR)
+    if (projectPath) {
+      return join(defaultProjectHistoryRoot(projectPath), AGENT_COMPANION_HISTORY_SUBDIR)
+    }
     return this.store.getStoreFilePath()
   }
 
@@ -53,7 +81,19 @@ export class AgentCompanionPersistence {
     if (custom) {
       return this.loadFromDir(custom, projectPath)
     }
-    return this.store.getAgentCompanionProjectState(projectPath)
+    if (projectPath) {
+      const fromProjectDir = this.loadFromDir(defaultProjectHistoryRoot(projectPath), projectPath)
+      if (fromProjectDir.chats.length > 0 || fromProjectDir.activeChatId) {
+        return fromProjectDir
+      }
+      const fromStore = this.store.getAgentCompanionProjectState(projectPath)
+      if (fromStore.chats.length > 0 || fromStore.activeChatId) {
+        void this.persistProjectDir(projectPath, fromStore)
+        return fromStore
+      }
+      return fromProjectDir
+    }
+    return this.store.getAgentCompanionProjectState('')
   }
 
   save(projectPath: string, state: AgentCompanionProjectState): void {
@@ -71,6 +111,10 @@ export class AgentCompanionPersistence {
       void this.saveToDir(custom, projectPath, pruned)
       return
     }
+    if (projectPath) {
+      void this.persistProjectDir(projectPath, pruned)
+      return
+    }
     this.store.setAgentCompanionProjectState(projectPath, pruned)
   }
 
@@ -83,6 +127,15 @@ export class AgentCompanionPersistence {
     }
     this.store.clearAgentCompanionProjects()
     this.store.setAgentCompanionHistoryDir(dir)
+  }
+
+  private async persistProjectDir(
+    projectPath: string,
+    state: AgentCompanionProjectState
+  ): Promise<void> {
+    await this.saveToDir(defaultProjectHistoryRoot(projectPath), projectPath, state)
+    await ensureVibebarGitignored(projectPath)
+    this.store.setAgentCompanionProjectState(projectPath, { activeChatId: null, chats: [] })
   }
 
   private loadFromDir(historyDir: string, projectPath: string): AgentCompanionProjectState {

@@ -136,6 +136,8 @@ export interface VibeBarApi {
     list: () => Promise<PromptListResult>
     preview: (promptId: string, guardrails?: boolean) => Promise<PreviewResult>
     copy: (promptId: string) => Promise<CopyResult>
+    /** Sculpts a prompt with project context for Agent Companion (no clipboard). */
+    prepareForAgent: (promptId: string) => Promise<Omit<CopyResult, 'copied'>>
     toggleFavorite: (promptId: string) => Promise<PromptListResult>
     create: (template: PromptTemplate) => Promise<PromptListResult>
     remove: (promptId: string) => Promise<PromptListResult>

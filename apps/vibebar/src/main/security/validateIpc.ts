@@ -45,6 +45,7 @@ const SCHEMAS: Partial<Record<ChannelName, z.ZodTypeAny>> = {
     guardrails: z.boolean().optional()
   }),
   [CH.promptsCopy]: promptIdPayload,
+  [CH.promptsPrepareForAgent]: promptIdPayload,
   [CH.promptsToggleFavorite]: promptIdPayload,
   [CH.promptsDelete]: promptIdPayload,
   [CH.promptsCreate]: z.object({ template: promptTemplateSchema }),
@@ -226,6 +227,7 @@ const SCHEMAS: Partial<Record<ChannelName, z.ZodTypeAny>> = {
 
   [CH.agentCompanionSetDrawerOpen]: z.object({ open: z.boolean() }),
   [CH.agentCompanionSendPrompt]: z.object({ text: z.string().min(1).max(32_000) }),
+  [CH.agentCompanionStagePrompt]: z.object({ text: z.string().min(1).max(32_000) }),
   [CH.agentCompanionSetMode]: z.object({ mode: z.enum(['agent', 'plan', 'ask']) }),
   [CH.agentCompanionSetModel]: z.object({ modelId: z.string().min(1).max(256) }),
   [CH.agentCompanionSelectChat]: z.object({ chatId: z.string().min(1).max(128) }),

@@ -216,3 +216,31 @@ html.vibe-overlay-root body {
 .xterm .xterm-viewport::-webkit-scrollbar-corner {
   background: transparent;
 }
+
+/* Agent Companion — echo timeline pulse on the active work step. */
+@keyframes agent-echo-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(0.88);
+  }
+}
+
+.agent-echo-dot--active {
+  animation: agent-echo-pulse 1.4s ease-in-out infinite;
+}
+
+.agent-compose-resize-handle:hover,
+.agent-compose-resize-handle:active {
+  background: color-mix(in srgb, var(--color-vibe-accent-2) 8%, transparent);
+}
+
+body.agent-compose-resizing,
+body.agent-compose-resizing * {
+  cursor: ns-resize !important;
+  user-select: none;
+}

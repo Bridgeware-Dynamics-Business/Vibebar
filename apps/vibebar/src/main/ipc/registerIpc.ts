@@ -311,6 +311,10 @@ export function registerIpc(deps: IpcDeps): void {
     }
     return result
   })
+  handle(CH.promptsPrepareForAgent, (p) => {
+    const promptId = (p as { promptId: string }).promptId
+    return prompts.prepareForAgent(promptId)
+  })
   handle(CH.promptsToggleFavorite, (p) =>
     prompts.toggleFavorite((p as { promptId: string }).promptId)
   )
@@ -944,6 +948,11 @@ export function registerIpc(deps: IpcDeps): void {
     return agentCompanion.respondQuestion(answers)
   })
   handle(CH.agentCompanionSkipQuestion, () => agentCompanion.skipQuestion())
+  handle(CH.agentCompanionStagePrompt, (p) => {
+    const { text } = p as { text: string }
+    return agentCompanion.stagePrompt(text)
+  })
+  handle(CH.agentCompanionConsumeStagedPrompt, () => agentCompanion.consumeStagedPrompt())
 
   // Lifecycle — the overlay has no taskbar entry, so the renderer needs an explicit quit. The
   // power button opens a centered confirmation popup; its Yes reuses appQuit, its No cancels.

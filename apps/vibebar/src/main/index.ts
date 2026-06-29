@@ -111,6 +111,7 @@ async function bootstrap(): Promise<void> {
   }
 
   await projects.init()
+  agentCompanion.setProject(projects.getProfile())
   codesync.register()
   registerIpc({
     store,

@@ -14,17 +14,23 @@ export type AgentCompanionConnectionState =
 
 export type AgentCompanionSetupIssue = 'cli-missing' | 'not-authenticated' | null
 
+/** Semantic category for agent tool steps — drives icons and summary chips in the echo timeline. */
+export type AgentCompanionToolKind = 'read' | 'edit' | 'search' | 'shell' | 'think' | 'other'
+
 export interface AgentCompanionMessage {
   id: string
   role: 'user' | 'assistant' | 'system'
   text: string
   streaming?: boolean
+  /** Tool steps archived when this assistant turn finishes. */
+  steps?: AgentCompanionToolActivity[]
 }
 
 export interface AgentCompanionToolActivity {
   id: string
   label: string
   detail?: string
+  kind?: AgentCompanionToolKind
   status: 'running' | 'done' | 'failed'
 }
 
@@ -69,6 +75,8 @@ export interface AgentCompanionState {
   chatHistoryPath: string | null
   /** True when chat history is stored in a user-chosen folder instead of app settings. */
   chatHistoryUsesCustomDir: boolean
+  /** Prompt staged from Prompt Library — fills the compose box until consumed. */
+  stagedPrompt: string | null
 }
 
 export interface AgentCompanionBridge {
@@ -91,5 +99,9 @@ export interface AgentCompanionBridge {
     answers: Array<{ questionId: string; selectedOptionIds: string[] }>
   ) => Promise<{ ok: boolean }>
   skipQuestion: () => Promise<{ ok: boolean }>
+  /** Places text in the compose box without sending (e.g. from Prompt Library). */
+  stagePrompt: (text: string) => Promise<AgentCompanionState>
+  /** Clears a staged prompt after the renderer applied it to the compose box. */
+  consumeStagedPrompt: () => Promise<AgentCompanionState>
   onState: (cb: (state: AgentCompanionState) => void) => () => void
 }

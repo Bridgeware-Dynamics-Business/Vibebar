@@ -6,12 +6,14 @@ import { Icon } from '../../shared/icons'
 export function PromptCard({
   prompt,
   onCopy,
+  onRunWithAgent,
   onToggleFavorite,
   onEdit,
   onDelete
 }: {
   prompt: PromptTemplate
   onCopy: (id: string) => void
+  onRunWithAgent?: (id: string) => void | Promise<void>
   onToggleFavorite: (id: string) => void
   onEdit?: (prompt: PromptTemplate) => void
   onDelete?: (id: string) => void
@@ -20,6 +22,7 @@ export function PromptCard({
   const [preview, setPreview] = useState<string>('')
   const [variables, setVariables] = useState<ResolvedVariable[]>([])
   const [copied, setCopied] = useState(false)
+  const [runningAgent, setRunningAgent] = useState(false)
 
   async function toggle(): Promise<void> {
     const next = !expanded
@@ -35,6 +38,16 @@ export function PromptCard({
     onCopy(prompt.id)
     setCopied(true)
     window.setTimeout(() => setCopied(false), 1600)
+  }
+
+  async function handleRunWithAgent(): Promise<void> {
+    if (!onRunWithAgent) return
+    setRunningAgent(true)
+    try {
+      await onRunWithAgent(prompt.id)
+    } finally {
+      setRunningAgent(false)
+    }
   }
 
   return (
@@ -110,7 +123,7 @@ export function PromptCard({
               <pre className="vibe-scroll max-h-52 overflow-auto whitespace-pre-wrap rounded-lg bg-black/30 p-3 font-mono text-[11px] leading-relaxed text-vibe-text">
                 {preview}
               </pre>
-              <div className="mt-2 flex items-center justify-between">
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-1">
                   {onEdit && prompt.builtIn === false && (
                     <button
@@ -122,25 +135,40 @@ export function PromptCard({
                     </button>
                   )}
                   {onDelete && prompt.builtIn === false ? (
+                    <button
+                      type="button"
+                      onClick={() => onDelete(prompt.id)}
+                      className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-vibe-muted hover:text-red-400"
+                    >
+                      <Icon name="Trash2" size={14} /> Delete
+                    </button>
+                  ) : null}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {onRunWithAgent && (
+                    <button
+                      type="button"
+                      disabled={runningAgent}
+                      onClick={() => void handleRunWithAgent()}
+                      className="flex items-center gap-1.5 rounded-lg border border-vibe-accent-2/40 bg-vibe-accent-2/10 px-3 py-1.5 text-xs font-medium text-vibe-accent-2 transition-colors hover:bg-vibe-accent-2/20 disabled:opacity-50"
+                    >
+                      <Icon
+                        name={runningAgent ? 'Loader2' : 'Sparkles'}
+                        size={14}
+                        className={runningAgent ? 'animate-spin' : undefined}
+                      />
+                      Run with Agent Companion
+                    </button>
+                  )}
                   <button
                     type="button"
-                    onClick={() => onDelete(prompt.id)}
-                    className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-vibe-muted hover:text-red-400"
+                    onClick={handleCopy}
+                    className="flex items-center gap-1.5 rounded-lg bg-vibe-accent px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-vibe-accent/85"
                   >
-                    <Icon name="Trash2" size={14} /> Delete
+                    <Icon name={copied ? 'Check' : 'Copy'} size={14} />
+                    {copied ? 'Copied' : 'Copy prompt'}
                   </button>
-                ) : (
-                  <span />
-                )}
                 </div>
-                <button
-                  type="button"
-                  onClick={handleCopy}
-                  className="flex items-center gap-1.5 rounded-lg bg-vibe-accent px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-vibe-accent/85"
-                >
-                  <Icon name={copied ? 'Check' : 'Copy'} size={14} />
-                  {copied ? 'Copied' : 'Copy prompt'}
-                </button>
               </div>
             </div>
           </motion.div>

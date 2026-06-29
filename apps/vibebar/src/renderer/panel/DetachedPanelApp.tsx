@@ -73,9 +73,12 @@ export function DetachedPanelApp({ panelId }: { panelId: DetachablePanelId }): J
     onCopyOutcome(result.copied, result.text, result.findings.length)
   }, [onCopyOutcome])
 
-  const handlePrepareCursor = useCallback(async () => {
-    const result = await window.vibebar.quickLaunch.prepareCursor()
-    if (result.text) onCopyOutcome(true, result.text, 0)
+  const openAgentCompanion = useCallback(() => {
+    void window.vibebar.overlay.setPanel(true, 'agent-companion')
+  }, [])
+
+  const showNotice = useCallback((message: string) => {
+    onCopyOutcome(false, message, 0)
   }, [onCopyOutcome])
 
   const shellClass = solid
@@ -173,6 +176,8 @@ export function DetachedPanelApp({ panelId }: { panelId: DetachablePanelId }): J
             profile={profile}
             onClose={hide}
             onCopyOutcome={onCopyOutcome}
+            onNotice={showNotice}
+            onOpenAgentCompanion={openAgentCompanion}
             solid={solid}
             onToggleSolid={toggleSolid}
           />

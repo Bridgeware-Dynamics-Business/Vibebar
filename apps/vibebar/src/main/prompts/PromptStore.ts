@@ -62,20 +62,39 @@ export class PromptStore {
     return { text: result.sculptedText, resolvedVariables: result.resolvedVariables }
   }
 
-  copy(promptId: string): CopyResult {
+  private sculptRedacted(promptId: string): Omit<CopyResult, 'copied'> | null {
     const template = this.find(promptId)
-    if (!template) {
-      return { copied: false, text: '', resolvedVariables: [], findings: [] }
-    }
+    if (!template) return null
     const guardrails = this.store.getSettings().guardrailsEnabled
     const result = sculptPrompt(template, buildContext(this.profile()), { guardrails })
-    // Redact before the text leaves the machine: a sculpted prompt can pull a hard-coded secret
-    // in from a resolved variable, and the clipboard is the exact moment it heads to an LLM.
     const scan = scanText(result.sculptedText)
+    return {
+      text: scan.redactedText,
+      resolvedVariables: result.resolvedVariables,
+      findings: scan.findings
+    }
+  }
 
+  /** Sculpts a prompt for Agent Companion — same repo context as copy, without clipboard. */
+  prepareForAgent(promptId: string): Omit<CopyResult, 'copied'> {
+    const template = this.find(promptId)
+    if (!template) {
+      return { text: '', resolvedVariables: [], findings: [] }
+    }
+    const result = this.sculptRedacted(promptId)!
+    this.store.addHistory({ promptId, title: template.title, at: Date.now() })
+    return result
+  }
+
+  copy(promptId: string): CopyResult {
+    const result = this.sculptRedacted(promptId)
+    if (!result) {
+      return { copied: false, text: '', resolvedVariables: [], findings: [] }
+    }
+    const template = this.find(promptId)!
     let copied = false
     try {
-      clipboard.writeText(scan.redactedText)
+      clipboard.writeText(result.text)
       copied = true
     } catch {
       copied = false
@@ -84,9 +103,9 @@ export class PromptStore {
     this.store.addHistory({ promptId, title: template.title, at: Date.now() })
     return {
       copied,
-      text: scan.redactedText,
+      text: result.text,
       resolvedVariables: result.resolvedVariables,
-      findings: scan.findings
+      findings: result.findings
     }
   }
 

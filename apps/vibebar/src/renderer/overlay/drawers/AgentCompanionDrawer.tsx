@@ -1,78 +1,67 @@
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import type {
   AgentCompanionMode,
-  AgentCompanionState,
-  AgentCompanionToolActivity
+  AgentCompanionState
 } from '@shared/agentCompanionApi.js'
-import { sliceVisibleToolActivity } from '@shared/agentCompanionActivity.js'
 import { Icon } from '../../shared/icons'
 import { DetachButton, FillToggle, useFillToggle } from '../../shared/ui'
 import { AgentCompanionContextPanel } from './AgentCompanionContext'
+import { AgentEchoTimeline } from './AgentEchoTimeline'
 import { AgentModelSelect } from './AgentModelSelect'
 import { AgentChatHistoryBar } from './AgentChatHistoryBar'
 
 const MODES: AgentCompanionMode[] = ['agent', 'plan', 'ask']
 
-function AgentActivityList({ tools }: { tools: AgentCompanionToolActivity[] }): JSX.Element | null {
-  const [expanded, setExpanded] = useState(false)
-  const { visible, hiddenCount } = sliceVisibleToolActivity(tools, expanded)
+const COMPOSE_HEIGHT_MIN = 72
+const COMPOSE_HEIGHT_MAX = 360
+const COMPOSE_HEIGHT_DEFAULT = 88
+const COMPOSE_HEIGHT_STORAGE_KEY = 'agentCompanion.composeHeight'
+
+function clampComposeHeight(value: number): number {
+  return Math.min(COMPOSE_HEIGHT_MAX, Math.max(COMPOSE_HEIGHT_MIN, value))
+}
+
+function useComposeHeight(): {
+  height: number
+  onResizePointerDown: (e: ReactPointerEvent<HTMLDivElement>) => void
+} {
+  const [height, setHeight] = useState(() => {
+    const stored = window.localStorage.getItem(COMPOSE_HEIGHT_STORAGE_KEY)
+    if (!stored) return COMPOSE_HEIGHT_DEFAULT
+    const parsed = Number(stored)
+    return Number.isFinite(parsed) ? clampComposeHeight(parsed) : COMPOSE_HEIGHT_DEFAULT
+  })
 
   useEffect(() => {
-    if (tools.length === 0) setExpanded(false)
-  }, [tools.length])
+    window.localStorage.setItem(COMPOSE_HEIGHT_STORAGE_KEY, String(height))
+  }, [height])
 
-  if (tools.length === 0) return null
+  const onResizePointerDown = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return
+    e.preventDefault()
+    const startY = e.clientY
+    const startHeight = height
+    const handle = e.currentTarget
+    handle.setPointerCapture(e.pointerId)
 
-  return (
-    <div className="space-y-1.5">
-      <div className="flex items-center justify-between gap-2">
-        <div className="text-[10px] font-semibold uppercase tracking-wide text-vibe-muted">
-          Activity
-        </div>
-        {hiddenCount > 0 && (
-          <button
-            type="button"
-            onClick={() => setExpanded((v) => !v)}
-            className="text-[10px] font-medium text-vibe-accent-2 hover:text-vibe-text"
-          >
-            {expanded ? 'Show less' : `+${hiddenCount} more`}
-          </button>
-        )}
-      </div>
-      {visible.map((tool) => (
-        <div
-          key={tool.id}
-          className="flex items-start gap-2 rounded-lg border border-vibe-border bg-white/[0.02] px-2.5 py-2"
-        >
-          <Icon
-            name={
-              tool.status === 'running'
-                ? 'Loader2'
-                : tool.status === 'failed'
-                  ? 'CircleX'
-                  : 'CircleCheck'
-            }
-            size={14}
-            className={`mt-0.5 shrink-0 ${
-              tool.status === 'running'
-                ? 'animate-spin text-vibe-accent-2'
-                : tool.status === 'failed'
-                  ? 'text-red-400'
-                  : 'text-emerald-400'
-            }`}
-          />
-          <div className="min-w-0 flex-1">
-            <div className="text-[11px] font-medium text-vibe-text">{tool.label}</div>
-            {tool.detail && (
-              <div className="mt-0.5 truncate font-mono text-[10px] text-vibe-muted">
-                {tool.detail}
-              </div>
-            )}
-          </div>
-        </div>
-      ))}
-    </div>
-  )
+    const onMove = (ev: PointerEvent): void => {
+      setHeight(clampComposeHeight(startHeight + (startY - ev.clientY)))
+    }
+    const onUp = (): void => {
+      handle.releasePointerCapture(e.pointerId)
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onUp)
+      document.body.classList.remove('agent-compose-resizing')
+    }
+
+    document.body.classList.add('agent-compose-resizing')
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onUp)
+  }, [height])
+
+  return { height, onResizePointerDown }
 }
 
 function connectionLabel(state: AgentCompanionState): string {
@@ -111,7 +100,9 @@ export function AgentCompanionDrawer({
   const [sending, setSending] = useState(false)
   const [sendNotice, setSendNotice] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const composeRef = useRef<HTMLTextAreaElement>(null)
   const [localSolid, toggleLocalSolid] = useFillToggle('agentCompanion.solid')
+  const { height: composeHeight, onResizePointerDown } = useComposeHeight()
   const isSolid = solid ?? localSolid
   const toggleSolid = onToggleSolid ?? toggleLocalSolid
 
@@ -126,6 +117,14 @@ export function AgentCompanionDrawer({
       setSending(false)
     }
   }, [state.connection])
+
+  useEffect(() => {
+    if (!state.stagedPrompt) return
+    setDraft(state.stagedPrompt)
+    setSendNotice(null)
+    void window.vibebar.agentCompanion.consumeStagedPrompt()
+    composeRef.current?.focus()
+  }, [state.stagedPrompt])
 
   const stopRun = useCallback(async () => {
     setSending(false)
@@ -284,19 +283,43 @@ export function AgentCompanionDrawer({
                     ? 'ml-6 border-vibe-accent/30 bg-vibe-accent/10 text-vibe-text'
                     : msg.role === 'system'
                       ? 'border-amber-500/30 bg-amber-500/10 text-amber-100'
-                      : 'mr-2 border-vibe-border bg-white/[0.03] text-vibe-text'
+                      : 'mr-2 border-vibe-border/80 bg-white/[0.03] text-vibe-text'
                 }`}
               >
-                <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-vibe-muted">
-                  {msg.role === 'user' ? 'You' : msg.role === 'system' ? 'Notice' : 'Agent'}
-                  {msg.streaming && (
-                    <Icon name="Loader2" size={11} className="ml-1 inline animate-spin" />
+                {msg.role === 'user' && (
+                  <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-vibe-muted">
+                    You
+                  </div>
+                )}
+                {msg.role === 'system' && (
+                  <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-amber-200/70">
+                    Notice
+                  </div>
+                )}
+                <div className="whitespace-pre-wrap break-words">
+                  {msg.text || (msg.streaming ? '' : '…')}
+                  {msg.streaming && !msg.text && (
+                    <span className="inline-flex items-center gap-1.5 text-vibe-muted">
+                      <Icon name="Loader2" size={11} className="animate-spin" />
+                      Thinking…
+                    </span>
                   )}
                 </div>
-                <div className="whitespace-pre-wrap break-words">{msg.text || '…'}</div>
+                {msg.role === 'assistant' && msg.streaming && state.tools.length > 0 && (
+                  <AgentEchoTimeline steps={state.tools} live />
+                )}
+                {msg.role === 'assistant' && !msg.streaming && msg.steps && msg.steps.length > 0 && (
+                  <AgentEchoTimeline steps={msg.steps} />
+                )}
               </div>
             ))}
-            <AgentActivityList tools={state.tools} />
+            {state.connection === 'streaming' &&
+              state.tools.length > 0 &&
+              !state.messages.some((m) => m.streaming && m.role === 'assistant') && (
+                <div className="mr-2 rounded-xl border border-vibe-border/80 bg-white/[0.03] px-3 py-2 text-xs">
+                  <AgentEchoTimeline steps={state.tools} live />
+                </div>
+              )}
           </>
         )}
 
@@ -382,11 +405,7 @@ export function AgentCompanionDrawer({
           </div>
         )}
         {(sending || state.connection === 'connecting') && (
-          <div className="flex items-center justify-between gap-2 text-[11px] text-vibe-accent-2">
-            <span className="flex items-center gap-2">
-              <Icon name="Loader2" size={13} className="animate-spin" />
-              Connecting to Cursor agent…
-            </span>
+          <div className="flex items-center justify-end gap-2">
             <button
               type="button"
               onClick={() => void stopRun()}
@@ -396,34 +415,38 @@ export function AgentCompanionDrawer({
             </button>
           </div>
         )}
-        {state.connection === 'streaming' && !sending && (
-          <div className="flex items-center justify-between gap-2 text-[11px] text-vibe-muted">
-            <span className="flex items-center gap-2">
-              <Icon name="Loader2" size={13} className="animate-spin" />
-              Agent is responding…
-            </span>
-            <button
-              type="button"
-              onClick={() => void stopRun()}
-              className="rounded-md border border-red-500/40 px-2 py-0.5 text-[10px] font-medium text-red-300 hover:bg-red-500/10"
-            >
-              Stop
-            </button>
+        <div className="rounded-xl border border-vibe-border bg-black/20 focus-within:border-vibe-accent/50">
+          <div
+            role="separator"
+            aria-orientation="horizontal"
+            aria-label="Resize message box"
+            aria-valuemin={COMPOSE_HEIGHT_MIN}
+            aria-valuemax={COMPOSE_HEIGHT_MAX}
+            aria-valuenow={composeHeight}
+            onPointerDown={onResizePointerDown}
+            className="agent-compose-resize-handle group flex h-3 cursor-ns-resize items-center justify-center rounded-t-xl border-b border-white/[0.06] bg-white/[0.02] touch-none select-none"
+          >
+            <Icon
+              name="GripHorizontal"
+              size={14}
+              className="text-vibe-muted/70 transition-colors group-hover:text-vibe-text group-active:text-vibe-accent-2"
+            />
           </div>
-        )}
           <textarea
+            ref={composeRef}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={onKeyDown}
-            rows={3}
+            style={{ height: composeHeight }}
             placeholder={
               sendBlocked
                 ? 'Install and sign in to Cursor CLI to chat here…'
                 : 'Ask the agent… (Shift+Enter for newline)'
             }
             disabled={isBusy}
-            className="vibe-no-drag w-full resize-none rounded-xl border border-vibe-border bg-black/30 px-3 py-2 text-xs text-vibe-text placeholder:text-vibe-muted focus:border-vibe-accent/50 focus:outline-none disabled:opacity-50"
+            className="vibe-scroll vibe-no-drag block w-full resize-none rounded-b-xl border-0 bg-black/30 px-3 py-2 text-xs leading-relaxed text-vibe-text placeholder:text-vibe-muted focus:outline-none disabled:opacity-50"
           />
+        </div>
           <div className="flex items-center justify-between gap-2">
             <div className="flex min-w-0 shrink items-center gap-3">
               <button

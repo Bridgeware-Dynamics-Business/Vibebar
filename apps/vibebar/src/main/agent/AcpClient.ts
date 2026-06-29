@@ -7,6 +7,7 @@ import type {
   AgentCompanionPermissionRequest,
   AgentCompanionToolActivity
 } from '@shared/agentCompanionApi.js'
+import { classifyAgentToolKind } from '@shared/agentCompanionActivity.js'
 import { APP_VERSION } from '@shared/appVersion.js'
 
 export interface AcpSessionUpdate {
@@ -246,7 +247,8 @@ export class AcpClient {
       kind === 'tool_completed'
     ) {
       const tc = update.toolCall ?? (update as { tool?: AcpSessionUpdate['toolCall'] }).tool
-      const label = tc?.title ?? tc?.name ?? 'Tool'
+      const name = tc?.name ?? ''
+      const label = tc?.title || name || 'Tool'
       const statusRaw = tc?.status
       const status: AgentCompanionToolActivity['status'] =
         statusRaw === 'completed' || statusRaw === 'done' || kind === 'tool_completed'
@@ -258,6 +260,7 @@ export class AcpClient {
         id: tc?.id ?? `${label}-${Date.now()}`,
         label,
         detail: tc?.detail,
+        kind: classifyAgentToolKind(label, name, tc?.detail),
         status
       })
     }

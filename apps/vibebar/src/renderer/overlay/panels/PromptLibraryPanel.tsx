@@ -22,6 +22,8 @@ export function PromptLibraryPanel({
   profile,
   onClose,
   onCopyOutcome,
+  onNotice,
+  onOpenAgentCompanion,
   solid,
   onToggleSolid,
   onDetach
@@ -29,6 +31,9 @@ export function PromptLibraryPanel({
   profile: ProjectProfile | null
   onClose: () => void
   onCopyOutcome: (copied: boolean, text: string, redactedCount?: number) => void
+  onNotice?: (message: string) => void
+  /** Opens Agent Companion after staging a prompt in its compose box. */
+  onOpenAgentCompanion?: () => void
   solid?: boolean
   onToggleSolid?: () => void
   /** When provided, shows a Detach button that pops the library out into a floating window. */
@@ -76,6 +81,24 @@ export function PromptLibraryPanel({
   async function handleCopy(id: string): Promise<void> {
     const result = await window.vibebar.prompts.copy(id)
     onCopyOutcome(result.copied, result.text, result.findings.length)
+    void reload()
+  }
+
+  async function handleRunWithAgent(id: string): Promise<void> {
+    if (!profile?.rootPath) {
+      onNotice?.('Select a project first so the prompt includes your repo context.')
+      return
+    }
+    const result = await window.vibebar.prompts.prepareForAgent(id)
+    if (!result.text.trim()) {
+      onNotice?.('Could not prepare that prompt.')
+      return
+    }
+    if (result.findings.length > 0) {
+      onCopyOutcome(true, result.text, result.findings.length)
+    }
+    await window.vibebar.agentCompanion.stagePrompt(result.text)
+    onOpenAgentCompanion?.()
     void reload()
   }
 
@@ -219,6 +242,7 @@ export function PromptLibraryPanel({
             key={prompt.id}
             prompt={prompt}
             onCopy={(id) => void handleCopy(id)}
+            onRunWithAgent={onOpenAgentCompanion ? (id) => handleRunWithAgent(id) : undefined}
             onToggleFavorite={(id) => void handleToggleFavorite(id)}
             onEdit={startEdit}
             onDelete={(id) => void handleDelete(id)}

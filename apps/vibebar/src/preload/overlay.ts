@@ -66,6 +66,8 @@ const api: VibeBarApi = {
     preview: (promptId: string, guardrails?: boolean) =>
       ipcRenderer.invoke(CH.promptsPreview, { promptId, guardrails }),
     copy: (promptId: string) => ipcRenderer.invoke(CH.promptsCopy, { promptId }),
+    prepareForAgent: (promptId: string) =>
+      ipcRenderer.invoke(CH.promptsPrepareForAgent, { promptId }),
     toggleFavorite: (promptId: string) =>
       ipcRenderer.invoke(CH.promptsToggleFavorite, { promptId }),
     create: (template: PromptTemplate) => ipcRenderer.invoke(CH.promptsCreate, { template }),
@@ -223,6 +225,8 @@ const api: VibeBarApi = {
     respondQuestion: (answers: Array<{ questionId: string; selectedOptionIds: string[] }>) =>
       ipcRenderer.invoke(CH.agentCompanionRespondQuestion, { answers }),
     skipQuestion: () => ipcRenderer.invoke(CH.agentCompanionSkipQuestion),
+    stagePrompt: (text: string) => ipcRenderer.invoke(CH.agentCompanionStagePrompt, { text }),
+    consumeStagedPrompt: () => ipcRenderer.invoke(CH.agentCompanionConsumeStagedPrompt),
     onState: (cb: (state: import('@shared/agentCompanionApi.js').AgentCompanionState) => void) =>
       subscribe(CH.agentCompanionState, cb)
   },

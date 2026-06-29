@@ -169,6 +169,10 @@ export function App(): JSX.Element {
     setActivePanel('agent-companion')
   }, [activePanel, closePanel])
 
+  const openAgentCompanion = useCallback(() => {
+    setActivePanel('agent-companion')
+  }, [])
+
   const handleSelectProject = useCallback(async () => {
     setProfile(await window.vibebar.project.select())
     refreshRecents()
@@ -423,6 +427,8 @@ export function App(): JSX.Element {
             profile={profile}
             onClose={closePanel}
             onCopyOutcome={onCopyOutcome}
+            onNotice={showNotice}
+            onOpenAgentCompanion={openAgentCompanion}
             solid={solid}
             onToggleSolid={toggleSolid}
             onDetach={() => detachPanel('prompt-library')}

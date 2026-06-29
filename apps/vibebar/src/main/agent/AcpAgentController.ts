@@ -28,10 +28,7 @@ import type { OverlayManager } from '../overlay/OverlayManager.js'
 import type { AppStore } from '../settings/store.js'
 import { AcpClient } from './AcpClient.js'
 import { AgentCompanionPersistence } from './agentCompanionPersistence.js'
-import {
-  AGENT_COMPANION_TOOLS_CLEAR_DELAY_MS,
-  finalizeRunningToolActivity
-} from '@shared/agentCompanionActivity.js'
+import { finalizeRunningToolActivity } from '@shared/agentCompanionActivity.js'
 import { findAgentCli } from './findAgentCli.js'
 import { listAgentModels } from './listAgentModels.js'
 
@@ -57,6 +54,7 @@ function emptyState(overrides: Partial<AgentCompanionState> = {}): AgentCompanio
     error: null,
     chatHistoryPath: null,
     chatHistoryUsesCustomDir: false,
+    stagedPrompt: null,
     ...overrides
   }
 }
@@ -87,7 +85,7 @@ export class AcpAgentController {
   private customAgentPath: string | null = null
   private pushTimer: ReturnType<typeof setTimeout> | null = null
   private pushPending = false
-  private toolsClearTimer: ReturnType<typeof setTimeout> | null = null
+  private stagedPrompt: string | null = null
   /** Bumped on cancel/disconnect so in-flight connect() exits without overwriting state. */
   private connectGeneration = 0
   private readonly chatPersistence: AgentCompanionPersistence
@@ -99,7 +97,6 @@ export class AcpAgentController {
   ) {
     this.chatPersistence = new AgentCompanionPersistence(store)
     this.modelId = store.getAgentCompanionModel()
-    this.loadProjectChats()
   }
 
   getState(): AgentCompanionState {
@@ -387,7 +384,9 @@ export class AcpAgentController {
     }
 
     finalizeRunningToolActivity(this.tools)
-    this.scheduleToolsClear()
+    this.archiveToolStepsToAssistantMessage()
+    this.finishAssistantMessage()
+    this.clearToolsNow()
     this.pushState(true)
     return { ok: true }
   }
@@ -460,6 +459,19 @@ export class AcpAgentController {
     return { ok: true }
   }
 
+  stagePrompt(text: string): AgentCompanionState {
+    const trimmed = text.trim()
+    this.stagedPrompt = trimmed || null
+    this.pushState(true)
+    return this.getState()
+  }
+
+  consumeStagedPrompt(): AgentCompanionState {
+    this.stagedPrompt = null
+    this.pushState(true)
+    return this.getState()
+  }
+
   setProject(_profile: ProjectProfile | null): void {
     this.persistActiveChat()
     this.resetAgentConnection()
@@ -468,7 +480,6 @@ export class AcpAgentController {
   }
 
   dispose(): void {
-    this.cancelToolsClear()
     this.persistActiveChat()
     this.flushPushState()
     this.client?.dispose()
@@ -624,26 +635,8 @@ export class AcpAgentController {
     this.pushState(true)
   }
 
-  private cancelToolsClear(): void {
-    if (!this.toolsClearTimer) return
-    clearTimeout(this.toolsClearTimer)
-    this.toolsClearTimer = null
-  }
-
   private clearToolsNow(): void {
-    this.cancelToolsClear()
     this.tools.length = 0
-  }
-
-  private scheduleToolsClear(): void {
-    this.cancelToolsClear()
-    if (this.tools.length === 0) return
-    this.toolsClearTimer = setTimeout(() => {
-      this.toolsClearTimer = null
-      if (this.tools.length === 0) return
-      this.tools.length = 0
-      this.pushState(true)
-    }, AGENT_COMPANION_TOOLS_CLEAR_DELAY_MS)
   }
 
   private onPermission(req: AgentCompanionPermissionRequest): void {
@@ -656,14 +649,22 @@ export class AcpAgentController {
     this.pushState(true)
   }
 
+  private archiveToolStepsToAssistantMessage(): void {
+    if (this.tools.length === 0 || !this.assistantMessageId) return
+    const msg = this.messages.find((m) => m.id === this.assistantMessageId)
+    if (!msg) return
+    msg.steps = this.tools.map((t) => ({ ...t }))
+  }
+
   private onRunComplete(): void {
     this.streaming = false
     this.connection = this.client?.running ? 'ready' : 'idle'
     finalizeRunningToolActivity(this.tools)
+    this.archiveToolStepsToAssistantMessage()
     this.finishAssistantMessage()
+    this.clearToolsNow()
     this.persistActiveChat()
     this.pushState(true)
-    this.scheduleToolsClear()
   }
 
   private onError(message: string): void {
@@ -673,9 +674,10 @@ export class AcpAgentController {
     }
     this.streaming = false
     finalizeRunningToolActivity(this.tools)
+    this.archiveToolStepsToAssistantMessage()
     this.finishAssistantMessage()
+    this.clearToolsNow()
     this.pushState(true)
-    this.scheduleToolsClear()
   }
 
   private finishAssistantMessage(): void {
@@ -710,8 +712,9 @@ export class AcpAgentController {
       pendingPermission: this.pendingPermission,
       pendingQuestion: this.pendingQuestion,
       error: this.error,
-      chatHistoryPath: this.chatPersistence.getDisplayPath(),
-      chatHistoryUsesCustomDir: this.chatPersistence.isUsingCustomDir()
+      chatHistoryPath: this.chatPersistence.getDisplayPath(profile?.rootPath ?? null),
+      chatHistoryUsesCustomDir: this.chatPersistence.isUsingCustomDir(),
+      stagedPrompt: this.stagedPrompt
     })
   }
 
