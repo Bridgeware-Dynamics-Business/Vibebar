@@ -7,6 +7,7 @@
     "baseUrl": ".",
     "paths": {
       "@vibebar/codesync/api": ["../../packages/codesync/src/api.ts"],
+      "@vibebar/codesync/destRoot": ["../../packages/codesync/src/sync/destRoot.ts"],
       "@vibebar/codesync": ["../../packages/codesync/src/index.ts"],
       "@vibebar/project-detector": ["../../packages/project-detector/src/index.ts"],
       "@vibebar/prompt-engine": ["../../packages/prompt-engine/src/index.ts"],

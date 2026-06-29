@@ -8,10 +8,11 @@ const root = dirname(fileURLToPath(import.meta.url))
 const r = (p: string): string => resolve(root, p)
 
 // Workspace packages are bundled from source via these aliases. Order matters: the more
-// specific '@vibebar/codesync/api' entry must precede '@vibebar/codesync' so the preload
-// can import the pure channel/types module without pulling in the Node-only sync engine.
+// specific '@vibebar/codesync/*' entries must precede '@vibebar/codesync' so renderer/preload
+// can import pure modules without pulling in the Node-only sync engine.
 const alias = {
   '@vibebar/codesync/api': r('../../packages/codesync/src/api.ts'),
+  '@vibebar/codesync/destRoot': r('../../packages/codesync/src/sync/destRoot.ts'),
   '@vibebar/codesync': r('../../packages/codesync/src/index.ts'),
   '@vibebar/project-detector': r('../../packages/project-detector/src/index.ts'),
   '@vibebar/prompt-engine': r('../../packages/prompt-engine/src/index.ts'),

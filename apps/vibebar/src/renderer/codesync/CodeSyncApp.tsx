@@ -1,5 +1,5 @@
 import type { SyncInstanceConfig } from '@vibebar/codesync/api'
-import { resolveSyncDestRoot, sourceContextFolderName } from '@vibebar/codesync'
+import { resolveSyncDestRoot, sourceContextFolderName } from '@vibebar/codesync/destRoot'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Icon } from '../shared/icons'
 import { FillToggle, useFillToggle } from '../shared/ui'

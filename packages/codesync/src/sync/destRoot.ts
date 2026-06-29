@@ -1,12 +1,21 @@
-import { basename, join } from 'node:path'
-
 function trimTrailingSeparators(path: string): string {
   return path.replace(/[\\/]+$/, '')
 }
 
+function pathBasename(path: string): string {
+  const trimmed = trimTrailingSeparators(path)
+  const i = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'))
+  return i >= 0 ? trimmed.slice(i + 1) : trimmed
+}
+
+function pathJoin(left: string, right: string): string {
+  const sep = left.includes('\\') || right.includes('\\') ? '\\' : '/'
+  return `${trimTrailingSeparators(left)}${sep}${right}`
+}
+
 /** Last segment of the chosen source folder (e.g. `components` from `…/src/components`). */
 export function sourceFolderBasename(sourcePath: string): string {
-  const name = basename(trimTrailingSeparators(sourcePath))
+  const name = pathBasename(trimTrailingSeparators(sourcePath))
   return name || 'source'
 }
 
@@ -24,7 +33,7 @@ export function resolveSyncDestRoot(syncPath: string, sourcePath: string): strin
   const sync = trimTrailingSeparators(syncPath)
   const sourceBase = sourceFolderBasename(sourcePath)
   const contextName = sourceContextFolderName(sourcePath)
-  const syncBase = basename(sync)
+  const syncBase = pathBasename(sync)
 
   if (syncBase.toLowerCase() === contextName.toLowerCase()) {
     return sync
@@ -33,5 +42,5 @@ export function resolveSyncDestRoot(syncPath: string, sourcePath: string): strin
   if (syncBase.toLowerCase() === sourceBase.toLowerCase()) {
     return sync
   }
-  return join(sync, contextName)
+  return pathJoin(sync, contextName)
 }

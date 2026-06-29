@@ -22,7 +22,7 @@ describe('sourceContextFolderName', () => {
 describe('resolveSyncDestRoot', () => {
   it('creates a named context subfolder under the sync parent', () => {
     expect(resolveSyncDestRoot('/repo/AI Context', '/repo/src/components')).toBe(
-      join('/repo/AI Context', 'components context')
+      '/repo/AI Context/components context'
     )
   })
 

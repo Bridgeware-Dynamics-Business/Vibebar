@@ -7,6 +7,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@vibebar/codesync/api': r('packages/codesync/src/api.ts'),
+      '@vibebar/codesync/destRoot': r('packages/codesync/src/sync/destRoot.ts'),
       '@vibebar/codesync': r('packages/codesync/src/index.ts'),
       '@vibebar/project-detector': r('packages/project-detector/src/index.ts'),
       '@vibebar/prompt-engine': r('packages/prompt-engine/src/index.ts'),
